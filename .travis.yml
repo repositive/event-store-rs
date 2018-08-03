@@ -1,0 +1,26 @@
+dist: trusty
+language: rust
+rust:
+  - stable
+  - nightly
+sudo: required
+
+before_install:
+  - rustup toolchain add nightly || true
+  - rustup self update
+  - rustup component add rustfmt-preview --toolchain nightly
+  - cargo +nightly fmt --version || true
+
+script:
+  - cargo +nightly fmt --all -- --check
+  - cargo build --release
+  - cargo test --release
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
+
+notifications:
+  email:
+    on_success: never
