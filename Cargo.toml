@@ -3,4 +3,7 @@ name = "event-store-rs"
 version = "0.1.0"
 authors = ["James Waples <jamwaffles@gmail.com>"]
 
+[badges]
+travis-ci = { repository = "jamwaffles/event-store-rs", branch = "master" }
+
 [dependencies]
