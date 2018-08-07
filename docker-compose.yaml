@@ -1,0 +1,21 @@
+version: '3'
+services:
+  postgres:
+    image: "postgres:9.6"
+    ports:
+      - "5430:5432"
+    volumes:
+      - "./postgres_data:/var/lib/postgresql/data"
+    environment:
+      - POSTGRES_DB=event-store-rs
+      - POSTGRES_USER=postgres
+      #- POSTGRES_PASSWORD=postgres
+# organisations:
+#    image: "rust:1.27-slim"
+#    command: /bin/sh -c "cargo run"
+#    working_dir: /opt
+#    ports:
+#      - "8080:8080"
+#    volumes:
+#      - ".:/opt"
+#      - "$HOME/.cargo/registry:/root/.cargo/registry"
