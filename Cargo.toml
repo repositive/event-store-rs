@@ -7,3 +7,8 @@ authors = ["James Waples <jamwaffles@gmail.com>"]
 travis-ci = { repository = "jamwaffles/event-store-rs", branch = "master" }
 
 [dependencies]
+postgres = { version = "0.15.2", optional = true }
+
+[features]
+default = [ "postgres_support" ]
+postgres_support = [ "postgres" ]
