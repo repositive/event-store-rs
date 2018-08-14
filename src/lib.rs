@@ -11,59 +11,21 @@ use std::marker::PhantomData;
 // --- Event store crate ---
 trait Event {}
 trait Events {}
-trait Aggregator<E: Events, Q>: Copy + Clone + Debug + Default {
+trait StoreQuery {}
+struct PgQuery(String);
+trait Aggregator<E: Events, A, Q: StoreQuery>: Copy + Clone + Debug + Default {
     fn apply_event(acc: Self, event: &E) -> Self;
+
+    fn query() -> Q;
 }
 
-// --- Example implementation for the Toaster domain ---
-#[derive(Deserialize)]
-struct Increment {
-    pub by: i32,
-}
-#[derive(Deserialize)]
-struct Decrement {
-    pub by: i32,
-}
-
-impl Event for Increment {}
-impl Event for Decrement {}
-
-#[derive(Deserialize)]
-enum ToasterEvents {
-    Inc(Increment),
-    Dec(Decrement),
-}
-
-impl Events for ToasterEvents {}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-struct SomeDomainEntity {
-    counter: i32,
-}
-
-impl Default for SomeDomainEntity {
-    fn default() -> Self {
-        Self { counter: 0 }
-    }
-}
-
-impl Aggregator<ToasterEvents, (String, String)> for SomeDomainEntity {
-    fn apply_event(acc: Self, event: &ToasterEvents) -> Self {
-        let counter = match event {
-            ToasterEvents::Inc(inc) => acc.counter + inc.by,
-            ToasterEvents::Dec(dec) => acc.counter - dec.by,
-        };
-
-        Self { counter, ..acc }
-    }
-    // fn query() -> String // select * from events where id = $1 and name = $2
-}
+impl StoreQuery for PgQuery {}
 
 trait Store<E: Events> {
-    fn aggregate<T, A>(&self, query: A) -> T
+    fn aggregate<T, A, Q: StoreQuery>(&self, query: A) -> T
     where
         E: Events,
-        T: Aggregator<E, A>;
+        T: Aggregator<E, A, Q>;
 }
 
 struct FakeBackedStore<E: Events> {
@@ -74,9 +36,9 @@ impl<'a, E> Store<E> for FakeBackedStore<E>
 where
     E: Events + Deserialize<'a>,
 {
-    fn aggregate<T, A>(&self, _query: A) -> T
+    fn aggregate<T, A, Q: StoreQuery>(&self, _query: A) -> T
     where
-        T: Aggregator<E, A>,
+        T: Aggregator<E, A, Q>,
     {
         let inc: E = serde_json::from_str(
             r#"{
@@ -98,6 +60,54 @@ where
             .fold(T::default(), |acc, event| T::apply_event(acc, event));
 
         result
+    }
+}
+
+// --- Example implementation for the Toaster domain ---
+#[derive(Deserialize)]
+struct Increment {
+    pub by: i32,
+}
+#[derive(Deserialize)]
+struct Decrement {
+    pub by: i32,
+}
+
+impl Event for Increment {}
+impl Event for Decrement {}
+
+#[derive(Deserialize)]
+#[serde(tag = "type")]
+enum ToasterEvents {
+    Inc(Increment),
+    Dec(Decrement),
+}
+
+impl Events for ToasterEvents {}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+struct SomeDomainEntity {
+    counter: i32,
+}
+
+impl Default for SomeDomainEntity {
+    fn default() -> Self {
+        Self { counter: 0 }
+    }
+}
+
+impl Aggregator<ToasterEvents, (String, String), PgQuery> for SomeDomainEntity {
+    fn apply_event(acc: Self, event: &ToasterEvents) -> Self {
+        let counter = match event {
+            ToasterEvents::Inc(inc) => acc.counter + inc.by,
+            ToasterEvents::Dec(dec) => acc.counter - dec.by,
+        };
+
+        Self { counter, ..acc }
+    }
+
+    fn query() -> PgQuery {
+        PgQuery(String::from("SELECT * FROM events WHERE toast = 'yes'"))
     }
 }
 
