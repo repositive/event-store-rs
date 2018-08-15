@@ -6,6 +6,7 @@ extern crate serde;
 extern crate serde_json;
 
 use event_store_rs::{Aggregator, Event, Events, PgQuery, PgStore};
+use postgres::types::ToSql;
 use postgres::{Connection, TlsMode};
 
 #[derive(Deserialize)]
@@ -44,7 +45,7 @@ impl Default for ToastCounter {
     }
 }
 
-impl<'a> Aggregator<ToasterEvents, &'a str, PgQuery<'a>> for ToastCounter {
+impl<'a> Aggregator<ToasterEvents, String, PgQuery<'a>> for ToastCounter {
     fn apply_event(acc: Self, event: &ToasterEvents) -> Self {
         let counter = match event {
             ToasterEvents::Inc(inc) => acc.counter + inc.by,
@@ -55,10 +56,14 @@ impl<'a> Aggregator<ToasterEvents, &'a str, PgQuery<'a>> for ToastCounter {
         Self { counter, ..acc }
     }
 
-    fn query(field: &'a str) -> PgQuery {
+    fn query(field: String) -> PgQuery<'a> {
+        let mut params: Vec<Box<ToSql>> = Vec::new();
+
+        params.push(Box::new(field));
+
         PgQuery::new(
             "select * from events where data->>'test_field' = $1",
-            &[&"inc_dec"],
+            params,
         )
     }
 }
@@ -95,6 +100,6 @@ mod tests {
 
         let store = PgStore::new(conn);
 
-        let _entity: ToastCounter = store.aggregate("inc_dec");
+        let _entity: ToastCounter = store.aggregate("inc_dec".into());
     }
 }

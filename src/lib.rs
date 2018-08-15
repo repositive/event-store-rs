@@ -21,13 +21,13 @@ pub trait Aggregator<E: Events, A, Q: StoreQuery>: Copy + Clone + Debug + Defaul
 
 pub struct PgQuery<'a> {
     query: &'a str,
-    args: &'a [&'a ToSql],
+    args: Vec<Box<ToSql>>,
 }
 
 impl<'a> StoreQuery for PgQuery<'a> {}
 
 impl<'a> PgQuery<'a> {
-    pub fn new(query: &'a str, args: &'a [&'a ToSql]) -> Self {
+    pub fn new(query: &'a str, args: Vec<Box<ToSql>>) -> Self {
         Self { query, args }
     }
 }
@@ -66,9 +66,15 @@ where
     {
         let PgQuery { query, args } = T::query(query_args);
 
+        let mut params: Vec<&ToSql> = Vec::new();
+
+        for (i, _arg) in args.iter().enumerate() {
+            params.push(&*args[i]);
+        }
+
         let stmt = self.conn.prepare(&query).expect("Prep");
 
-        let results = stmt.query(&args).expect("Query");
+        let results = stmt.query(&params).expect("Query");
 
         results
             .iter()
