@@ -1,10 +1,12 @@
 #[macro_use]
 extern crate serde_derive;
 extern crate event_store_rs;
+extern crate postgres;
 extern crate serde;
 extern crate serde_json;
 
 use event_store_rs::{Aggregator, Event, Events, PgQuery, PgStore};
+use postgres::{Connection, TlsMode};
 
 #[derive(Deserialize)]
 struct Increment {
@@ -42,7 +44,7 @@ impl Default for ToastCounter {
     }
 }
 
-impl<'a> Aggregator<ToasterEvents, &'a str, PgQuery> for ToastCounter {
+impl<'a> Aggregator<ToasterEvents, &'a str, PgQuery<'a>> for ToastCounter {
     fn apply_event(acc: Self, event: &ToasterEvents) -> Self {
         let counter = match event {
             ToasterEvents::Inc(inc) => acc.counter + inc.by,
@@ -53,10 +55,11 @@ impl<'a> Aggregator<ToasterEvents, &'a str, PgQuery> for ToastCounter {
         Self { counter, ..acc }
     }
 
-    fn query() -> PgQuery {
-        PgQuery(String::from(
+    fn query(field: &'a str) -> PgQuery {
+        PgQuery::new(
             "select * from events where data->>'test_field' = $1",
-        ))
+            &[&"inc_dec"],
+        )
     }
 }
 
@@ -85,7 +88,12 @@ mod tests {
 
     #[test]
     fn thing() {
-        let store = PgStore::new();
+        let conn = Connection::connect(
+            "postgres://postgres@localhost:5430/eventstorerust",
+            TlsMode::None,
+        ).expect("Could not connect to DB");
+
+        let store = PgStore::new(conn);
 
         let _entity: ToastCounter = store.aggregate("inc_dec");
     }

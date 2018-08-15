@@ -7,7 +7,7 @@ services:
     volumes:
       - "./postgres_data:/var/lib/postgresql/data"
     environment:
-      POSTGRES_USER: eventstore
+      POSTGRES_USER: postgres
       POSTGRES_DB: eventstorerust
 
   integration_setup:
