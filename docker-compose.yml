@@ -1,0 +1,19 @@
+version: '3'
+services:
+  postgres:
+    image: postgres:10.5-alpine
+    ports:
+      - "5430:5432"
+    volumes:
+      - "./postgres_data:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_USER: eventstore
+      POSTGRES_DB: eventstorerust
+
+  integration_setup:
+    image: postgres:10.5-alpine
+    command: psql -h postgres -U postgres -d eventstorerust -f /opt/integration-tests.sql
+    volumes:
+      - ".:/opt"
+    depends_on:
+      - postgres

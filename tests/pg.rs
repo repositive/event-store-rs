@@ -25,33 +25,38 @@ enum ToasterEvents {
     Inc(Increment),
     #[serde(rename = "some_namespace.Dec")]
     Dec(Decrement),
+    #[serde(rename = "some_namespace.Other")]
+    Other,
 }
 
 impl Events for ToasterEvents {}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct SomeDomainEntity {
+struct ToastCounter {
     counter: i32,
 }
 
-impl Default for SomeDomainEntity {
+impl Default for ToastCounter {
     fn default() -> Self {
         Self { counter: 0 }
     }
 }
 
-impl Aggregator<ToasterEvents, (String, String), PgQuery> for SomeDomainEntity {
+impl<'a> Aggregator<ToasterEvents, &'a str, PgQuery> for ToastCounter {
     fn apply_event(acc: Self, event: &ToasterEvents) -> Self {
         let counter = match event {
             ToasterEvents::Inc(inc) => acc.counter + inc.by,
             ToasterEvents::Dec(dec) => acc.counter - dec.by,
+            _ => acc.counter,
         };
 
         Self { counter, ..acc }
     }
 
     fn query() -> PgQuery {
-        PgQuery(String::from("SELECT * FROM events WHERE toast = 'yes'"))
+        PgQuery(String::from(
+            "select * from events where data->>'test_field' = $1",
+        ))
     }
 }
 
@@ -71,17 +76,17 @@ mod tests {
             ToasterEvents::Dec(Decrement { by: 3 }),
         ];
 
-        let result: SomeDomainEntity = events
+        let result: ToastCounter = events
             .iter()
-            .fold(SomeDomainEntity::default(), SomeDomainEntity::apply_event);
+            .fold(ToastCounter::default(), ToastCounter::apply_event);
 
-        assert_eq!(result, SomeDomainEntity { counter: -4 });
+        assert_eq!(result, ToastCounter { counter: -4 });
     }
 
     #[test]
     fn thing() {
         let store = PgStore::new();
 
-        let _entity: SomeDomainEntity = store.aggregate(("id".into(), "oenebtio".into()));
+        let _entity: ToastCounter = store.aggregate("inc_dec");
     }
 }
