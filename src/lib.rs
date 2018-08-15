@@ -50,13 +50,13 @@ where
     {
         let inc: E = serde_json::from_str(
             r#"{
-            "type": "Inc",
+            "type": "some_namespace.Inc",
             "by": 1
         }"#,
         ).unwrap();
         let dec: E = serde_json::from_str(
             r#"{
-            "type": "Dec",
+            "type": "some_namespace.Dec",
             "by": 1
         }"#,
         ).unwrap();

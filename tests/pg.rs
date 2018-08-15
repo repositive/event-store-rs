@@ -21,7 +21,9 @@ impl Event for Decrement {}
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum ToasterEvents {
+    #[serde(rename = "some_namespace.Inc")]
     Inc(Increment),
+    #[serde(rename = "some_namespace.Dec")]
     Dec(Decrement),
 }
 
