@@ -1,12 +1,19 @@
-use super::{Aggregator, Event, Events, PgQuery};
+//! Test helpers. Do not use in application code.
+
+use super::{Aggregator, Event, Events};
+use pg::PgQuery;
 use postgres::types::ToSql;
 
 #[derive(Deserialize)]
+/// Test event
 pub struct TestIncrementEvent {
+    /// Increment by this much
     pub by: i32,
 }
 #[derive(Deserialize)]
+/// Test event
 pub struct TestDecrementEvent {
+    /// Decrement by this much
     pub by: i32,
 }
 
@@ -15,11 +22,15 @@ impl Event for TestDecrementEvent {}
 
 #[derive(Deserialize)]
 #[serde(tag = "type")]
+/// Set of all events in the domain
 pub enum TestEvents {
+    /// Increment
     #[serde(rename = "some_namespace.Inc")]
     Inc(TestIncrementEvent),
+    /// Decrement
     #[serde(rename = "some_namespace.Dec")]
     Dec(TestDecrementEvent),
+    /// Some other event
     #[serde(rename = "some_namespace.Other")]
     Other,
 }
@@ -27,7 +38,9 @@ pub enum TestEvents {
 impl Events for TestEvents {}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
+/// Testing entity for a pretend domain
 pub struct TestCounterEntity {
+    /// Current counter value
     pub counter: i32,
 }
 

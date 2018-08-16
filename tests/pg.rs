@@ -4,7 +4,7 @@ extern crate postgres;
 use event_store_rs::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
 };
-use event_store_rs::{Aggregator, PgStore, Store};
+use event_store_rs::{pg::PgStore, Aggregator, Store};
 use postgres::{Connection, TlsMode};
 
 #[test]
