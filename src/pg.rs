@@ -96,23 +96,23 @@ where
         T: Aggregator<E, A, PgQuery<'a>> + Serialize + DeserializeOwned,
         A: Clone,
     {
-        let cached: Option<T> = self.cache_find(&T::query(query_args.clone()));
+        let q = T::query(query_args);
+
+        let cached: Option<T> = self.cache_find(&q);
 
         if let Some(c) = cached {
             println!("GOT CACHED {:?}", cached);
             return c;
         }
 
-        let PgQuery { query, args } = T::query(query_args.clone());
-
         let mut params: Vec<&ToSql> = Vec::new();
 
-        for (i, _arg) in args.iter().enumerate() {
-            params.push(&*args[i]);
+        for (i, _arg) in q.args.iter().enumerate() {
+            params.push(&*q.args[i]);
         }
 
         let trans = self.conn.transaction().expect("Tranny");
-        let stmt = trans.prepare(&query).expect("Prep");
+        let stmt = trans.prepare(&q.query).expect("Prep");
 
         let results = stmt
             .lazy_query(&trans, &params, 1000)
@@ -127,7 +127,7 @@ where
 
         trans.finish().expect("Tranny finished");
 
-        self.cache_save(&T::query(query_args.clone()), &results);
+        self.cache_save(&q, &results);
 
         results
     }
