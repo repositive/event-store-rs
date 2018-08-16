@@ -92,7 +92,7 @@ mod tests {
     }
 
     #[test]
-    fn thing() {
+    fn it_queries_the_database() {
         let conn = Connection::connect(
             "postgres://postgres@localhost:5430/eventstorerust",
             TlsMode::None,

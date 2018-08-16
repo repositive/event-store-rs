@@ -1,7 +1,9 @@
+extern crate fallible_iterator;
 extern crate postgres;
 extern crate serde;
 extern crate serde_json;
 
+use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;
 use postgres::Connection;
 use serde::de::DeserializeOwned;
@@ -72,17 +74,20 @@ where
             params.push(&*args[i]);
         }
 
-        let stmt = self.conn.prepare(&query).expect("Prep");
+        let trans = self.conn.transaction().expect("Tranny");
+        let stmt = trans.prepare(&query).expect("Prep");
 
-        let results = stmt.query(&params).expect("Query");
-
-        results
-            .iter()
+        let results = stmt
+            .lazy_query(&trans, &params, 1000)
+            .expect("Query")
             .map(|row| {
                 let json: JsonValue = row.get("data");
                 let evt: E = from_value(json).expect("Decode");
 
                 evt
             }).fold(T::default(), |acc, event| T::apply_event(acc, &event))
+            .expect("Fold");
+
+        results
     }
 }
