@@ -4,13 +4,13 @@ use super::{Aggregator, Event, Events};
 use pg::PgQuery;
 use postgres::types::ToSql;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 /// Test event
 pub struct TestIncrementEvent {
     /// Increment by this much
     pub by: i32,
 }
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 /// Test event
 pub struct TestDecrementEvent {
     /// Decrement by this much
@@ -20,7 +20,7 @@ pub struct TestDecrementEvent {
 impl Event for TestIncrementEvent {}
 impl Event for TestDecrementEvent {}
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 /// Set of all events in the domain
 pub enum TestEvents {
@@ -37,7 +37,7 @@ pub enum TestEvents {
 
 impl Events for TestEvents {}
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 /// Testing entity for a pretend domain
 pub struct TestCounterEntity {
     /// Current counter value

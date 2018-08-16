@@ -12,6 +12,15 @@ CREATE TABLE events (
     context jsonb DEFAULT '{}'::jsonb
 );
 
+DROP TABLE aggregate_cache;
+
+CREATE TABLE aggregate_cache (
+    id bytea PRIMARY KEY,
+    -- id character varying(64) PRIMARY KEY,
+    data jsonb NOT NULL,
+    time timestamp without time zone DEFAULT now()
+);
+
 INSERT INTO "events"("data","context")
 VALUES
 (E'{"type": "some_namespace.Inc", "test_field": "inc_dec", "by": 1}',E'{"time": "2018-03-02T00:00:00+00"}'),
@@ -20,3 +29,5 @@ VALUES
 -- (E'{"type": "some_namespace.Other", "test_field": "other", "foo": "bar"}',E'{"time": "2018-03-02T04:00:00+00"}'),
 -- (E'{"type": "some_namespace.Unknown"}',E'{"time": "2018-03-02T05:00:00+00"}')
 ;
+
+INSERT INTO "aggregate_cache"(id, data, time) VALUES (E'\\xDEADBEEF', E'{ "hello": "world" }', NOW());

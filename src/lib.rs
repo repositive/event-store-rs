@@ -8,10 +8,13 @@ extern crate postgres;
 extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
+extern crate sha2;
 
 pub mod pg;
 pub mod testhelpers;
 
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::fmt::Debug;
 
 /// Trait to be implemented by all domain events
@@ -70,7 +73,7 @@ pub trait StoreQuery {}
 ///     }
 /// }
 /// ```
-pub trait Aggregator<E: Events, A, Q: StoreQuery>: Copy + Clone + Debug + Default {
+pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug + Default {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.
     fn apply_event(acc: Self, event: &E) -> Self;
@@ -98,5 +101,6 @@ pub trait Store<E: Events, Q: StoreQuery> {
     fn aggregate<T, A>(&self, query: A) -> T
     where
         E: Events,
-        T: Aggregator<E, A, Q>;
+        A: Clone,
+        T: Aggregator<E, A, Q> + Serialize + DeserializeOwned;
 }
