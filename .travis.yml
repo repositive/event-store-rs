@@ -5,10 +5,15 @@ rust:
   - nightly
 sudo: required
 
+services:
+  - docker
+
 before_install:
+  - docker-compose up -d postgres
   - rustup toolchain add nightly || true
   - rustup self update
   - rustup component add rustfmt-preview --toolchain nightly
+  - docker-compose run integration_setup
   - cargo +nightly fmt --version || true
 
 script:
