@@ -1,7 +1,11 @@
 extern crate fallible_iterator;
 extern crate postgres;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
+
+pub mod testhelpers;
 
 use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;

@@ -1,105 +1,38 @@
-#[macro_use]
-extern crate serde_derive;
 extern crate event_store_rs;
 extern crate postgres;
-extern crate serde;
-extern crate serde_json;
 
-use event_store_rs::{Aggregator, Event, Events, PgQuery, PgStore};
-use postgres::types::ToSql;
+use event_store_rs::testhelpers::{
+    TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
+};
+use event_store_rs::{Aggregator, PgStore, Store};
 use postgres::{Connection, TlsMode};
 
-#[derive(Deserialize)]
-struct Increment {
-    pub by: i32,
-}
-#[derive(Deserialize)]
-struct Decrement {
-    pub by: i32,
-}
+#[test]
+fn it_aggregates_events() {
+    let events = vec![
+        TestEvents::Inc(TestIncrementEvent { by: 1 }),
+        TestEvents::Inc(TestIncrementEvent { by: 1 }),
+        TestEvents::Dec(TestDecrementEvent { by: 2 }),
+        TestEvents::Inc(TestIncrementEvent { by: 2 }),
+        TestEvents::Dec(TestDecrementEvent { by: 3 }),
+        TestEvents::Dec(TestDecrementEvent { by: 3 }),
+    ];
 
-impl Event for Increment {}
-impl Event for Decrement {}
+    let result: TestCounterEntity = events
+        .iter()
+        .fold(TestCounterEntity::default(), TestCounterEntity::apply_event);
 
-#[derive(Deserialize)]
-#[serde(tag = "type")]
-enum ToasterEvents {
-    #[serde(rename = "some_namespace.Inc")]
-    Inc(Increment),
-    #[serde(rename = "some_namespace.Dec")]
-    Dec(Decrement),
-    #[serde(rename = "some_namespace.Other")]
-    Other,
+    assert_eq!(result, TestCounterEntity { counter: -4 });
 }
 
-impl Events for ToasterEvents {}
+#[test]
+fn it_queries_the_database() {
+    let conn = Connection::connect(
+        "postgres://postgres@localhost:5430/eventstorerust",
+        TlsMode::None,
+    ).expect("Could not connect to DB");
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-struct ToastCounter {
-    counter: i32,
-}
+    let store = PgStore::new(conn);
 
-impl Default for ToastCounter {
-    fn default() -> Self {
-        Self { counter: 0 }
-    }
-}
-
-impl<'a> Aggregator<ToasterEvents, String, PgQuery<'a>> for ToastCounter {
-    fn apply_event(acc: Self, event: &ToasterEvents) -> Self {
-        let counter = match event {
-            ToasterEvents::Inc(inc) => acc.counter + inc.by,
-            ToasterEvents::Dec(dec) => acc.counter - dec.by,
-            _ => acc.counter,
-        };
-
-        Self { counter, ..acc }
-    }
-
-    fn query(field: String) -> PgQuery<'a> {
-        let mut params: Vec<Box<ToSql>> = Vec::new();
-
-        params.push(Box::new(field));
-
-        PgQuery::new(
-            "select * from events where data->>'test_field' = $1",
-            params,
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use event_store_rs::Store;
-
-    #[test]
-    fn it_aggregates_events() {
-        let events = vec![
-            ToasterEvents::Inc(Increment { by: 1 }),
-            ToasterEvents::Inc(Increment { by: 1 }),
-            ToasterEvents::Dec(Decrement { by: 2 }),
-            ToasterEvents::Inc(Increment { by: 2 }),
-            ToasterEvents::Dec(Decrement { by: 3 }),
-            ToasterEvents::Dec(Decrement { by: 3 }),
-        ];
-
-        let result: ToastCounter = events
-            .iter()
-            .fold(ToastCounter::default(), ToastCounter::apply_event);
-
-        assert_eq!(result, ToastCounter { counter: -4 });
-    }
-
-    #[test]
-    fn it_queries_the_database() {
-        let conn = Connection::connect(
-            "postgres://postgres@localhost:5430/eventstorerust",
-            TlsMode::None,
-        ).expect("Could not connect to DB");
-
-        let store = PgStore::new(conn);
-
-        let _entity: ToastCounter = store.aggregate("inc_dec".into());
-    }
+    let _entity: TestCounterEntity = store.aggregate("inc_dec".into());
 }
