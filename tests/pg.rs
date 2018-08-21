@@ -6,6 +6,8 @@ use event_store_rs::testhelpers::{
 };
 use event_store_rs::{pg::PgStore, Aggregator, Store};
 use postgres::{Connection, TlsMode};
+use std::thread;
+use std::time::Duration;
 
 #[test]
 fn it_aggregates_events() {
@@ -49,4 +51,38 @@ fn it_saves_events() {
     let event = TestEvents::Inc(TestIncrementEvent { by: 123123 });
 
     assert!(store.save(event, None::<()>).is_ok());
+}
+
+#[test]
+fn it_uses_the_aggregate_cache() {
+    let conn = Connection::connect(
+        "postgres://postgres@localhost:5430/eventstorerust",
+        TlsMode::None,
+    ).expect("Could not connect to DB");
+
+    conn.execute("TRUNCATE events", &[])
+        .expect("Could not truncate");
+    conn.execute("TRUNCATE aggregate_cache", &[])
+        .expect("Could not truncate");
+
+    let store = PgStore::<TestEvents>::new(conn);
+
+    assert!(
+        store
+            .save(TestEvents::Inc(TestIncrementEvent { by: 1 }), None::<()>)
+            .is_ok()
+    );
+
+    assert!(
+        store
+            .save(TestEvents::Inc(TestIncrementEvent { by: 2 }), None::<()>)
+            .is_ok()
+    );
+
+    // Wait for DB to process
+    thread::sleep(Duration::from_millis(10));
+
+    let entity: TestCounterEntity = store.aggregate("inc_dec".into());
+
+    assert_eq!(entity.counter, 3);
 }

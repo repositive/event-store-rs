@@ -1,6 +1,7 @@
 //! Postgres-backed event store
 
 use super::{Aggregator, EventContext, Events, Store, StoreQuery};
+use chrono::naive::NaiveDateTime;
 use chrono::prelude::*;
 use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;
@@ -65,7 +66,7 @@ where
             ).expect("Cache");
     }
 
-    fn cache_find<T>(&self, q: &PgQuery) -> Option<(T, DateTime<Utc>)>
+    fn cache_find<T>(&self, q: &PgQuery) -> Option<(T, NaiveDateTime)>
     where
         T: DeserializeOwned + Default,
     {
@@ -84,7 +85,13 @@ where
         } else {
             let row = rows.get(0);
 
-            let time: DateTime<Utc> = row.get(1);
+            // let r: DateTime<Local> = row.get(1);
+
+            // println!("COL 1 {:?}", r);
+
+            let time: NaiveDateTime = row.get(1);
+
+            // let time: NaiveDateTime = Utc::now();
 
             Some((
                 from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
@@ -105,11 +112,21 @@ where
     {
         let q = T::query(query_args);
 
-        let cached: Option<(T, DateTime<Utc>)> = self.cache_find(&q);
+        let cached: Option<(T, NaiveDateTime)> = self.cache_find(&q);
 
-        if let Some((cached_record, _cache_time)) = cached {
-            return cached_record;
-        }
+        let (query_string, initial_state) = if let Some((cached_record, cache_time)) = cached {
+            (
+                format!(
+                    "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
+                    q.query, cache_time
+                ),
+                cached_record,
+            )
+        } else {
+            (String::from(q.query), T::default())
+        };
+
+        // println!("QUERY: {}", query_string);
 
         let mut params: Vec<&ToSql> = Vec::new();
 
@@ -118,7 +135,7 @@ where
         }
 
         let trans = self.conn.transaction().expect("Tranny");
-        let stmt = trans.prepare(&q.query).expect("Prep");
+        let stmt = trans.prepare(&query_string).expect("Prep");
 
         let results = stmt
             .lazy_query(&trans, &params, 1000)
@@ -128,7 +145,7 @@ where
                 let evt: E = from_value(json).expect("Decode");
 
                 evt
-            }).fold(T::default(), |acc, event| T::apply_event(acc, &event))
+            }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
             .expect("Fold");
 
         trans.finish().expect("Tranny finished");
