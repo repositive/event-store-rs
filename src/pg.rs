@@ -65,7 +65,7 @@ where
             ).expect("Cache");
     }
 
-    fn cache_find<T>(&self, q: &PgQuery) -> Option<T>
+    fn cache_find<T>(&self, q: &PgQuery) -> Option<(T, DateTime<Utc>)>
     where
         T: DeserializeOwned + Default,
     {
@@ -74,7 +74,7 @@ where
         let rows = self
             .conn
             .query(
-                "SELECT data FROM aggregate_cache WHERE id = $1 LIMIT 1",
+                "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
                 &[&args_hash.as_slice()],
             ).expect("Ret");
 
@@ -82,9 +82,14 @@ where
         if rows.len() != 1 {
             None
         } else {
-            from_value(rows.get(0).get(0))
-                .map(|decoded: T| decoded)
-                .ok()
+            let row = rows.get(0);
+
+            let time: DateTime<Utc> = row.get(1);
+
+            Some((
+                from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
+                time,
+            ))
         }
     }
 }
@@ -100,10 +105,10 @@ where
     {
         let q = T::query(query_args);
 
-        let cached: Option<T> = self.cache_find(&q);
+        let cached: Option<(T, DateTime<Utc>)> = self.cache_find(&q);
 
-        if let Some(c) = cached {
-            return c;
+        if let Some((cached_record, _cache_time)) = cached {
+            return cached_record;
         }
 
         let mut params: Vec<&ToSql> = Vec::new();
