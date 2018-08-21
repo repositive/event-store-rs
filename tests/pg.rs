@@ -36,3 +36,17 @@ fn it_queries_the_database() {
 
     let _entity: TestCounterEntity = store.aggregate("inc_dec".into());
 }
+
+#[test]
+fn it_saves_events() {
+    let conn = Connection::connect(
+        "postgres://postgres@localhost:5430/eventstorerust",
+        TlsMode::None,
+    ).expect("Could not connect to DB");
+
+    let store = PgStore::<TestEvents>::new(conn);
+
+    let event = TestEvents::Inc(TestIncrementEvent { by: 123123 });
+
+    assert!(store.save(event, None::<()>).is_ok());
+}

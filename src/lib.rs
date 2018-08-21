@@ -6,35 +6,63 @@ extern crate fallible_iterator;
 extern crate postgres;
 #[macro_use]
 extern crate serde_derive;
+extern crate chrono;
 extern crate serde;
 extern crate serde_json;
 extern crate sha2;
+extern crate uuid;
 
 pub mod pg;
 pub mod testhelpers;
 
+use chrono::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde_json::Value as JsonValue;
 use std::fmt::Debug;
+
+/// Event context
+///
+/// Contains metadata for event and, most importantly, the creation time
+#[derive(Serialize, Deserialize)]
+pub struct EventContext {
+    /// TODO: What is this?
+    action: Option<String>,
+
+    /// Optional event "subject" or metadata
+    subject: Option<JsonValue>,
+
+    /// Event creation time
+    time: DateTime<Utc>,
+}
 
 /// Trait to be implemented by all domain events
 pub trait Event {}
 
-/// Trait to be implemented by the enum of all domain events
+/// Trait to be implemented by the enum of all domain events. Must also implement `serde::Serialize`
 ///
 /// ```rust
+/// # #[macro_use]
+/// # extern crate serde_derive;
+/// # extern crate event_store_rs;
 /// # use event_store_rs::Events;
+/// #[derive(Serialize)]
 /// struct EventA;
+///
+/// #[derive(Serialize)]
 /// struct EventB;
 ///
+/// #[derive(Serialize)]
 /// enum DomainEvents {
 ///     A(EventA),
 ///     B(EventB),
 /// }
 ///
 /// impl Events for DomainEvents {}
+///
+/// fn main() {}
 /// ```
-pub trait Events {}
+pub trait Events: Serialize {}
 
 /// A query to be passed to the store
 ///
@@ -100,7 +128,11 @@ pub trait Store<E: Events, Q: StoreQuery> {
     /// Query the backing store and return an entity `T`, reduced from queried events
     fn aggregate<T, A>(&self, query: A) -> T
     where
-        E: Events,
         A: Clone,
         T: Aggregator<E, A, Q> + Serialize + DeserializeOwned;
+
+    /// Save an event to the store with optional context
+    fn save<C>(&self, event: E, subject: Option<C>) -> Result<(), String>
+    where
+        C: Serialize;
 }

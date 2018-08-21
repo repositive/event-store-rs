@@ -1,6 +1,7 @@
 //! Postgres-backed event store
 
-use super::{Aggregator, Events, Store, StoreQuery};
+use super::{Aggregator, EventContext, Events, Store, StoreQuery};
+use chrono::prelude::*;
 use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;
 use postgres::Connection;
@@ -10,6 +11,7 @@ use serde::Serialize;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use std::marker::PhantomData;
+use uuid::Uuid;
 
 /// Representation of a Postgres query and args
 pub struct PgQuery<'a> {
@@ -101,7 +103,6 @@ where
         let cached: Option<T> = self.cache_find(&q);
 
         if let Some(c) = cached {
-            println!("GOT CACHED {:?}", cached);
             return c;
         }
 
@@ -130,5 +131,31 @@ where
         self.cache_save(&q, &results);
 
         results
+    }
+
+    fn save<C>(&self, item: E, subject: Option<C>) -> Result<(), String>
+    where
+        C: Serialize,
+    {
+        let time: DateTime<Utc> = Utc::now();
+        let context = EventContext {
+            action: None,
+            subject: subject.map(|s| to_value(s).expect("Could not serialize subject")),
+            time,
+        };
+        let id = Uuid::new_v4();
+
+        self.conn
+            .execute(
+                r#"INSERT INTO events (id, data, context)
+                VALUES ($1, $2, $3)"#,
+                &[
+                    &id,
+                    &to_value(item).expect("Item to value"),
+                    &to_value(context).expect("Context to value"),
+                ],
+            ).expect("Save");
+
+        Ok(())
     }
 }
