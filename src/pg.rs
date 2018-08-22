@@ -85,13 +85,7 @@ where
         } else {
             let row = rows.get(0);
 
-            // let r: DateTime<Local> = row.get(1);
-
-            // println!("COL 1 {:?}", r);
-
             let time: NaiveDateTime = row.get(1);
-
-            // let time: NaiveDateTime = Utc::now();
 
             Some((
                 from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
