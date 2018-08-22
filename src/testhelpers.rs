@@ -9,12 +9,18 @@ use postgres::types::ToSql;
 pub struct TestIncrementEvent {
     /// Increment by this much
     pub by: i32,
+
+    /// Test identifier
+    pub ident: String,
 }
 #[derive(Serialize, Deserialize)]
 /// Test event
 pub struct TestDecrementEvent {
     /// Decrement by this much
     pub by: i32,
+
+    /// Test identifier
+    pub ident: String,
 }
 
 impl Event for TestIncrementEvent {}
@@ -66,9 +72,6 @@ impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
 
         params.push(Box::new(field));
 
-        PgQuery::new(
-            "select * from events where data->>'test_field' = $1",
-            params,
-        )
+        PgQuery::new("select * from events where data->>'ident' = $1", params)
     }
 }

@@ -12,12 +12,30 @@ use std::time::Duration;
 #[test]
 fn it_aggregates_events() {
     let events = vec![
-        TestEvents::Inc(TestIncrementEvent { by: 1 }),
-        TestEvents::Inc(TestIncrementEvent { by: 1 }),
-        TestEvents::Dec(TestDecrementEvent { by: 2 }),
-        TestEvents::Inc(TestIncrementEvent { by: 2 }),
-        TestEvents::Dec(TestDecrementEvent { by: 3 }),
-        TestEvents::Dec(TestDecrementEvent { by: 3 }),
+        TestEvents::Inc(TestIncrementEvent {
+            by: 1,
+            ident: "it_aggregates_events".into(),
+        }),
+        TestEvents::Inc(TestIncrementEvent {
+            by: 1,
+            ident: "it_aggregates_events".into(),
+        }),
+        TestEvents::Dec(TestDecrementEvent {
+            by: 2,
+            ident: "it_aggregates_events".into(),
+        }),
+        TestEvents::Inc(TestIncrementEvent {
+            by: 2,
+            ident: "it_aggregates_events".into(),
+        }),
+        TestEvents::Dec(TestDecrementEvent {
+            by: 3,
+            ident: "it_aggregates_events".into(),
+        }),
+        TestEvents::Dec(TestDecrementEvent {
+            by: 3,
+            ident: "it_aggregates_events".into(),
+        }),
     ];
 
     let result: TestCounterEntity = events
@@ -36,7 +54,22 @@ fn it_queries_the_database() {
 
     let store = PgStore::new(conn);
 
-    let _entity: TestCounterEntity = store.aggregate("inc_dec".into());
+    let ident = String::from("dbquery");
+
+    assert!(
+        store
+            .save(
+                TestEvents::Inc(TestIncrementEvent {
+                    by: 99,
+                    ident: ident.clone()
+                }),
+                None::<()>
+            ).is_ok()
+    );
+
+    let entity: TestCounterEntity = store.aggregate(ident);
+
+    assert_eq!(entity.counter, 99);
 }
 
 #[test]
@@ -48,7 +81,10 @@ fn it_saves_events() {
 
     let store = PgStore::<TestEvents>::new(conn);
 
-    let event = TestEvents::Inc(TestIncrementEvent { by: 123123 });
+    let event = TestEvents::Inc(TestIncrementEvent {
+        by: 123123,
+        ident: "it_saves_events".into(),
+    });
 
     assert!(store.save(event, None::<()>).is_ok());
 }
@@ -60,29 +96,41 @@ fn it_uses_the_aggregate_cache() {
         TlsMode::None,
     ).expect("Could not connect to DB");
 
-    conn.execute("TRUNCATE events", &[])
-        .expect("Could not truncate");
+    let ident = "aggregatecache";
+
+    conn.execute("DELETE FROM events WHERE data->>'ident' = $1", &[&ident])
+        .expect("Truncate");
     conn.execute("TRUNCATE aggregate_cache", &[])
-        .expect("Could not truncate");
+        .expect("Truncate");
 
     let store = PgStore::<TestEvents>::new(conn);
 
     assert!(
         store
-            .save(TestEvents::Inc(TestIncrementEvent { by: 1 }), None::<()>)
-            .is_ok()
+            .save(
+                TestEvents::Inc(TestIncrementEvent {
+                    by: 1,
+                    ident: ident.into()
+                }),
+                None::<()>
+            ).is_ok()
     );
 
     assert!(
         store
-            .save(TestEvents::Inc(TestIncrementEvent { by: 2 }), None::<()>)
-            .is_ok()
+            .save(
+                TestEvents::Inc(TestIncrementEvent {
+                    by: 2,
+                    ident: ident.into()
+                }),
+                None::<()>
+            ).is_ok()
     );
 
     // Wait for DB to process
     thread::sleep(Duration::from_millis(10));
 
-    let entity: TestCounterEntity = store.aggregate("inc_dec".into());
+    let entity: TestCounterEntity = store.aggregate(ident.into());
 
     assert_eq!(entity.counter, 3);
 }
