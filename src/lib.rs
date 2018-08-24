@@ -15,7 +15,7 @@ extern crate uuid;
 pub mod adapters;
 pub mod testhelpers;
 
-use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter};
+use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
 use chrono::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -172,9 +172,13 @@ where
         A: Clone,
     {
         let q = T::query(query_args.clone());
-        let c: Option<(T, DateTime<Utc>)> = self.cache.get(&q);
+        let initial_state: Option<CacheResult<T>> = self.cache.get(&q);
 
-        self.store.aggregate(query_args, c)
+        self.store.aggregate(query_args, initial_state).map(|agg| {
+            self.cache.insert(&q, agg);
+
+            agg
+        })
     }
 
     /// Save an event to the store with optional context
