@@ -5,6 +5,7 @@ use adapters::CacheAdapter;
 use chrono::prelude::*;
 use postgres::Connection;
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde::Serialize;
 use serde_json::from_value;
 use serde_json::to_value;
@@ -22,11 +23,11 @@ impl PgCacheAdapter {
     }
 }
 
-impl<'a, V> CacheAdapter<PgQuery<'a>, V> for PgCacheAdapter
-where
-    V: Serialize + DeserializeOwned,
-{
-    fn insert(&self, key: &PgQuery, value: V) {
+impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
+    fn insert<V>(&self, key: &PgQuery, value: V)
+    where
+        V: Serialize,
+    {
         let args_hash = Sha256::digest(format!("{:?}:[{}]", key.args, key.query).as_bytes());
 
         self.conn
@@ -39,7 +40,10 @@ where
             ).expect("Cache");
     }
 
-    fn get(&self, key: &PgQuery) -> Option<(V, DateTime<Utc>)> {
+    fn get<T>(&self, key: &PgQuery) -> Option<(T, DateTime<Utc>)>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
         let args_hash = Sha256::digest(format!("{:?}:[{}]", key.args, key.query).as_bytes());
 
         let rows = self
@@ -60,7 +64,7 @@ where
             let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
 
             Some((
-                from_value(row.get(0)).map(|decoded: V| decoded).unwrap(),
+                from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
                 utc,
             ))
         }

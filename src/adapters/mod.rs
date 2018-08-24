@@ -9,6 +9,7 @@ mod stub;
 
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
+use serde::Deserialize;
 
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
@@ -26,7 +27,7 @@ pub trait StoreAdapter<E: Events, Q: StoreQuery> {
         since: Option<(T, DateTime<Utc>)>,
     ) -> Result<T, String>
     where
-        T: Aggregator<E, A, Q> + DeserializeOwned + Default,
+        T: Aggregator<E, A, Q> + Default,
         A: Clone;
 
     /// Save an event to the store
@@ -36,12 +37,16 @@ pub trait StoreAdapter<E: Events, Q: StoreQuery> {
 }
 
 /// Caching backend
-pub trait CacheAdapter<K, V: Serialize + DeserializeOwned> {
+pub trait CacheAdapter<K> {
     /// Insert an item into the cache
-    fn insert(&self, key: &K, value: V);
+    fn insert<V>(&self, key: &K, value: V)
+    where
+        V: Serialize;
 
     /// Retrieve an item from the cache
-    fn get(&self, key: &K) -> Option<(V, DateTime<Utc>)>;
+    fn get<T>(&self, key: &K) -> Option<(T, DateTime<Utc>)>
+    where
+        T: DeserializeOwned;
 }
 
 /// Closure called when an incoming event must be handled

@@ -11,26 +11,31 @@ use serde::Serialize;
 use serde_json::from_value;
 use serde_json::to_value;
 use serde_json::Value as JsonValue;
+use std::marker::PhantomData;
 use uuid::Uuid;
 use Aggregator;
 use EventContext;
 use Events;
 
 /// Postgres store adapter
-pub struct PgStoreAdapter {
+pub struct PgStoreAdapter<E> {
+    phantom: PhantomData<E>,
     conn: Connection,
 }
 
-impl PgStoreAdapter {
+impl<E> PgStoreAdapter<E> {
     /// Create a new PgStore from a Postgres DB connection
     pub fn new(conn: Connection) -> Self {
-        Self { conn }
+        Self {
+            conn,
+            phantom: PhantomData,
+        }
     }
 }
 
-impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter
+impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<E>
 where
-    E: Events + DeserializeOwned,
+    E: Events,
 {
     fn aggregate<T, A>(
         &self,
@@ -39,7 +44,7 @@ where
         since: Option<(T, DateTime<Utc>)>,
     ) -> Result<T, String>
     where
-        T: Aggregator<E, A, PgQuery<'a>> + DeserializeOwned + Default,
+        T: Aggregator<E, A, PgQuery<'a>> + Default,
         A: Clone,
     {
         let q = T::query(query_args);

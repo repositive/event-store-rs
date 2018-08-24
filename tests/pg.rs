@@ -59,7 +59,7 @@ fn it_queries_the_database() {
     let cache_adapter = PgCacheAdapter::new(conn);
     let emitter_adapter = StubEmitterAdapter::new();
 
-    let store: EventStore<_, _, _> = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
+    let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
     let ident = String::from("dbquery");
 
@@ -70,7 +70,7 @@ fn it_queries_the_database() {
                     by: 99,
                     ident: ident.clone()
                 }),
-                None
+                None::<()>
             ).is_ok()
     );
 
@@ -90,7 +90,7 @@ fn it_saves_events() {
     let cache_adapter = PgCacheAdapter::new(conn);
     let emitter_adapter = StubEmitterAdapter::new();
 
-    let store: EventStore<_, _, _> = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
+    let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
     let event = TestEvents::Inc(TestIncrementEvent {
         by: 123123,
@@ -118,7 +118,7 @@ fn it_uses_the_aggregate_cache() {
     let cache_adapter = PgCacheAdapter::new(conn);
     let emitter_adapter = StubEmitterAdapter::new();
 
-    let store: EventStore<_, _, _> = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
+    let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
     assert!(
         store
