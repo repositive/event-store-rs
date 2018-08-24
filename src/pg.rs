@@ -1,6 +1,9 @@
 //! Postgres-backed event store
 
 use super::{Aggregator, EventContext, Events, Store, StoreQuery};
+use adapters::pg::cache::PgCacheAdapter;
+use adapters::pg::PgQuery;
+use adapters::CacheAdapter;
 use chrono::naive::NaiveDateTime;
 use chrono::prelude::*;
 use fallible_iterator::FallibleIterator;
@@ -14,28 +17,29 @@ use sha2::{Digest, Sha256};
 use std::marker::PhantomData;
 use uuid::Uuid;
 
-/// Representation of a Postgres query and args
-pub struct PgQuery<'a> {
-    /// Query string with placeholders
-    query: &'a str,
+// /// Representation of a Postgres query and args
+// pub struct PgQuery<'a> {
+//     /// Query string with placeholders
+//     query: &'a str,
 
-    /// Arguments to use for the query
-    args: Vec<Box<ToSql>>,
-}
+//     /// Arguments to use for the query
+//     args: Vec<Box<ToSql>>,
+// }
 
-impl<'a> StoreQuery for PgQuery<'a> {}
+// impl<'a> StoreQuery for PgQuery<'a> {}
 
-impl<'a> PgQuery<'a> {
-    /// Create a new query from a query string and arguments
-    pub fn new(query: &'a str, args: Vec<Box<ToSql>>) -> Self {
-        Self { query, args }
-    }
-}
+// impl<'a> PgQuery<'a> {
+//     /// Create a new query from a query string and arguments
+//     pub fn new(query: &'a str, args: Vec<Box<ToSql>>) -> Self {
+//         Self { query, args }
+//     }
+// }
 
 /// Postgres-backed event store
 pub struct PgStore<E: Events> {
     phantom: PhantomData<E>,
     conn: Connection,
+    cache: PgCacheAdapter,
 }
 
 impl<'a, E> PgStore<E>
@@ -43,56 +47,57 @@ where
     E: Events + Deserialize<'a>,
 {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection) -> Self {
+    pub fn new(conn: Connection, cache: PgCacheAdapter) -> Self {
         Self {
             phantom: PhantomData,
             conn,
+            cache,
         }
     }
 
-    fn cache_save<T>(&self, q: &PgQuery, result: &T)
-    where
-        T: Serialize,
-    {
-        let args_hash = Sha256::digest(format!("{:?}:[{}]", q.args, q.query).as_bytes());
+    // fn cache_save<T>(&self, q: &PgQuery, result: &T)
+    // where
+    //     T: Serialize,
+    // {
+    //     let args_hash = Sha256::digest(format!("{:?}:[{}]", q.args, q.query).as_bytes());
 
-        self.conn
-            .execute(
-                r#"INSERT INTO aggregate_cache (id, data, time)
-                VALUES ($1, $2, NOW())
-                ON CONFLICT (id)
-                DO UPDATE SET data = EXCLUDED.data, time = now() RETURNING data"#,
-                &[&args_hash.as_slice(), &to_value(result).expect("To value")],
-            ).expect("Cache");
-    }
+    //     self.conn
+    //         .execute(
+    //             r#"INSERT INTO aggregate_cache (id, data, time)
+    //             VALUES ($1, $2, NOW())
+    //             ON CONFLICT (id)
+    //             DO UPDATE SET data = EXCLUDED.data, time = now() RETURNING data"#,
+    //             &[&args_hash.as_slice(), &to_value(result).expect("To value")],
+    //         ).expect("Cache");
+    // }
 
-    fn cache_find<T>(&self, q: &PgQuery) -> Option<(T, NaiveDateTime)>
-    where
-        T: DeserializeOwned + Default,
-    {
-        let args_hash = Sha256::digest(format!("{:?}:[{}]", q.args, q.query).as_bytes());
+    // fn cache_find<T>(&self, q: &PgQuery) -> Option<(T, NaiveDateTime)>
+    // where
+    //     T: DeserializeOwned + Default,
+    // {
+    //     let args_hash = Sha256::digest(format!("{:?}:[{}]", q.args, q.query).as_bytes());
 
-        let rows = self
-            .conn
-            .query(
-                "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
-                &[&args_hash.as_slice()],
-            ).expect("Ret");
+    //     let rows = self
+    //         .conn
+    //         .query(
+    //             "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
+    //             &[&args_hash.as_slice()],
+    //         ).expect("Ret");
 
-        // `rows.get()` panics if index is out of bounds, hence this check. Should be an Option.
-        if rows.len() != 1 {
-            None
-        } else {
-            let row = rows.get(0);
+    //     // `rows.get()` panics if index is out of bounds, hence this check. Should be an Option.
+    //     if rows.len() != 1 {
+    //         None
+    //     } else {
+    //         let row = rows.get(0);
 
-            let time: NaiveDateTime = row.get(1);
+    //         let time: NaiveDateTime = row.get(1);
 
-            Some((
-                from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
-                time,
-            ))
-        }
-    }
+    //         Some((
+    //             from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
+    //             time,
+    //         ))
+    //     }
+    // }
 }
 
 impl<'a, E> Store<E, PgQuery<'a>> for PgStore<E>
@@ -106,7 +111,7 @@ where
     {
         let q = T::query(query_args);
 
-        let cached: Option<(T, NaiveDateTime)> = self.cache_find(&q);
+        let cached = self.cache.get(&q);
 
         let (query_string, initial_state) = if let Some((cached_record, cache_time)) = cached {
             (
@@ -144,7 +149,7 @@ where
 
         trans.finish().expect("Tranny finished");
 
-        self.cache_save(&q, &results);
+        self.cache.insert(&q, &results);
 
         results
     }

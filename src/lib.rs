@@ -12,9 +12,11 @@ extern crate serde_json;
 extern crate sha2;
 extern crate uuid;
 
+pub mod adapters;
 pub mod pg;
 pub mod testhelpers;
 
+use adapters::CacheAdapter;
 use chrono::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -124,6 +126,18 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug +
 ///     // ...
 /// }
 /// ```
+
+// pub trait Store<
+//     CK,
+//     CV: Serialize + DeserializeOwned,
+//     CA: CacheAdapter<CK, CV>,
+//     E: Events,
+//     Q: StoreQuery,
+// >
+// {
+//     /// Create a new event store
+//     fn new(cache: CA) -> Self;
+
 pub trait Store<E: Events, Q: StoreQuery> {
     /// Query the backing store and return an entity `T`, reduced from queried events
     fn aggregate<T, A>(&self, query: A) -> T
