@@ -1,7 +1,7 @@
 //! Cache adapter backed by postgres
 
 use adapters::pg::PgQuery;
-use adapters::CacheAdapter;
+use adapters::{CacheAdapter, CacheResult};
 use chrono::prelude::*;
 use postgres::Connection;
 use serde::de::DeserializeOwned;
@@ -40,7 +40,7 @@ impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
             ).expect("Cache");
     }
 
-    fn get<T>(&self, key: &PgQuery) -> Option<(T, DateTime<Utc>)>
+    fn get<T>(&self, key: &PgQuery) -> Option<CacheResult<T>>
     where
         T: for<'de> Deserialize<'de>,
     {

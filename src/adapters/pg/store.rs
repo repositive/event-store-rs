@@ -2,6 +2,7 @@
 
 use super::super::StoreAdapter;
 use adapters::pg::PgQuery;
+use adapters::CacheResult;
 use chrono::prelude::*;
 use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;
@@ -37,12 +38,7 @@ impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<E>
 where
     E: Events,
 {
-    fn aggregate<T, A>(
-        &self,
-        query_args: A,
-        // TODO: Make the tuple its own type
-        since: Option<(T, DateTime<Utc>)>,
-    ) -> Result<T, String>
+    fn aggregate<T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
     where
         T: Aggregator<E, A, PgQuery<'a>> + Default,
         A: Clone,

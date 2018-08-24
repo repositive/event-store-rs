@@ -36,6 +36,9 @@ pub trait StoreAdapter<E: Events, Q: StoreQuery> {
         S: Serialize;
 }
 
+/// Result of a cache search
+pub type CacheResult<T> = (T, DateTime<Utc>);
+
 /// Caching backend
 pub trait CacheAdapter<K> {
     /// Insert an item into the cache
@@ -44,7 +47,7 @@ pub trait CacheAdapter<K> {
         V: Serialize;
 
     /// Retrieve an item from the cache
-    fn get<T>(&self, key: &K) -> Option<(T, DateTime<Utc>)>
+    fn get<T>(&self, key: &K) -> Option<CacheResult<T>>
     where
         T: DeserializeOwned;
 }
