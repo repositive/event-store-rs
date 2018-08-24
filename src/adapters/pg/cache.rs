@@ -4,7 +4,6 @@ use adapters::pg::PgQuery;
 use adapters::{CacheAdapter, CacheResult};
 use chrono::prelude::*;
 use postgres::Connection;
-use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::from_value;
@@ -12,18 +11,18 @@ use serde_json::to_value;
 use sha2::{Digest, Sha256};
 
 /// Postgres cache adapter
-pub struct PgCacheAdapter {
-    conn: Connection,
+pub struct PgCacheAdapter<'a> {
+    conn: &'a Connection,
 }
 
-impl PgCacheAdapter {
+impl<'a> PgCacheAdapter<'a> {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection) -> Self {
+    pub fn new(conn: &'a Connection) -> Self {
         Self { conn }
     }
 }
 
-impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
+impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter<'a> {
     fn insert<V>(&self, key: &PgQuery, value: V)
     where
         V: Serialize,

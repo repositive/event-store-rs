@@ -5,7 +5,7 @@ use event_store_rs::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
 };
 use event_store_rs::{
-    adapters::{PgCacheAdapter, PgStoreAdapter, StoreAdapter, StubEmitterAdapter},
+    adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Aggregator, EventStore, Store,
 };
 use postgres::{Connection, TlsMode};
@@ -55,8 +55,8 @@ fn it_queries_the_database() {
         TlsMode::None,
     ).expect("Could not connect to DB");
 
-    let store_adapter = PgStoreAdapter::new(conn);
-    let cache_adapter = PgCacheAdapter::new(conn);
+    let store_adapter = PgStoreAdapter::new(&conn);
+    let cache_adapter = PgCacheAdapter::new(&conn);
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
@@ -86,8 +86,8 @@ fn it_saves_events() {
         TlsMode::None,
     ).expect("Could not connect to DB");
 
-    let store_adapter = PgStoreAdapter::new(conn);
-    let cache_adapter = PgCacheAdapter::new(conn);
+    let store_adapter = PgStoreAdapter::new(&conn);
+    let cache_adapter = PgCacheAdapter::new(&conn);
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
@@ -114,8 +114,8 @@ fn it_uses_the_aggregate_cache() {
     conn.execute("TRUNCATE aggregate_cache", &[])
         .expect("Truncate");
 
-    let store_adapter = PgStoreAdapter::new(conn);
-    let cache_adapter = PgCacheAdapter::new(conn);
+    let store_adapter = PgStoreAdapter::new(&conn);
+    let cache_adapter = PgCacheAdapter::new(&conn);
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);

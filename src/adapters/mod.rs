@@ -9,7 +9,6 @@ mod stub;
 
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
-use serde::Deserialize;
 
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};

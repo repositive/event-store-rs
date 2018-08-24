@@ -131,7 +131,6 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug +
 /// ```
 pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
     /// Create a new event store
-    // fn new(store: S, cache: C, emitter: EM) -> Self;
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events

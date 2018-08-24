@@ -7,7 +7,6 @@ use chrono::prelude::*;
 use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;
 use postgres::Connection;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::from_value;
 use serde_json::to_value;
@@ -19,14 +18,14 @@ use EventContext;
 use Events;
 
 /// Postgres store adapter
-pub struct PgStoreAdapter<E> {
+pub struct PgStoreAdapter<'a, E> {
     phantom: PhantomData<E>,
-    conn: Connection,
+    conn: &'a Connection,
 }
 
-impl<E> PgStoreAdapter<E> {
+impl<'a, E> PgStoreAdapter<'a, E> {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection) -> Self {
+    pub fn new(conn: &'a Connection) -> Self {
         Self {
             conn,
             phantom: PhantomData,
@@ -34,7 +33,7 @@ impl<E> PgStoreAdapter<E> {
     }
 }
 
-impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<E>
+impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<'a, E>
 where
     E: Events,
 {
