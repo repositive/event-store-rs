@@ -17,3 +17,10 @@ services:
       - ".:/opt"
     depends_on:
       - postgres
+
+  adminer:
+    image: adminer
+    ports:
+      - 8080:8080
+    links:
+      - postgres
