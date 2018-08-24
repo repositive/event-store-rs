@@ -3,8 +3,11 @@
 use postgres::types::ToSql;
 use StoreQuery;
 
-pub mod cache;
-pub mod store;
+mod cache;
+mod store;
+
+pub use self::cache::PgCacheAdapter;
+pub use self::store::PgStoreAdapter;
 
 /// Representation of a Postgres query and args
 pub struct PgQuery<'a> {

@@ -13,10 +13,12 @@ extern crate sha2;
 extern crate uuid;
 
 pub mod adapters;
-pub mod pg;
+// pub mod pg;
 pub mod testhelpers;
 
 use adapters::CacheAdapter;
+use adapters::EmitterAdapter;
+use adapters::StoreAdapter;
 use chrono::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -64,7 +66,7 @@ pub trait Event {}
 ///
 /// fn main() {}
 /// ```
-pub trait Events: Serialize {}
+pub trait Events: Serialize + DeserializeOwned {}
 
 /// A query to be passed to the store
 ///
@@ -138,15 +140,96 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug +
 //     /// Create a new event store
 //     fn new(cache: CA) -> Self;
 
-pub trait Store<E: Events, Q: StoreQuery> {
+// pub trait Store<E: Events, Q: StoreQuery> {
+//     /// Query the backing store and return an entity `T`, reduced from queried events
+//     fn aggregate<T, A>(&self, query: A) -> T
+//     where
+//         A: Clone,
+//         T: Aggregator<E, A, Q> + Serialize + DeserializeOwned;
+
+//     /// Save an event to the store with optional context
+//     fn save<C>(&self, event: E, subject: Option<C>) -> Result<(), String>
+//     where
+//         C: Serialize;
+// }
+
+/// TODO: Renamed to `Store` when I'm done
+pub trait Store<
+    T: Aggregator<E, A, Q> + Serialize + DeserializeOwned,
+    A: Clone,
+    E: Events,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q>,
+    C: CacheAdapter<Q, T>,
+    EM: EmitterAdapter<E>,
+>
+{
+    /// Create a new event store
+    fn new(store: S, cache: C, emitter: EM) -> Self;
+
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<T, A>(&self, query: A) -> T
-    where
-        A: Clone,
-        T: Aggregator<E, A, Q> + Serialize + DeserializeOwned;
+    fn aggregate(&self, query: A) -> Result<T, String>;
 
     /// Save an event to the store with optional context
-    fn save<C>(&self, event: E, subject: Option<C>) -> Result<(), String>
+    fn save<CO>(&self, event: E, subject: Option<CO>) -> Result<(), String>
     where
-        C: Serialize;
+        CO: Serialize;
+}
+
+/// Main event store
+pub struct EventStore<S, C, EM> {
+    store: S,
+    cache: C,
+    emitter: EM,
+}
+
+// impl<S, C, EM> EventStore<S, C, EM> {
+//     /// Create a new event store
+//     pub fn new(store: S, cache: C, emitter: EM) -> Self {
+//         Self {
+//             store,
+//             cache,
+//             emitter,
+//         }
+//     }
+// }
+
+impl<T, A, E, Q, S, C, EM> Store<T, A, E, Q, S, C, EM> for EventStore<S, C, EM>
+where
+    T: Aggregator<E, A, Q> + Serialize + DeserializeOwned,
+    A: Clone,
+    E: Events,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q>,
+    C: CacheAdapter<Q, T>,
+    EM: EmitterAdapter<E>,
+{
+    /// Create a new event store
+    fn new(store: S, cache: C, emitter: EM) -> Self {
+        Self {
+            store,
+            cache,
+            emitter,
+        }
+    }
+
+    /// Query the backing store and return an entity `T`, reduced from queried events
+    fn aggregate(&self, query_args: A) -> Result<T, String> {
+        let q = T::query(query_args.clone());
+        let c: Option<(T, DateTime<Utc>)> = self.cache.get(&q);
+
+        self.store.aggregate(query_args, c)
+    }
+
+    /// Save an event to the store with optional context
+    fn save<CO>(&self, event: E, subject: Option<CO>) -> Result<(), String>
+    where
+        CO: Serialize,
+    {
+        self.store.save(&event, subject).expect("Save");
+
+        self.emitter.emit(&event);
+
+        Ok(())
+    }
 }

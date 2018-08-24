@@ -4,7 +4,10 @@ extern crate postgres;
 use event_store_rs::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
 };
-use event_store_rs::{pg::PgStore, Aggregator, Store};
+use event_store_rs::{
+    adapters::{PgCacheAdapter, PgStoreAdapter, StoreAdapter, StubEmitterAdapter},
+    Aggregator, EventStore, Store,
+};
 use postgres::{Connection, TlsMode};
 use std::thread;
 use std::time::Duration;
@@ -52,7 +55,11 @@ fn it_queries_the_database() {
         TlsMode::None,
     ).expect("Could not connect to DB");
 
-    let store = PgStore::new(conn);
+    let store_adapter = PgStoreAdapter::new(conn);
+    let cache_adapter = PgCacheAdapter::new(conn);
+    let emitter_adapter = StubEmitterAdapter::new();
+
+    let store: EventStore<_, _, _> = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
     let ident = String::from("dbquery");
 
@@ -63,11 +70,11 @@ fn it_queries_the_database() {
                     by: 99,
                     ident: ident.clone()
                 }),
-                None::<()>
+                None
             ).is_ok()
     );
 
-    let entity: TestCounterEntity = store.aggregate(ident);
+    let entity: TestCounterEntity = store.aggregate(ident).unwrap();
 
     assert_eq!(entity.counter, 99);
 }
@@ -79,7 +86,11 @@ fn it_saves_events() {
         TlsMode::None,
     ).expect("Could not connect to DB");
 
-    let store = PgStore::<TestEvents>::new(conn);
+    let store_adapter = PgStoreAdapter::new(conn);
+    let cache_adapter = PgCacheAdapter::new(conn);
+    let emitter_adapter = StubEmitterAdapter::new();
+
+    let store: EventStore<_, _, _> = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
     let event = TestEvents::Inc(TestIncrementEvent {
         by: 123123,
@@ -103,7 +114,11 @@ fn it_uses_the_aggregate_cache() {
     conn.execute("TRUNCATE aggregate_cache", &[])
         .expect("Truncate");
 
-    let store = PgStore::<TestEvents>::new(conn);
+    let store_adapter = PgStoreAdapter::new(conn);
+    let cache_adapter = PgCacheAdapter::new(conn);
+    let emitter_adapter = StubEmitterAdapter::new();
+
+    let store: EventStore<_, _, _> = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
     assert!(
         store
@@ -130,7 +145,7 @@ fn it_uses_the_aggregate_cache() {
     // Wait for DB to process
     thread::sleep(Duration::from_millis(10));
 
-    let entity: TestCounterEntity = store.aggregate(ident.into());
+    let entity: TestCounterEntity = store.aggregate(ident.into()).unwrap();
 
     assert_eq!(entity.counter, 3);
 }

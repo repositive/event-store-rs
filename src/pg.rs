@@ -1,19 +1,17 @@
 //! Postgres-backed event store
 
-use super::{Aggregator, EventContext, Events, Store, StoreQuery};
-use adapters::pg::cache::PgCacheAdapter;
-use adapters::pg::PgQuery;
-use adapters::CacheAdapter;
-use chrono::naive::NaiveDateTime;
+use super::{Aggregator, EventContext, Events, Store};
+use adapters::PgCacheAdapter;
+use adapters::PgQuery;
+use adapters::PgStoreAdapter;
+use adapters::StubEmitterAdapter;
+use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter};
 use chrono::prelude::*;
-use fallible_iterator::FallibleIterator;
-use postgres::types::ToSql;
 use postgres::Connection;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::{from_value, to_value, Value as JsonValue};
-use sha2::{Digest, Sha256};
+use serde_json::to_value;
 use std::marker::PhantomData;
 use uuid::Uuid;
 
@@ -40,6 +38,8 @@ pub struct PgStore<E: Events> {
     phantom: PhantomData<E>,
     conn: Connection,
     cache: PgCacheAdapter,
+    store: PgStoreAdapter,
+    emitter: StubEmitterAdapter,
 }
 
 impl<'a, E> PgStore<E>
@@ -47,11 +47,18 @@ where
     E: Events + Deserialize<'a>,
 {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection, cache: PgCacheAdapter) -> Self {
+    pub fn new(
+        conn: Connection,
+        store: PgStoreAdapter,
+        cache: PgCacheAdapter,
+        emitter: StubEmitterAdapter,
+    ) -> Self {
         Self {
             phantom: PhantomData,
             conn,
             cache,
+            store,
+            emitter,
         }
     }
 
@@ -109,49 +116,14 @@ where
         T: Aggregator<E, A, PgQuery<'a>> + Serialize + DeserializeOwned,
         A: Clone,
     {
-        let q = T::query(query_args);
+        let q = T::query(query_args.clone());
 
-        let cached = self.cache.get(&q);
+        let result: T = self
+            .store
+            .aggregate(&q, self.cache.get(&q))
+            .expect("Aggregate");
 
-        let (query_string, initial_state) = if let Some((cached_record, cache_time)) = cached {
-            (
-                format!(
-                    "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
-                    q.query, cache_time
-                ),
-                cached_record,
-            )
-        } else {
-            (String::from(q.query), T::default())
-        };
-
-        // println!("QUERY: {}", query_string);
-
-        let mut params: Vec<&ToSql> = Vec::new();
-
-        for (i, _arg) in q.args.iter().enumerate() {
-            params.push(&*q.args[i]);
-        }
-
-        let trans = self.conn.transaction().expect("Tranny");
-        let stmt = trans.prepare(&query_string).expect("Prep");
-
-        let results = stmt
-            .lazy_query(&trans, &params, 1000)
-            .expect("Query")
-            .map(|row| {
-                let json: JsonValue = row.get("data");
-                let evt: E = from_value(json).expect("Decode");
-
-                evt
-            }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
-            .expect("Fold");
-
-        trans.finish().expect("Tranny finished");
-
-        self.cache.insert(&q, &results);
-
-        results
+        result
     }
 
     fn save<C>(&self, item: E, subject: Option<C>) -> Result<(), String>
@@ -172,10 +144,12 @@ where
                 VALUES ($1, $2, $3)"#,
                 &[
                     &id,
-                    &to_value(item).expect("Item to value"),
+                    &to_value(&item).expect("Item to value"),
                     &to_value(context).expect("Context to value"),
                 ],
             ).expect("Save");
+
+        self.emitter.emit(&item);
 
         Ok(())
     }

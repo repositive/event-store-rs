@@ -22,11 +22,11 @@ impl PgCacheAdapter {
     }
 }
 
-impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
-    fn insert<V>(&self, key: &PgQuery, value: V)
-    where
-        V: Serialize,
-    {
+impl<'a, V> CacheAdapter<PgQuery<'a>, V> for PgCacheAdapter
+where
+    V: Serialize + DeserializeOwned,
+{
+    fn insert(&self, key: &PgQuery, value: V) {
         let args_hash = Sha256::digest(format!("{:?}:[{}]", key.args, key.query).as_bytes());
 
         self.conn
@@ -39,10 +39,7 @@ impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
             ).expect("Cache");
     }
 
-    fn get<V>(&self, key: &PgQuery) -> Option<(V, DateTime<Utc>)>
-    where
-        V: DeserializeOwned,
-    {
+    fn get(&self, key: &PgQuery) -> Option<(V, DateTime<Utc>)> {
         let args_hash = Sha256::digest(format!("{:?}:[{}]", key.args, key.query).as_bytes());
 
         let rows = self
