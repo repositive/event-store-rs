@@ -13,7 +13,6 @@ extern crate sha2;
 extern crate uuid;
 
 pub mod adapters;
-// pub mod pg;
 pub mod testhelpers;
 
 use adapters::CacheAdapter;
@@ -51,13 +50,13 @@ pub trait Event {}
 /// # extern crate serde_derive;
 /// # extern crate event_store_rs;
 /// # use event_store_rs::Events;
-/// #[derive(Serialize)]
+/// #[derive(Serialize, Deserialize)]
 /// struct EventA;
 ///
-/// #[derive(Serialize)]
+/// #[derive(Serialize, Deserialize)]
 /// struct EventB;
 ///
-/// #[derive(Serialize)]
+/// #[derive(Serialize, Deserialize)]
 /// enum DomainEvents {
 ///     A(EventA),
 ///     B(EventB),
