@@ -1,7 +1,7 @@
 //! Test helpers. Do not use in application code.
 
 use super::{Aggregator, Event, Events};
-use pg::PgQuery;
+use adapters::PgQuery;
 use postgres::types::ToSql;
 
 #[derive(Serialize, Deserialize)]

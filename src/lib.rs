@@ -12,12 +12,13 @@ extern crate serde_json;
 extern crate sha2;
 extern crate uuid;
 
-pub mod pg;
+pub mod adapters;
 pub mod testhelpers;
 
+use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter};
 use chrono::prelude::*;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 
@@ -46,13 +47,13 @@ pub trait Event {}
 /// # extern crate serde_derive;
 /// # extern crate event_store_rs;
 /// # use event_store_rs::Events;
-/// #[derive(Serialize)]
+/// #[derive(Serialize, Deserialize)]
 /// struct EventA;
 ///
-/// #[derive(Serialize)]
+/// #[derive(Serialize, Deserialize)]
 /// struct EventB;
 ///
-/// #[derive(Serialize)]
+/// #[derive(Serialize, Deserialize)]
 /// enum DomainEvents {
 ///     A(EventA),
 ///     B(EventB),
@@ -62,7 +63,7 @@ pub trait Event {}
 ///
 /// fn main() {}
 /// ```
-pub trait Events: Serialize {}
+pub trait Events: Serialize + DeserializeOwned {}
 
 /// A query to be passed to the store
 ///
@@ -124,15 +125,67 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug +
 ///     // ...
 /// }
 /// ```
-pub trait Store<E: Events, Q: StoreQuery> {
+pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
+    /// Create a new event store
+    fn new(store: S, cache: C, emitter: EM) -> Self;
+
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<T, A>(&self, query: A) -> T
+    fn aggregate<T, A>(&self, query: A) -> Result<T, String>
     where
-        A: Clone,
-        T: Aggregator<E, A, Q> + Serialize + DeserializeOwned;
+        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de>,
+        A: Clone;
 
     /// Save an event to the store with optional context
-    fn save<C>(&self, event: E, subject: Option<C>) -> Result<(), String>
+    fn save<CO>(&self, event: E, subject: Option<CO>) -> Result<(), String>
     where
-        C: Serialize;
+        CO: Serialize;
+}
+
+/// Main event store
+pub struct EventStore<S, C, EM> {
+    store: S,
+    cache: C,
+    emitter: EM,
+}
+
+impl<'a, E, Q, S, C, EM> Store<'a, E, Q, S, C, EM> for EventStore<S, C, EM>
+where
+    E: Events,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q>,
+    C: CacheAdapter<Q>,
+    EM: EmitterAdapter<E>,
+{
+    /// Create a new event store
+    fn new(store: S, cache: C, emitter: EM) -> Self {
+        Self {
+            store,
+            cache,
+            emitter,
+        }
+    }
+
+    /// Query the backing store and return an entity `T`, reduced from queried events
+    fn aggregate<T, A>(&self, query_args: A) -> Result<T, String>
+    where
+        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de>,
+        A: Clone,
+    {
+        let q = T::query(query_args.clone());
+        let c: Option<(T, DateTime<Utc>)> = self.cache.get(&q);
+
+        self.store.aggregate(query_args, c)
+    }
+
+    /// Save an event to the store with optional context
+    fn save<CO>(&self, event: E, subject: Option<CO>) -> Result<(), String>
+    where
+        CO: Serialize,
+    {
+        self.store.save(&event, subject).expect("Save");
+
+        self.emitter.emit(&event);
+
+        Ok(())
+    }
 }
