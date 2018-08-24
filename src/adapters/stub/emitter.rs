@@ -1,7 +1,6 @@
 //! Stub emitter implementation
 
-use adapters::EmitterAdapter;
-use adapters::EventHandler;
+use adapters::{EmitterAdapter, EventHandler};
 use std::collections::HashMap;
 use Events;
 

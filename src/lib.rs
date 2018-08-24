@@ -15,13 +15,10 @@ extern crate uuid;
 pub mod adapters;
 pub mod testhelpers;
 
-use adapters::CacheAdapter;
-use adapters::EmitterAdapter;
-use adapters::StoreAdapter;
+use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter};
 use chrono::prelude::*;
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 

@@ -1,13 +1,10 @@
 //! Cache adapter backed by postgres
 
-use adapters::pg::PgQuery;
-use adapters::{CacheAdapter, CacheResult};
+use adapters::{pg::PgQuery, CacheAdapter, CacheResult};
 use chrono::prelude::*;
 use postgres::Connection;
-use serde::Deserialize;
-use serde::Serialize;
-use serde_json::from_value;
-use serde_json::to_value;
+use serde::{Deserialize, Serialize};
+use serde_json::{from_value, to_value};
 use sha2::{Digest, Sha256};
 
 /// Postgres cache adapter

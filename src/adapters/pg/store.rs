@@ -1,16 +1,13 @@
 //! Store adapter backed by Postgres
 
-use super::super::StoreAdapter;
 use adapters::pg::PgQuery;
-use adapters::CacheResult;
+use adapters::{CacheResult, StoreAdapter};
 use chrono::prelude::*;
 use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;
 use postgres::Connection;
 use serde::Serialize;
-use serde_json::from_value;
-use serde_json::to_value;
-use serde_json::Value as JsonValue;
+use serde_json::{from_value, to_value, Value as JsonValue};
 use std::marker::PhantomData;
 use uuid::Uuid;
 use Aggregator;

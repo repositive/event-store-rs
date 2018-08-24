@@ -1,13 +1,13 @@
 //! Postgres-backed cache and store adapters
 
-use postgres::types::ToSql;
-use StoreQuery;
-
 mod cache;
 mod store;
 
 pub use self::cache::PgCacheAdapter;
 pub use self::store::PgStoreAdapter;
+
+use postgres::types::ToSql;
+use StoreQuery;
 
 /// Representation of a Postgres query and args
 pub struct PgQuery<'a> {
