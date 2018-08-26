@@ -1,13 +1,13 @@
 extern crate event_store_rs;
 
 use event_store_rs::adapters::{AMQPEmitterAdapter, EmitterAdapter};
-use event_store_rs::testhelpers::{
-    TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
-};
+use event_store_rs::testhelpers::TestEvents;
+use std::net::SocketAddr;
 
 #[test]
 fn emitter_exists() {
-    let mut adapter = AMQPEmitterAdapter::new();
+    let addr: SocketAddr = "127.0.0.1:5672".parse().unwrap();
+    let mut adapter = AMQPEmitterAdapter::new(addr, "iris".into(), "testing_namespace".into());
     adapter.subscribe("".into(), |_e: &TestEvents| {});
     adapter.unsubscribe("".into());
     assert!(true);
