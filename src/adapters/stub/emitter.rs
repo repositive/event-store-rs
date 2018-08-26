@@ -5,26 +5,30 @@ use std::collections::HashMap;
 use Events;
 
 /// Stub event emitter
-pub struct StubEmitterAdapter {}
+pub struct StubEmitterAdapter<E> {
+    subscribers: HashMap<String, EventHandler<E>>,
+}
 
-impl StubEmitterAdapter {
+impl<E> StubEmitterAdapter<E> {
     /// Create a new emitter stub
     pub fn new() -> Self {
-        Self {}
+        Self {
+            subscribers: HashMap::new(),
+        }
     }
 }
 
-impl<E> EmitterAdapter<E> for StubEmitterAdapter
+impl<E> EmitterAdapter<E> for StubEmitterAdapter<E>
 where
     E: Events,
 {
-    fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>> {
-        HashMap::new()
+    fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>> {
+        &self.subscribers
     }
 
     fn emit(&self, _event: &E) {}
 
-    fn subscribe<H>(&mut self, _event_name: String, _handler: EventHandler<E>) {}
+    fn subscribe(&mut self, _event_name: String, _handler: EventHandler<E>) {}
 
     fn unsubscribe(&mut self, _event_name: String) {}
 }

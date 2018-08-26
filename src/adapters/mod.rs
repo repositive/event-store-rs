@@ -6,9 +6,11 @@
 
 mod pg;
 mod stub;
+mod amqp;
 
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
+pub use self::amqp::AMQPEmitterAdapter;
 
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
@@ -57,13 +59,13 @@ pub type EventHandler<E> = fn(&E) -> ();
 /// Event emitter interface
 pub trait EmitterAdapter<E: Events> {
     /// Get all subscribed handlers
-    fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>>;
+    fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>>;
 
     /// Emit an event
     fn emit(&self, event: &E);
 
     /// Subscribe to an event
-    fn subscribe<H>(&mut self, event_name: String, handler: EventHandler<E>);
+    fn subscribe(&mut self, event_name: String, handler: EventHandler<E>);
 
     /// Stop listening for an event
     fn unsubscribe(&mut self, event_name: String);
