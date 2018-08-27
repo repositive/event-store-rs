@@ -7,13 +7,13 @@ extern crate postgres;
 #[macro_use]
 extern crate serde_derive;
 extern crate chrono;
+extern crate futures;
+extern crate lapin_futures as lapin;
 extern crate serde;
 extern crate serde_json;
 extern crate sha2;
-extern crate uuid;
-extern crate lapin_futures as lapin;
-extern crate futures;
 extern crate tokio;
+extern crate uuid;
 #[macro_use]
 extern crate log;
 

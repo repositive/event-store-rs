@@ -50,8 +50,7 @@ where
                     .and_then(|(client, heartbeat)| {
                         tokio::spawn(heartbeat.map_err(|_| ()));
                         client.create_channel()
-                    })
-                    .and_then(move |channel: Channel<TcpStream>| {
+                    }).and_then(move |channel: Channel<TcpStream>| {
                         let ch = channel.clone();
                         tx.send(ch).unwrap();
                         channel.exchange_declare(
@@ -64,8 +63,7 @@ where
                             FieldTable::new(),
                         )
                     }),
-            )
-            .unwrap();
+            ).unwrap();
         let channel = rx.recv().unwrap();
         Self {
             phantom: PhantomData,
@@ -99,8 +97,7 @@ where
                 ..QueueDeclareOptions::default()
             },
             FieldTable::new(),
-        )
-        .and_then(move |queue| {
+        ).and_then(move |queue| {
             channel
                 .queue_bind(
                     &queue_name,
@@ -108,16 +105,14 @@ where
                     &event_name,
                     QueueBindOptions::default(),
                     FieldTable::new(),
-                )
-                .and_then(move |_| {
+                ).and_then(move |_| {
                     channel.basic_consume(
                         &queue,
                         &queue_name,
                         BasicConsumeOptions::default(),
                         FieldTable::new(),
                     )
-                })
-                .and_then(move |stream| {
+                }).and_then(move |stream| {
                     stream.for_each(move |message| {
                         let data: E =
                             serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
@@ -125,8 +120,7 @@ where
                         c_channel.basic_ack(message.delivery_tag, false)
                     })
                 })
-        })
-        .and_then(|_| ok(()))
+        }).and_then(|_| ok(()))
         .map_err(|e| e.into())
 }
 

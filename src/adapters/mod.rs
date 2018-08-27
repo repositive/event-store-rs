@@ -4,13 +4,13 @@
 //! integration with other event-driven domains. Use the adapters exposed by this module to suit
 //! your application and architecture.
 
+mod amqp;
 mod pg;
 mod stub;
-mod amqp;
 
+pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
-pub use self::amqp::AMQPEmitterAdapter;
 
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
