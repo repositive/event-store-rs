@@ -10,6 +10,12 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_DB: eventstorerust
 
+  rabbit:
+    image: rabbitmq:3-alpine
+    ports:
+      - "5672:5672"
+
+
   integration_setup:
     image: postgres:10.5-alpine
     command: psql -h postgres -U postgres -d eventstorerust -f /opt/integration-tests.sql
@@ -17,6 +23,7 @@ services:
       - ".:/opt"
     depends_on:
       - postgres
+      - rabbit
 
   adminer:
     image: adminer
