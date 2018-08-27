@@ -14,6 +14,8 @@ extern crate uuid;
 extern crate lapin_futures as lapin;
 extern crate futures;
 extern crate tokio;
+#[macro_use]
+extern crate log;
 
 pub mod adapters;
 pub mod testhelpers;

@@ -10,6 +10,7 @@ use lapin::client::{Client, ConnectionOptions};
 use lapin::types::FieldTable;
 use serde_json;
 use std::collections::HashMap;
+use std::error::Error;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::str;
@@ -77,15 +78,15 @@ where
     }
 }
 
-fn prepare_subscription<H>(
+fn prepare_subscription<'a, E>(
     queue_name: String,
     event_name: String,
     exchange: String,
-    handler: EventHandler<H>,
+    handler: EventHandler<E>,
     channel: Channel<TcpStream>,
-) -> impl Future<Item = (), Error = ()>
+) -> impl Future<Item = (), Error = Box<Error + 'a>>
 where
-    H: Events,
+    E: Events,
 {
     let c_channel = channel.clone();
     channel
@@ -118,7 +119,7 @@ where
                 })
                 .and_then(move |stream| {
                     stream.for_each(move |message| {
-                        let data: H =
+                        let data: E =
                             serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
                         handler(&data);
                         c_channel.basic_ack(message.delivery_tag, false)
@@ -126,7 +127,7 @@ where
                 })
         })
         .and_then(|_| ok(()))
-        .map_err(|_| ())
+        .map_err(|e| e.into())
 }
 
 impl<E> EmitterAdapter<E> for AMQPEmitterAdapter<E>
@@ -144,13 +145,20 @@ where
     fn subscribe(&mut self, event_name: String, handler: EventHandler<E>) {
         let queue_name = format!("{}-{}", &self.namespace, &event_name);
 
-        self.runtime.spawn(prepare_subscription(
-            queue_name,
-            event_name,
-            self.exchange.clone(),
-            handler,
-            self.channel.clone(),
-        ));
+        self.runtime.spawn(
+            prepare_subscription(
+                queue_name.clone(),
+                event_name,
+                self.exchange.clone(),
+                handler,
+                self.channel.clone(),
+            ).map_err(move |e| {
+                error!(
+                    "Something failed in the {} subscription: {:?}",
+                    queue_name, e
+                );
+            }),
+        );
     }
 
     fn unsubscribe(&mut self, _event_name: String) {
