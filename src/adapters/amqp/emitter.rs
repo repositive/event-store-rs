@@ -30,6 +30,7 @@ where
     channel: Channel<TcpStream>,
     exchange: String,
     namespace: String,
+    runtime: Runtime,
 }
 
 impl<E> AMQPEmitterAdapter<E>
@@ -40,8 +41,8 @@ where
     pub fn new(uri: SocketAddr, _exchange: String, namespace: String) -> Self {
         let (tx, rx) = mpsc::channel();
         let exchange = _exchange.clone();
-        Runtime::new()
-            .unwrap()
+        let mut runtime = Runtime::new().unwrap();
+        runtime
             .block_on(
                 TcpStream::connect(&uri)
                     .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
@@ -71,6 +72,7 @@ where
             channel,
             namespace,
             exchange: _exchange,
+            runtime,
         }
     }
 }
@@ -90,7 +92,7 @@ where
     fn subscribe(&mut self, event_name: String, handler: EventHandler<E>) {
         let queue_name = format!("{}-{}", &self.namespace, &event_name);
         let channel = self.channel.clone();
-        let _ = self
+        let to_run = self
             .channel
             .queue_declare(
                 &queue_name,
@@ -128,6 +130,8 @@ where
                     self.channel.basic_ack(message.delivery_tag, false)
                 })
             });
+
+        // self.runtime.spawn(to_run.into());
     }
 
     fn unsubscribe(&mut self, _event_name: String) {
