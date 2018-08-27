@@ -132,7 +132,7 @@ pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
     /// Query the backing store and return an entity `T`, reduced from queried events
     fn aggregate<T, A>(&self, query: A) -> Result<T, String>
     where
-        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de>,
+        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq,
         A: Clone;
 
     /// Save an event to the store with optional context
@@ -168,14 +168,22 @@ where
     /// Query the backing store and return an entity `T`, reduced from queried events
     fn aggregate<T, A>(&self, query_args: A) -> Result<T, String>
     where
-        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de>,
+        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq,
         A: Clone,
     {
         let q = T::query(query_args.clone());
         let initial_state: Option<CacheResult<T>> = self.cache.get(&q);
 
         self.store.aggregate(query_args, initial_state).map(|agg| {
-            self.cache.insert(&q, agg);
+            if let Some((last_cache, _)) = initial_state {
+                // Only update cache if aggregation result has changed
+                if agg != last_cache {
+                    self.cache.insert(&q, agg);
+                }
+            } else {
+                // If there is no existing cache item, insert one
+                self.cache.insert(&q, agg);
+            }
 
             agg
         })
