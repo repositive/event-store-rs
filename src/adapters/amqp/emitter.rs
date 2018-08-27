@@ -1,7 +1,7 @@
 //! AMQP emitter implementation
 
 use adapters::{EmitterAdapter, EventHandler};
-use futures::Future;
+use futures::future::{ok, Future};
 use futures::Stream;
 use lapin::channel::{
     BasicConsumeOptions, Channel, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions,
@@ -77,9 +77,61 @@ where
     }
 }
 
+fn prepare_subscription<H>(
+    queue_name: String,
+    event_name: String,
+    exchange: String,
+    handler: EventHandler<H>,
+    channel: Channel<TcpStream>,
+) -> impl Future<Item = (), Error = ()>
+where
+    H: Events,
+{
+    let c_channel = channel.clone();
+    channel
+        .queue_declare(
+            &queue_name,
+            QueueDeclareOptions {
+                durable: true,
+                exclusive: false,
+                auto_delete: false,
+                ..QueueDeclareOptions::default()
+            },
+            FieldTable::new(),
+        )
+        .and_then(move |queue| {
+            channel
+                .queue_bind(
+                    &queue_name,
+                    &exchange,
+                    &event_name,
+                    QueueBindOptions::default(),
+                    FieldTable::new(),
+                )
+                .and_then(move |_| {
+                    channel.basic_consume(
+                        &queue,
+                        &queue_name,
+                        BasicConsumeOptions::default(),
+                        FieldTable::new(),
+                    )
+                })
+                .and_then(move |stream| {
+                    stream.for_each(move |message| {
+                        let data: H =
+                            serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
+                        handler(&data);
+                        c_channel.basic_ack(message.delivery_tag, false)
+                    })
+                })
+        })
+        .and_then(|_| ok(()))
+        .map_err(|_| ())
+}
+
 impl<E> EmitterAdapter<E> for AMQPEmitterAdapter<E>
 where
-    E: Events + Send,
+    E: Events + Send + 'static,
 {
     fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>> {
         &self.subscribers
@@ -91,47 +143,14 @@ where
 
     fn subscribe(&mut self, event_name: String, handler: EventHandler<E>) {
         let queue_name = format!("{}-{}", &self.namespace, &event_name);
-        let channel = self.channel.clone();
-        let to_run = self
-            .channel
-            .queue_declare(
-                &queue_name,
-                QueueDeclareOptions {
-                    durable: true,
-                    exclusive: false,
-                    auto_delete: false,
-                    ..QueueDeclareOptions::default()
-                },
-                FieldTable::new(),
-            )
-            .and_then(|queue| {
-                self.channel
-                    .queue_bind(
-                        &queue_name,
-                        &self.exchange,
-                        &event_name,
-                        QueueBindOptions::default(),
-                        FieldTable::new(),
-                    )
-                    .and_then(move |_| {
-                        channel.basic_consume(
-                            &queue,
-                            &queue_name,
-                            BasicConsumeOptions::default(),
-                            FieldTable::new(),
-                        )
-                    })
-            })
-            .and_then(|stream| {
-                stream.for_each(|message| {
-                    let data: E =
-                        serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
-                    handler(&data);
-                    self.channel.basic_ack(message.delivery_tag, false)
-                })
-            });
 
-        // self.runtime.spawn(to_run.into());
+        self.runtime.spawn(prepare_subscription(
+            queue_name,
+            event_name,
+            self.exchange.clone(),
+            handler,
+            self.channel.clone(),
+        ));
     }
 
     fn unsubscribe(&mut self, _event_name: String) {
