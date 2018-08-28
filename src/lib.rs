@@ -45,8 +45,8 @@ pub trait Event {}
 /// ```rust
 /// # #[macro_use]
 /// # extern crate serde_derive;
-/// # extern crate event_store_rs;
-/// # use event_store_rs::Events;
+/// # extern crate event_store;
+/// # use event_store::Events;
 /// #[derive(Serialize, Deserialize)]
 /// struct EventA;
 ///
