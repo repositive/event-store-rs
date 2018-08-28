@@ -2,17 +2,16 @@
 
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
-use chrono::prelude::*;
 use fallible_iterator::FallibleIterator;
 use postgres::types::ToSql;
 use postgres::Connection;
-use serde::Serialize;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use std::marker::PhantomData;
 use uuid::Uuid;
 use Aggregator;
+use Event;
 use EventContext;
-use Events;
+use EventData;
 
 /// Postgres store adapter
 pub struct PgStoreAdapter<'a, E> {
@@ -22,7 +21,7 @@ pub struct PgStoreAdapter<'a, E> {
 
 impl<'a, E> PgStoreAdapter<'a, E>
 where
-    E: Events,
+    E: EventData,
 {
     /// Create a new PgStore from a Postgres DB connection
     pub fn new(conn: &'a Connection) -> Self {
@@ -55,7 +54,7 @@ where
 
 impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<'a, E>
 where
-    E: Events,
+    E: EventData,
 {
     fn aggregate<T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
     where
@@ -78,10 +77,14 @@ where
             .lazy_query(&trans, &params, 1000)
             .expect("Query")
             .map(|row| {
-                let json: JsonValue = row.get("data");
-                let evt: E = from_value(json).expect("Decode");
+                let id: Uuid = row.get("id");
+                let data_json: JsonValue = row.get("data");
+                let context_json: JsonValue = row.get("context");
 
-                evt
+                let data: E = from_value(data_json).unwrap();
+                let context: EventContext = from_value(context_json).unwrap();
+
+                Event { id, data, context }
             }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
             .expect("Fold");
 
@@ -90,26 +93,15 @@ where
         Ok(results)
     }
 
-    fn save<S>(&self, event: &E, subject: Option<S>) -> Result<(), String>
-    where
-        S: Serialize,
-    {
-        let time: DateTime<Utc> = Utc::now();
-        let context = EventContext {
-            action: None,
-            subject: subject.map(|s| to_value(s).expect("Could not serialize subject")),
-            time,
-        };
-        let id = Uuid::new_v4();
-
+    fn save(&self, event: &Event<E>) -> Result<(), String> {
         self.conn
             .execute(
                 r#"INSERT INTO events (id, data, context)
                 VALUES ($1, $2, $3)"#,
                 &[
-                    &id,
-                    &to_value(event).expect("Item to value"),
-                    &to_value(context).expect("Context to value"),
+                    &event.id,
+                    &to_value(&event.data).expect("Item to value"),
+                    &to_value(&event.context).expect("Context to value"),
                 ],
             ).expect("Save");
 
@@ -120,6 +112,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::prelude::*;
     use testhelpers::*;
 
     #[test]

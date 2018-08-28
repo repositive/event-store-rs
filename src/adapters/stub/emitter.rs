@@ -2,7 +2,8 @@
 
 use adapters::{EmitterAdapter, EventHandler};
 use std::collections::HashMap;
-use Events;
+use Event;
+use EventData;
 
 /// Stub event emitter
 pub struct StubEmitterAdapter<E> {
@@ -20,13 +21,13 @@ impl<E> StubEmitterAdapter<E> {
 
 impl<E> EmitterAdapter<E> for StubEmitterAdapter<E>
 where
-    E: Events,
+    E: EventData,
 {
     fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>> {
         &self.subscribers
     }
 
-    fn emit(&self, _event: &E) {}
+    fn emit(&self, _event: &Event<E>) {}
 
     fn subscribe(&mut self, _event_name: String, _handler: EventHandler<E>) {}
 
