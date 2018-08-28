@@ -1,35 +1,24 @@
 //! Stub emitter implementation
 
 use adapters::{EmitterAdapter, EventHandler};
-use std::collections::HashMap;
 use Event;
 use EventData;
 
 /// Stub event emitter
-pub struct StubEmitterAdapter<E> {
-    subscribers: HashMap<String, EventHandler<E>>,
-}
+pub struct StubEmitterAdapter {}
 
-impl<E> StubEmitterAdapter<E> {
+impl StubEmitterAdapter {
     /// Create a new emitter stub
     pub fn new() -> Self {
-        Self {
-            subscribers: HashMap::new(),
-        }
+        Self {}
     }
 }
 
-impl<E> EmitterAdapter<E> for StubEmitterAdapter<E>
+impl<E> EmitterAdapter<E> for StubEmitterAdapter
 where
     E: EventData,
 {
-    fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>> {
-        &self.subscribers
-    }
+    fn emit(&mut self, _event: &Event<E>) {}
 
-    fn emit(&self, _event: &Event<E>) {}
-
-    fn subscribe(&mut self, _event_name: String, _handler: EventHandler<E>) {}
-
-    fn unsubscribe(&mut self, _event_name: String) {}
+    fn subscribe(&mut self, _event_name: String, _: Box<EventHandler<E>>) {}
 }

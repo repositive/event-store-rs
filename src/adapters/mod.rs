@@ -14,7 +14,6 @@ pub use self::stub::StubEmitterAdapter;
 
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
 use Aggregator;
 use Event;
 use EventData;
@@ -53,19 +52,13 @@ pub trait CacheAdapter<K> {
 }
 
 /// Closure called when an incoming event must be handled
-pub type EventHandler<E> = fn(&Event<E>) -> ();
+pub type EventHandler<E> = Fn(&Event<E>) -> () + Send + Sync;
 
 /// Event emitter interface
 pub trait EmitterAdapter<E: EventData> {
-    /// Get all subscribed handlers
-    fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>>;
-
     /// Emit an event
-    fn emit(&self, event: &Event<E>);
+    fn emit(&mut self, event: &Event<E>);
 
     /// Subscribe to an event
-    fn subscribe(&mut self, event_name: String, handler: EventHandler<E>);
-
-    /// Stop listening for an event
-    fn unsubscribe(&mut self, event_name: String);
+    fn subscribe(&mut self, event_name: String, handler: Box<EventHandler<E>>);
 }

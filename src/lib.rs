@@ -137,7 +137,15 @@ where
 ///     B(EventB),
 /// }
 ///
-/// impl EventData for DomainEvents {}
+/// impl EventData for DomainEvents {
+///   fn event_type(&self) -> String {
+///     match &self {
+///         DomainEvents::A(_) => "namespace.A",
+///         DomainEvents::B(_) => "namespace.B",
+///         _ => panic!("Woops"),
+///     }.into()
+///   }
+/// }
 ///
 /// fn main() {}
 /// ```
@@ -219,7 +227,7 @@ pub trait Store<'a, E: EventData, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
         A: Clone;
 
     /// Save an event to the store with optional context
-    fn save(&self, event: Event<E>) -> Result<(), String>;
+    fn save(&mut self, event: Event<E>) -> Result<(), String>;
 }
 
 /// Main event store
@@ -271,7 +279,7 @@ where
     }
 
     /// Save an event to the store with optional context
-    fn save(&self, event: Event<E>) -> Result<(), String> {
+    fn save(&mut self, event: Event<E>) -> Result<(), String> {
         self.store.save(&event).expect("Save");
 
         self.emitter.emit(&event);

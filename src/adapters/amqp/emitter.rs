@@ -10,7 +10,6 @@ use lapin::channel::{
 use lapin::client::{Client, ConnectionOptions};
 use lapin::types::FieldTable;
 use serde_json;
-use std::collections::HashMap;
 use std::error::Error;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
@@ -28,7 +27,6 @@ where
     E: EventData,
 {
     phantom: PhantomData<E>,
-    subscribers: HashMap<String, EventHandler<E>>,
     channel: Channel<TcpStream>,
     exchange: String,
     namespace: String,
@@ -68,7 +66,6 @@ where
         let channel = rx.recv().unwrap();
         Self {
             phantom: PhantomData,
-            subscribers: HashMap::new(),
             channel,
             namespace,
             exchange: _exchange,
@@ -77,11 +74,28 @@ where
     }
 }
 
+fn publish<'a>(
+    channel: Channel<TcpStream>,
+    exchange: String,
+    routing_key: String,
+    payload: Vec<u8>,
+) -> impl Future<Item = (), Error = ()> {
+    channel
+        .basic_publish(
+            &exchange,
+            &routing_key,
+            payload,
+            BasicPublishOptions::default(),
+            BasicProperties::default(),
+        ).and_then(|_| ok(()))
+        .map_err(|_| ())
+}
+
 fn prepare_subscription<'a, E>(
     queue_name: String,
     event_name: String,
     exchange: String,
-    handler: EventHandler<E>,
+    handler: Box<EventHandler<E>>,
     channel: Channel<TcpStream>,
 ) -> impl Future<Item = (), Error = Box<Error + 'a>>
 where
@@ -129,24 +143,19 @@ impl<E> EmitterAdapter<E> for AMQPEmitterAdapter<E>
 where
     E: EventData + Send + 'static,
 {
-    fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>> {
-        &self.subscribers
-    }
-
-    fn emit(&self, event: &Event<E>) {
+    fn emit(&mut self, event: &Event<E>) {
         let payload: Vec<u8> = serde_json::to_string(event).unwrap().into();
         let event_type = event.data().event_type();
-        self.channel.basic_publish(
-            &self.exchange,
-            &event_type,
+        self.runtime.spawn(publish(
+            self.channel.clone(),
+            self.exchange.clone(),
+            event_type,
             payload,
-            BasicPublishOptions::default(),
-            BasicProperties::default(),
-        );
+        ));
         // TODO I need the event name here. We may need to rethink the event structure
     }
 
-    fn subscribe(&mut self, event_name: String, handler: EventHandler<E>) {
+    fn subscribe(&mut self, event_name: String, handler: Box<EventHandler<E>>) {
         let queue_name = format!("{}-{}", &self.namespace, &event_name);
 
         self.runtime.spawn(
@@ -163,9 +172,5 @@ where
                 );
             }),
         );
-    }
-
-    fn unsubscribe(&mut self, _event_name: String) {
-        &self.subscribers.remove(&_event_name);
     }
 }
