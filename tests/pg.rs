@@ -1,10 +1,10 @@
-extern crate event_store_rs;
+extern crate event_store;
 extern crate postgres;
 
-use event_store_rs::testhelpers::{
+use event_store::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
 };
-use event_store_rs::{
+use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Aggregator, EventStore, Store,
 };

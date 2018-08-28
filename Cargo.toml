@@ -1,10 +1,10 @@
 [package]
-name = "event-store-rs"
+name = "event-store"
 version = "0.1.0"
 authors = ["James Waples <jamwaffles@gmail.com>"]
 
 [badges]
-travis-ci = { repository = "jamwaffles/event-store-rs", branch = "master" }
+travis-ci = { repository = "repositive/event-store-rs", branch = "master" }
 
 [dependencies]
 serde = "1.0.71"
