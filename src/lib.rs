@@ -141,7 +141,9 @@ where
 ///
 /// fn main() {}
 /// ```
-pub trait EventData: Serialize + DeserializeOwned {}
+pub trait EventData: Serialize + DeserializeOwned {
+    fn event_type(&self) -> String;
+}
 
 /// A query to be passed to the store
 ///

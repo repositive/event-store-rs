@@ -13,6 +13,7 @@ pub struct TestIncrementEvent {
     /// Test identifier
     pub ident: String,
 }
+
 #[derive(Serialize, Deserialize)]
 /// Test event
 pub struct TestDecrementEvent {
@@ -38,7 +39,14 @@ pub enum TestEvents {
     Other,
 }
 
-impl EventData for TestEvents {}
+impl EventData for TestEvents {
+    fn event_type(&self) -> String {
+        match &self {
+            TestEvents::Inc(_) => "some_namespace.Inc",
+            TestEvents::Dec(_) => "some_namespace.Dec",
+        }.into()
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 /// Testing entity for a pretend domain

@@ -4,7 +4,8 @@ use adapters::{EmitterAdapter, EventHandler};
 use futures::future::{ok, Future};
 use futures::Stream;
 use lapin::channel::{
-    BasicConsumeOptions, Channel, ExchangeDeclareOptions, QueueBindOptions, QueueDeclareOptions,
+    BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
+    QueueBindOptions, QueueDeclareOptions,
 };
 use lapin::client::{Client, ConnectionOptions};
 use lapin::types::FieldTable;
@@ -18,13 +19,13 @@ use std::sync::mpsc;
 use tokio;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
-
-use Events;
+use Event;
+use EventData;
 
 /// AMQP emitter
 pub struct AMQPEmitterAdapter<E>
 where
-    E: Events,
+    E: EventData,
 {
     phantom: PhantomData<E>,
     subscribers: HashMap<String, EventHandler<E>>,
@@ -36,7 +37,7 @@ where
 
 impl<E> AMQPEmitterAdapter<E>
 where
-    E: Events,
+    E: EventData,
 {
     /// Create a new AMQPEmiterAdapter
     pub fn new(uri: SocketAddr, _exchange: String, namespace: String) -> Self {
@@ -84,7 +85,7 @@ fn prepare_subscription<'a, E>(
     channel: Channel<TcpStream>,
 ) -> impl Future<Item = (), Error = Box<Error + 'a>>
 where
-    E: Events,
+    E: EventData,
 {
     let c_channel = channel.clone();
     channel
@@ -114,7 +115,7 @@ where
                     )
                 }).and_then(move |stream| {
                     stream.for_each(move |message| {
-                        let data: E =
+                        let data: Event<E> =
                             serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
                         handler(&data);
                         c_channel.basic_ack(message.delivery_tag, false)
@@ -126,13 +127,22 @@ where
 
 impl<E> EmitterAdapter<E> for AMQPEmitterAdapter<E>
 where
-    E: Events + Send + 'static,
+    E: EventData + Send + 'static,
 {
     fn get_subscriptions(&self) -> &HashMap<String, EventHandler<E>> {
         &self.subscribers
     }
 
-    fn emit(&self, _event: &E) {
+    fn emit(&self, event: &Event<E>) {
+        let payload: Vec<u8> = serde_json::to_string(event).unwrap().into();
+        let event_type = event.data().event_type();
+        self.channel.basic_publish(
+            &self.exchange,
+            &event_type,
+            payload,
+            BasicPublishOptions::default(),
+            BasicProperties::default(),
+        );
         // TODO I need the event name here. We may need to rethink the event structure
     }
 
