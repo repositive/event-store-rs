@@ -21,6 +21,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
+use uuid::Uuid;
 
 /// Event context
 ///
@@ -37,8 +38,80 @@ pub struct EventContext {
     time: DateTime<Utc>,
 }
 
-/// Trait to be implemented by all domain events
-pub trait Event {}
+/// Event with data, context and ID
+///
+/// This is what gets stored in the store and emitted from the emitter
+#[derive(Serialize, Deserialize)]
+pub struct Event<D> {
+    data: D,
+    context: EventContext,
+    id: Uuid,
+}
+
+impl<D> Event<D>
+where
+    D: EventData,
+{
+    /// Get the ID of this event
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// Get the data of this event
+    pub fn data(&self) -> &D {
+        &self.data
+    }
+
+    /// Get the context of this event
+    pub fn context(&self) -> &EventContext {
+        &self.context
+    }
+
+    /// Create a new event
+    pub fn new(data: D, id: Uuid, context: EventContext) -> Self {
+        Self { data, context, id }
+    }
+
+    /// Create a new event from some data. `context.time` is set to now, `id` to a new V4 ID
+    ///
+    /// The rest of the context is left empty
+    pub fn from_data(data: D) -> Self {
+        Self {
+            data,
+            id: Uuid::new_v4(),
+            context: EventContext {
+                action: None,
+                subject: None,
+                time: Utc::now(),
+            },
+        }
+    }
+
+    /// Create a copied event with the given ID
+    ///
+    /// ```
+    /// # extern crate uuid;
+    /// # extern crate event_store;
+    /// # use uuid::Uuid;
+    /// # use event_store::testhelpers::*;
+    /// # use event_store::Event;
+    /// # let example_data = TestEvents::Inc(TestIncrementEvent {
+    /// #     by: 1,
+    /// #     ident: "it_aggregates_events".into(),
+    /// # });
+    /// #
+    /// let event_id = Uuid::new_v4();
+    /// let evt = Event::from_data(example_data).with_id(event_id);
+    ///
+    /// assert_eq!(evt.id(), event_id);
+    /// ```
+    pub fn with_id(self, id: Uuid) -> Self {
+        Self { id, ..self }
+    }
+}
+
+// /// Trait to be implemented by all domain events
+// pub trait EventData {}
 
 /// Trait to be implemented by the enum of all domain events. Must also implement `serde::Serialize`
 ///
@@ -46,7 +119,7 @@ pub trait Event {}
 /// # #[macro_use]
 /// # extern crate serde_derive;
 /// # extern crate event_store;
-/// # use event_store::Events;
+/// # use event_store::EventData;
 /// #[derive(Serialize, Deserialize)]
 /// struct EventA;
 ///
@@ -59,11 +132,11 @@ pub trait Event {}
 ///     B(EventB),
 /// }
 ///
-/// impl Events for DomainEvents {}
+/// impl EventData for DomainEvents {}
 ///
 /// fn main() {}
 /// ```
-pub trait Events: Serialize + DeserializeOwned {}
+pub trait EventData: Serialize + DeserializeOwned {}
 
 /// A query to be passed to the store
 ///
@@ -75,7 +148,7 @@ pub trait StoreQuery {}
 ///
 /// This takes three type items:
 ///
-/// * `E: Events` – The enum of domain events that rows from the backing store will be parsed to
+/// * `E: EventData` – The enum of domain events that rows from the backing store will be parsed to
 /// * `A` – The type of the query args to use when querying the backing store. Can be as simple as
 /// a `String`, but using a `struct` is recommended for readability
 /// * `Q: StoreQuery` – The query object to pass to the backing store. It should be built from `A`
@@ -102,10 +175,12 @@ pub trait StoreQuery {}
 ///     }
 /// }
 /// ```
-pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug + Default {
+pub trait Aggregator<E: EventData, A: Clone, Q: StoreQuery>:
+    Copy + Clone + Debug + Default
+{
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.
-    fn apply_event(acc: Self, event: &E) -> Self;
+    fn apply_event(acc: Self, event: &Event<E>) -> Self;
 
     /// Produce a query object from some query arguments
     fn query(field: A) -> Q;
@@ -114,18 +189,18 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug +
 /// Store trait
 ///
 /// Backing stores must implement this trait to maintain portability. Additional bounds can be
-/// added to `E: Events`. For example, the Postgres store implements `Store` with
-/// `Events: Events + DeserializeOwned` so that the event data can be deserialized by Serde:
+/// added to `E: EventData`. For example, the Postgres store implements `Store` with
+/// `Events: EventData + DeserializeOwned` so that the event data can be deserialized by Serde:
 ///
 /// ```ignore
 /// impl<'a, E> Store<E, PgQuery<'a>> for PgStore<E>
 /// where
-///     E: Events + DeserializeOwned,
+///     E: EventData + DeserializeOwned,
 /// {
 ///     // ...
 /// }
 /// ```
-pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
+pub trait Store<'a, E: EventData, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
@@ -136,9 +211,7 @@ pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
         A: Clone;
 
     /// Save an event to the store with optional context
-    fn save<CO>(&self, event: E, subject: Option<CO>) -> Result<(), String>
-    where
-        CO: Serialize;
+    fn save(&self, event: Event<E>) -> Result<(), String>;
 }
 
 /// Main event store
@@ -150,7 +223,7 @@ pub struct EventStore<S, C, EM> {
 
 impl<'a, E, Q, S, C, EM> Store<'a, E, Q, S, C, EM> for EventStore<S, C, EM>
 where
-    E: Events,
+    E: EventData,
     Q: StoreQuery,
     S: StoreAdapter<E, Q>,
     C: CacheAdapter<Q>,
@@ -190,11 +263,8 @@ where
     }
 
     /// Save an event to the store with optional context
-    fn save<CO>(&self, event: E, subject: Option<CO>) -> Result<(), String>
-    where
-        CO: Serialize,
-    {
-        self.store.save(&event, subject).expect("Save");
+    fn save(&self, event: Event<E>) -> Result<(), String> {
+        self.store.save(&event).expect("Save");
 
         self.emitter.emit(&event);
 

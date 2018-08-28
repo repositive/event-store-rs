@@ -14,11 +14,12 @@ use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use Aggregator;
-use Events;
+use Event;
+use EventData;
 use StoreQuery;
 
 /// Storage backend
-pub trait StoreAdapter<E: Events, Q: StoreQuery> {
+pub trait StoreAdapter<E: EventData, Q: StoreQuery> {
     /// Read a list of events matching a query
     fn aggregate<T, A>(
         &self,
@@ -30,9 +31,7 @@ pub trait StoreAdapter<E: Events, Q: StoreQuery> {
         A: Clone;
 
     /// Save an event to the store
-    fn save<S>(&self, event: &E, subject: Option<S>) -> Result<(), String>
-    where
-        S: Serialize;
+    fn save(&self, event: &Event<E>) -> Result<(), String>;
 }
 
 /// Result of a cache search
@@ -52,15 +51,15 @@ pub trait CacheAdapter<K> {
 }
 
 /// Closure called when an incoming event must be handled
-pub type EventHandler<E> = fn(&E) -> ();
+pub type EventHandler<E> = fn(&Event<E>) -> ();
 
 /// Event emitter interface
-pub trait EmitterAdapter<E: Events> {
+pub trait EmitterAdapter<E: EventData> {
     /// Get all subscribed handlers
     fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>>;
 
     /// Emit an event
-    fn emit(&self, event: &E);
+    fn emit(&self, event: &Event<E>);
 
     /// Subscribe to an event
     fn subscribe<H>(&mut self, event_name: String, handler: EventHandler<E>);

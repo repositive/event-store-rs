@@ -6,7 +6,7 @@ use event_store::testhelpers::{
 };
 use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
-    Aggregator, EventStore, Store,
+    Aggregator, Event, EventStore, Store,
 };
 use postgres::{Connection, TlsMode};
 use std::thread;
@@ -15,30 +15,30 @@ use std::time::Duration;
 #[test]
 fn it_aggregates_events() {
     let events = vec![
-        TestEvents::Inc(TestIncrementEvent {
+        Event::from_data(TestEvents::Inc(TestIncrementEvent {
             by: 1,
             ident: "it_aggregates_events".into(),
-        }),
-        TestEvents::Inc(TestIncrementEvent {
+        })),
+        Event::from_data(TestEvents::Inc(TestIncrementEvent {
             by: 1,
             ident: "it_aggregates_events".into(),
-        }),
-        TestEvents::Dec(TestDecrementEvent {
+        })),
+        Event::from_data(TestEvents::Dec(TestDecrementEvent {
             by: 2,
             ident: "it_aggregates_events".into(),
-        }),
-        TestEvents::Inc(TestIncrementEvent {
+        })),
+        Event::from_data(TestEvents::Inc(TestIncrementEvent {
             by: 2,
             ident: "it_aggregates_events".into(),
-        }),
-        TestEvents::Dec(TestDecrementEvent {
+        })),
+        Event::from_data(TestEvents::Dec(TestDecrementEvent {
             by: 3,
             ident: "it_aggregates_events".into(),
-        }),
-        TestEvents::Dec(TestDecrementEvent {
+        })),
+        Event::from_data(TestEvents::Dec(TestDecrementEvent {
             by: 3,
             ident: "it_aggregates_events".into(),
-        }),
+        })),
     ];
 
     let result: TestCounterEntity = events
@@ -65,13 +65,10 @@ fn it_queries_the_database() {
 
     assert!(
         store
-            .save(
-                TestEvents::Inc(TestIncrementEvent {
-                    by: 99,
-                    ident: ident.clone()
-                }),
-                None::<()>
-            ).is_ok()
+            .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
+                by: 99,
+                ident: ident.clone()
+            }))).is_ok()
     );
 
     let entity: TestCounterEntity = store.aggregate(ident).unwrap();
@@ -97,7 +94,7 @@ fn it_saves_events() {
         ident: "it_saves_events".into(),
     });
 
-    assert!(store.save(event, None::<()>).is_ok());
+    assert!(store.save(Event::from_data(event)).is_ok());
 }
 
 #[test]
@@ -122,24 +119,18 @@ fn it_uses_the_aggregate_cache() {
 
     assert!(
         store
-            .save(
-                TestEvents::Inc(TestIncrementEvent {
-                    by: 1,
-                    ident: ident.into()
-                }),
-                None::<()>
-            ).is_ok()
+            .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
+                by: 1,
+                ident: ident.into()
+            }))).is_ok()
     );
 
     assert!(
         store
-            .save(
-                TestEvents::Inc(TestIncrementEvent {
-                    by: 2,
-                    ident: ident.into()
-                }),
-                None::<()>
-            ).is_ok()
+            .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
+                by: 2,
+                ident: ident.into()
+            }))).is_ok()
     );
 
     // Wait for DB to process
