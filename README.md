@@ -1,6 +1,6 @@
 # Event Store in Rust
 
-[![Build Status](https://travis-ci.org/jamwaffles/event-store-rs.svg?branch=master)](https://travis-ci.org/jamwaffles/event-store-rs)
+[![Build Status](https://travis-ci.org/repositive/event-store-rs.svg?branch=master)](https://travis-ci.org/repositive/event-store-rs)
 
 Event store, but in Rust
 
