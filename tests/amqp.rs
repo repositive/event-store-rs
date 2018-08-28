@@ -1,7 +1,7 @@
-extern crate event_store_rs;
+extern crate event_store;
 
-use event_store_rs::adapters::{AMQPEmitterAdapter, EmitterAdapter};
-use event_store_rs::testhelpers::TestEvents;
+use event_store::adapters::{AMQPEmitterAdapter, EmitterAdapter};
+use event_store::testhelpers::TestEvents;
 use std::net::SocketAddr;
 
 #[test]
