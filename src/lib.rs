@@ -142,6 +142,7 @@ where
 /// fn main() {}
 /// ```
 pub trait EventData: Serialize + DeserializeOwned {
+    /// Must return the type of an event
     fn event_type(&self) -> String;
 }
 

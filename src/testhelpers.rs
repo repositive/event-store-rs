@@ -44,6 +44,7 @@ impl EventData for TestEvents {
         match &self {
             TestEvents::Inc(_) => "some_namespace.Inc",
             TestEvents::Dec(_) => "some_namespace.Dec",
+            _ => panic!("Type for unhandled event not available"),
         }.into()
     }
 }
