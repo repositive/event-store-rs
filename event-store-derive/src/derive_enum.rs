@@ -135,16 +135,15 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
 
 pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
     let info = EnumInfo::new(&parsed, &enum_body);
+    let &EnumInfo {
+        ref enum_namespace,
+        ref enum_body,
+        ref item_ident,
+        ref variant_idents,
+        ..
+    } = &info;
 
-    let item_ident = &info.item_ident;
-
-    let namespaces_quoted = get_quoted_namespaces(&info.enum_body, &info.enum_namespace);
-
-    let variant_idents = enum_body
-        .variants
-        .iter()
-        .map(|v| v.ident.clone())
-        .collect::<Vec<Ident>>();
+    let namespaces_quoted = get_quoted_namespaces(&enum_body, &enum_namespace);
 
     let types_quoted = variant_idents.iter().map(|ident| ident.to_string());
 
@@ -166,15 +165,11 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         #(
             impl event_store_derive_internals::EventData for #struct_idents {
                 fn event_namespace_and_type() -> &'static str { #namespace_and_types_quoted }
-
                 fn event_namespace() -> &'static str { #namespaces_quoted }
-
                 fn event_type() -> &'static str { #types_quoted }
             }
         )*
-
         #ser
-
         #de
     };
 
