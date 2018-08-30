@@ -3,6 +3,7 @@ extern crate serde;
 use serde::{de::DeserializeOwned, Serialize};
 
 /// Trait to be implemented by the enum of all domain events. Must also implement `serde::Serialize`
+/// and `serde::DeserializeOwned`
 ///
 /// ```rust
 /// # #[macro_use]

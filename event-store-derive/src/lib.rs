@@ -2,10 +2,9 @@
 
 #[macro_use]
 extern crate quote;
-extern crate syn;
-
 extern crate proc_macro;
 extern crate proc_macro2;
+extern crate syn;
 
 use proc_macro::TokenStream;
 use syn::DeriveInput;

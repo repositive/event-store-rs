@@ -4,7 +4,7 @@ use super::{Aggregator, Event};
 use adapters::PgQuery;
 use postgres::types::ToSql;
 
-#[derive(EventData, Serialize)]
+#[derive(EventData)]
 #[event_store(namespace = "some_namespace")]
 /// Test event
 pub struct TestIncrementEvent {
