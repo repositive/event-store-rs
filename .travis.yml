@@ -2,8 +2,14 @@ dist: trusty
 language: rust
 rust:
   - stable
+  - beta
   - nightly
 sudo: required
+
+matrix:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
 
 services:
   - docker
