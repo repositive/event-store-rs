@@ -5,7 +5,6 @@ use adapters::PgQuery;
 use postgres::types::ToSql;
 
 #[derive(Serialize, Deserialize, Debug)]
-// #[event_store(namespace = "some_namespace")]
 /// Test event
 pub struct TestIncrementEvent {
     /// Increment by this much
@@ -16,7 +15,6 @@ pub struct TestIncrementEvent {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-// #[event_store(namespace = "some_namespace")]
 /// Test event
 pub struct TestDecrementEvent {
     /// Decrement by this much

@@ -124,7 +124,7 @@ fn impl_deserialize(
                             _ => Err(de::Error::custom("Could not find matching variant"))
                         }
                     },
-                    _ => Err(de::Error::custom("Could not deserialize event"))
+                    _ => Err(de::Error::custom("Event type and namespace not given"))
                 }
             }
         }
