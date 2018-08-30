@@ -20,7 +20,7 @@ pub mod testhelpers;
 
 use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
 use chrono::prelude::*;
-pub use event_store_derive_internals::EventData;
+pub use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
@@ -53,7 +53,7 @@ pub struct Event<D> {
 
 impl<D> Event<D>
 where
-    D: EventData,
+    D: Events,
 {
     /// Get the ID of this event
     pub fn id(&self) -> Uuid {
@@ -150,9 +150,7 @@ pub trait StoreQuery {}
 ///     }
 /// }
 /// ```
-pub trait Aggregator<E: EventData, A: Clone, Q: StoreQuery>:
-    Copy + Clone + Debug + Default
-{
+pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug + Default {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.
     fn apply_event(acc: Self, event: &Event<E>) -> Self;
@@ -164,18 +162,18 @@ pub trait Aggregator<E: EventData, A: Clone, Q: StoreQuery>:
 /// Store trait
 ///
 /// Backing stores must implement this trait to maintain portability. Additional bounds can be
-/// added to `E: EventData`. For example, the Postgres store implements `Store` with
-/// `Events: EventData + DeserializeOwned` so that the event data can be deserialized by Serde:
+/// added to `E: Events`. For example, the Postgres store implements `Store` with
+/// `Events: Events + DeserializeOwned` so that the event data can be deserialized by Serde:
 ///
 /// ```ignore
 /// impl<'a, E> Store<E, PgQuery<'a>> for PgStore<E>
 /// where
-///     E: EventData + DeserializeOwned,
+///     E: Events + DeserializeOwned,
 /// {
 ///     // ...
 /// }
 /// ```
-pub trait Store<'a, E: EventData, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
+pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
@@ -198,7 +196,7 @@ pub struct EventStore<S, C, EM> {
 
 impl<'a, E, Q, S, C, EM> Store<'a, E, Q, S, C, EM> for EventStore<S, C, EM>
 where
-    E: EventData,
+    E: Events,
     Q: StoreQuery,
     S: StoreAdapter<E, Q>,
     C: CacheAdapter<Q>,

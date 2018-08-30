@@ -4,8 +4,8 @@ use super::{Aggregator, Event};
 use adapters::PgQuery;
 use postgres::types::ToSql;
 
-#[derive(EventData, Debug)]
-#[event_store(namespace = "some_namespace")]
+#[derive(Serialize, Deserialize, Debug)]
+// #[event_store(namespace = "some_namespace")]
 /// Test event
 pub struct TestIncrementEvent {
     /// Increment by this much
@@ -15,8 +15,8 @@ pub struct TestIncrementEvent {
     pub ident: String,
 }
 
-#[derive(EventData, Debug)]
-#[event_store(namespace = "some_namespace")]
+#[derive(Serialize, Deserialize, Debug)]
+// #[event_store(namespace = "some_namespace")]
 /// Test event
 pub struct TestDecrementEvent {
     /// Decrement by this much
@@ -26,7 +26,7 @@ pub struct TestDecrementEvent {
     pub ident: String,
 }
 
-#[derive(EventData, Debug)]
+#[derive(Events, Debug)]
 #[event_store(namespace = "some_namespace")]
 /// Set of all events in the domain
 pub enum TestEvents {

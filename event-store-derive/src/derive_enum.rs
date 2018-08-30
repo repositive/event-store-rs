@@ -7,12 +7,30 @@ use syn::{DataEnum, DeriveInput};
 // TODO: Make args a struct to make passing them around easier
 fn impl_serialize(
     item_ident: &TokenStream,
-    _struct_body: &DataEnum,
+    enum_body: &DataEnum,
     _ns: &String,
     _ty: &String,
     variant_idents: &Vec<Ident>,
 ) -> TokenStream {
+    // let item_ident_quoted = item_ident.to_string();
+
     let item_idents = repeat(item_ident);
+
+    // TODO: Move into own function
+    let struct_idents = enum_body
+        .variants
+        .iter()
+        .map(|variant| {
+            variant
+                .fields
+                .iter()
+                .next()
+                .map(|field| field.ty.clone().into_token_stream())
+                .expect("Expected struct type")
+        }).collect::<Vec<TokenStream>>();
+
+    let struct_idents2 = struct_idents.clone();
+    let struct_idents3 = struct_idents.clone();
 
     quote! {
         impl Serialize for #item_ident {
@@ -21,12 +39,41 @@ fn impl_serialize(
                 S: Serializer,
             {
                 use serde_json;
+                use event_store_derive_internals::EventData;
+
+                #[derive(Serialize)]
+                struct Output {
+                    #[serde(rename = "type")]
+                    event_type_and_namespace: String,
+                    event_type: String,
+                    event_namespace: String,
+                    #[serde(flatten)]
+                    payload: serde_json::Value,
+                }
 
                 // TODO: Handle rename attribs on enum variant
 
-                match self {
-                    #(#item_idents::#variant_idents(evt) => evt.serialize(serializer),)*
-                }
+                let (payload, ns_and_ty, ns, ty) = match self {
+                    #(#item_idents::#variant_idents(evt) => {
+                        let p: serde_json::Value = serde_json::to_value(evt).expect("Ser");
+
+                        (
+                            p,
+                            #struct_idents::event_namespace_and_type().into(),
+                            #struct_idents2::event_namespace().into(),
+                            #struct_idents3::event_type().into()
+                        )
+                    },)*
+                };
+
+                let out = Output {
+                    payload,
+                    event_type_and_namespace: ns_and_ty,
+                    event_namespace: ns,
+                    event_type: ty,
+                };
+
+                out.serialize(serializer).map_err(ser::Error::custom)
             }
         }
     }
@@ -115,9 +162,9 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         .expect("Namespace attribute must be provided at the enum level");
 
     let item_ident = parsed.clone().ident.into_token_stream();
-    let item_idents = repeat(item_ident.clone());
-    let item_idents2 = repeat(item_ident.clone());
-    let item_idents3 = repeat(item_ident.clone());
+    // let item_idents = repeat(item_ident.clone());
+    // let item_idents2 = repeat(item_ident.clone());
+    // let item_idents3 = repeat(item_ident.clone());
 
     let namespaces = enum_body
         .variants
@@ -137,8 +184,8 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         .map(|v| v.ident.clone())
         .collect::<Vec<Ident>>();
 
-    let variant_idents2 = variant_idents.clone();
-    let variant_idents3 = variant_idents.clone();
+    // let variant_idents2 = variant_idents.clone();
+    // let variant_idents3 = variant_idents.clone();
 
     let types_quoted = variant_idents
         .iter()
@@ -167,26 +214,38 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         &variant_idents,
     );
 
+    // TODO: Move into own function
+    let struct_idents = enum_body
+        .variants
+        .iter()
+        .map(|variant| {
+            variant
+                .fields
+                .iter()
+                .next()
+                .map(|field| field.ty.clone().into_token_stream())
+                .expect("Expected struct type")
+        }).collect::<Vec<TokenStream>>();
+
     let out = quote!{
-        impl event_store_derive_internals::EventData for #item_ident {
-            fn event_namespace_and_type(&self) -> &'static str {
-                match self {
-                    #(#item_idents::#variant_idents(_) => #namespace_and_types_quoted,)*
-                }
-            }
+        // Get the type or namespace of an instance of an events enum
+        impl event_store_derive_internals::Events for #item_ident { }
 
-            fn event_namespace(&self) -> &'static str {
-                match self {
-                    #(#item_idents2::#variant_idents2(_) => #namespaces_quoted,)*
+        #(
+            impl event_store_derive_internals::EventData for #struct_idents {
+                fn event_namespace_and_type() -> &'static str {
+                    #namespace_and_types_quoted
                 }
-            }
 
-            fn event_type(&self) -> &'static str {
-                match self {
-                    #(#item_idents3::#variant_idents3(_) => #types_quoted,)*
+                fn event_namespace() -> &'static str {
+                    #namespaces_quoted
+                }
+
+                fn event_type() -> &'static str {
+                    #types_quoted
                 }
             }
-        }
+        )*
 
         #ser
 

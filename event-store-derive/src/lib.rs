@@ -15,7 +15,7 @@ mod ns;
 
 const PROC_MACRO_NAME: &'static str = "event_store";
 
-#[proc_macro_derive(EventData, attributes(event_store))]
+#[proc_macro_derive(Events, attributes(event_store))]
 pub fn derive_namespace(input: TokenStream) -> TokenStream {
     let input: DeriveInput = syn::parse(input).unwrap();
 

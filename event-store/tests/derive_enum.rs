@@ -6,6 +6,8 @@ extern crate serde_json;
 #[macro_use]
 extern crate event_store_derive;
 extern crate event_store;
+// TODO: Figure out how to remove this
+extern crate event_store_derive_internals;
 
 use event_store::EventData;
 use serde_json::from_value;
@@ -13,13 +15,12 @@ use serde_json::to_value;
 
 #[test]
 fn it_deserializes_enums() {
-    #[derive(EventData, PartialEq, Debug)]
-    #[event_store(namespace = "some_namespace")]
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {
         thing: u32,
     }
 
-    #[derive(EventData, PartialEq, Debug)]
+    #[derive(Events, PartialEq, Debug)]
     #[event_store(namespace = "some_namespace")]
     enum TestEnum {
         TestStruct(TestStruct),
@@ -37,13 +38,12 @@ fn it_deserializes_enums() {
 
 #[test]
 fn it_serializes_enums() {
-    #[derive(EventData, PartialEq, Debug)]
-    #[event_store(namespace = "some_namespace")]
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {
         thing: u32,
     }
 
-    #[derive(EventData, PartialEq, Debug)]
+    #[derive(Events, PartialEq, Debug)]
     #[event_store(namespace = "some_namespace")]
     enum TestEnum {
         TestStruct(TestStruct),
@@ -61,66 +61,13 @@ fn it_serializes_enums() {
 }
 
 #[test]
-fn it_gets_the_namespace_and_type() {
-    #[derive(EventData, PartialEq, Debug)]
-    #[event_store(namespace = "some_namespace")]
-    struct TestStruct {
-        thing: u32,
-    }
-
-    #[derive(EventData, PartialEq, Debug)]
-    #[event_store(namespace = "some_namespace")]
-    enum TestEnum {
-        TestStruct(TestStruct),
-    }
-
-    let thing = TestEnum::TestStruct(TestStruct { thing: 100 });
-
-    assert_eq!(
-        thing.event_namespace_and_type(),
-        "some_namespace.TestStruct"
-    );
-
-    assert_eq!(thing.event_namespace(), "some_namespace");
-
-    assert_eq!(thing.event_type(), "TestStruct");
-}
-
-#[test]
-#[ignore]
-fn it_gets_the_overridden_namespace() {
-    #[derive(EventData, PartialEq, Debug)]
-    #[event_store(namespace = "some_namespace")]
-    struct TestStruct {
-        thing: u32,
-    }
-
-    #[derive(EventData, PartialEq, Debug)]
-    #[event_store(namespace = "some_namespace")]
-    enum TestEnum {
-        // TODO: Make this work
-        // #[event_store(namespace = "overridden")]
-        TestStruct(TestStruct),
-    }
-
-    let thing = TestEnum::TestStruct(TestStruct { thing: 100 });
-
-    assert_eq!(thing.event_namespace_and_type(), "overridden.TestStruct");
-
-    assert_eq!(thing.event_namespace(), "overridden");
-
-    assert_eq!(thing.event_type(), "TestStruct");
-}
-
-#[test]
 fn it_roundtrips() {
-    #[derive(EventData, PartialEq, Debug, Clone)]
-    #[event_store(namespace = "some_namespace")]
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     struct TestStruct {
         thing: u32,
     }
 
-    #[derive(EventData, PartialEq, Debug, Clone)]
+    #[derive(Events, PartialEq, Debug, Clone)]
     #[event_store(namespace = "some_namespace")]
     enum TestEnum {
         TestStruct(TestStruct),
