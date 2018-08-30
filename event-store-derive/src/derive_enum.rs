@@ -116,19 +116,48 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         .expect("Namespace attribute must be provided at the enum level");
 
     let item_ident = parsed.clone().ident.into_token_stream();
+    let item_idents = repeat(item_ident.clone());
+    let item_idents2 = repeat(item_ident.clone());
+    let item_idents3 = repeat(item_ident.clone());
 
-    let collected = enum_body
+    let namespaces = enum_body
+        .variants
+        .iter()
+        .map(|variant| {
+            get_namespace_from_attributes(&variant.attrs).unwrap_or(default_namespace.clone())
+        }).collect::<Vec<Ident>>();
+
+    let namespaces_quoted = namespaces
+        .iter()
+        .map(|ident| ident.to_string())
+        .collect::<Vec<String>>();
+
+    let variant_idents = enum_body
         .variants
         .iter()
         .map(|v| v.ident.clone())
         .collect::<Vec<Ident>>();
+
+    let variant_idents2 = variant_idents.clone();
+    let variant_idents3 = variant_idents.clone();
+
+    let types_quoted = variant_idents
+        .iter()
+        .map(|ident| ident.to_string())
+        .collect::<Vec<String>>();
+
+    let namespace_and_types_quoted = namespaces_quoted
+        .iter()
+        .zip(variant_idents.iter())
+        .map(|(ns, ty)| format!("{}.{}", ns, ty))
+        .collect::<Vec<String>>();
 
     let ser = impl_serialize(
         &item_ident,
         &enum_body,
         &String::new(),
         &String::new(),
-        &collected,
+        &variant_idents,
     );
     let de = impl_deserialize(
         &default_namespace,
@@ -136,26 +165,27 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         &enum_body,
         &String::new(),
         &String::new(),
-        &collected,
+        &variant_idents,
     );
 
     let out = quote!{
         impl event_store_derive_internals::EventData for #item_ident {
             fn event_namespace_and_type(&self) -> &'static str {
-                // match self {
-                //     #(#item_idents::#variant_idents(_) => #namespaced_variants_quoted,)*
-                // }
-                "TODO"
+                match self {
+                    #(#item_idents::#variant_idents(_) => #namespace_and_types_quoted,)*
+                }
             }
 
             fn event_namespace(&self) -> &'static str {
-                // TODO
-                "TODO"
+                match self {
+                    #(#item_idents2::#variant_idents2(_) => #namespaces_quoted,)*
+                }
             }
 
             fn event_type(&self) -> &'static str {
-                // TODO
-                "TODO"
+                match self {
+                    #(#item_idents3::#variant_idents3(_) => #types_quoted,)*
+                }
             }
         }
 
