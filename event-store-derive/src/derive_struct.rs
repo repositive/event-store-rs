@@ -100,12 +100,11 @@ fn impl_serialize(
             {
                 let mut state = serializer.serialize_struct(#item_ident_quoted, #total_fields)?;
 
-                state.serialize_field("type", #ns_and_ty);
-                state.serialize_field("event_namespace", #ns);
-                state.serialize_field("event_type", #ty);
+                state.serialize_field("type", #ns_and_ty)?;
+                state.serialize_field("event_namespace", #ns)?;
+                state.serialize_field("event_type", #ty)?;
 
                 #(state.serialize_field(#field_idents_quoted, &self.#field_idents_rhs)?;)*
-
 
                 state.end()
             }
