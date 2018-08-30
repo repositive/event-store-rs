@@ -1,5 +1,5 @@
 use derive_enum::derive_enum;
-use derive_struct::derive_struct;
+// use derive_struct::derive_struct;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__rt::TokenTree::Group;
 use std::string::ToString;

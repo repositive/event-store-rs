@@ -10,7 +10,7 @@ use proc_macro::TokenStream;
 use syn::DeriveInput;
 
 mod derive_enum;
-mod derive_struct;
+// mod derive_struct;
 mod ns;
 
 const PROC_MACRO_NAME: &'static str = "event_store";
