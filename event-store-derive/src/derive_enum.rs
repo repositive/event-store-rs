@@ -93,7 +93,6 @@ fn impl_deserialize(
                     }
                 }
 
-                // TODO: Deserialize event where `Type` (in struct) has different name to enum variant. Does this make sense to do?
                 match (&type_helper.event_namespace, &type_helper.event_type) {
                     (Some(ref ns), Some(ref ty)) => {
                         match (ns.as_str(), ty.as_str()) {
