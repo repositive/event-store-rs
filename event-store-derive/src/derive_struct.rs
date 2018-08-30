@@ -90,9 +90,7 @@ fn impl_serialize(
     // Number of fields in the struct plust `type`, `event_type` and `event_namespace`
     let total_fields = field_idents.len() + 3;
 
-    let ns_and_ty = format!("\"{}.{}\"", ns, ty);
-    let ns_quoted = format!("\"{}\"", ns);
-    let ty_quoted = format!("\"{}\"", ty);
+    let ns_and_ty = format!("{}.{}", ns, ty);
 
     quote! {
         impl Serialize for #item_ident {
@@ -103,8 +101,8 @@ fn impl_serialize(
                 let mut state = serializer.serialize_struct(#item_ident_quoted, #total_fields)?;
 
                 state.serialize_field("type", #ns_and_ty);
-                state.serialize_field("event_namespace", #ns_quoted);
-                state.serialize_field("event_type", #ty_quoted);
+                state.serialize_field("event_namespace", #ns);
+                state.serialize_field("event_type", #ty);
 
                 #(state.serialize_field(#field_idents_quoted, &self.#field_idents_rhs)?;)*
 
@@ -121,7 +119,7 @@ pub fn derive_struct(parsed: &DeriveInput, struct_body: &DataStruct) -> TokenStr
 
     let item_ident = parsed.clone().ident.into_token_stream();
 
-    let namespaced_ident = format!("\"{}.{}\"", struct_namespace, item_ident);
+    let namespaced_ident = format!("{}.{}", struct_namespace, item_ident);
 
     // Turn tokens into string literals so comparisons can be made
     let ns = format!("{}", struct_namespace);
