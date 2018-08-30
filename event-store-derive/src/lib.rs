@@ -1,7 +1,24 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+#![recursion_limit = "256"]
+
+#[macro_use]
+extern crate quote;
+extern crate syn;
+
+extern crate proc_macro;
+extern crate proc_macro2;
+
+use proc_macro::TokenStream;
+use syn::DeriveInput;
+
+mod derive_enum;
+mod derive_struct;
+mod ns;
+
+const PROC_MACRO_NAME: &'static str = "event_store";
+
+#[proc_macro_derive(EventData, attributes(event_store))]
+pub fn derive_namespace(input: TokenStream) -> TokenStream {
+    let input: DeriveInput = syn::parse(input).unwrap();
+
+    ns::expand_derive_namespace(&input).into()
 }

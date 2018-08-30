@@ -1,10 +1,11 @@
 //! Test helpers. Do not use in application code.
 
-use super::{Aggregator, Event, EventData};
+use super::{Aggregator, Event};
 use adapters::PgQuery;
 use postgres::types::ToSql;
 
-#[derive(Serialize, Deserialize)]
+#[derive(EventData, Serialize)]
+#[event_store(namespace = "some_namespace")]
 /// Test event
 pub struct TestIncrementEvent {
     /// Increment by this much
@@ -23,22 +24,17 @@ pub struct TestDecrementEvent {
     pub ident: String,
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
+#[derive(EventData, Deserialize, Serialize)]
+#[event_store(namespace = "some_namespace")]
 /// Set of all events in the domain
 pub enum TestEvents {
     /// Increment
-    #[serde(rename = "some_namespace.Inc")]
     Inc(TestIncrementEvent),
     /// Decrement
-    #[serde(rename = "some_namespace.Dec")]
     Dec(TestDecrementEvent),
-    /// Some other event
-    #[serde(rename = "some_namespace.Other")]
-    Other,
 }
 
-impl EventData for TestEvents {}
+// impl EventData for TestEvents {}
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone, PartialEq)]
 /// Testing entity for a pretend domain
@@ -58,7 +54,6 @@ impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
         let counter = match event.data {
             TestEvents::Inc(ref inc) => acc.counter + inc.by,
             TestEvents::Dec(ref dec) => acc.counter - dec.by,
-            _ => acc.counter,
         };
 
         Self { counter, ..acc }

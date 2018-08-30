@@ -1,0 +1,7 @@
+[package]
+name = "event-store-derive-internals"
+version = "0.1.0"
+authors = ["James Waples <jamwaffles@gmail.com>"]
+
+[dependencies]
+serde = "1.0.75"

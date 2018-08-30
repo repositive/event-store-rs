@@ -7,13 +7,12 @@ extern crate postgres;
 #[macro_use]
 extern crate serde_derive;
 extern crate chrono;
+#[macro_use]
+extern crate event_store_derive;
+extern crate event_store_derive_internals;
 extern crate serde;
 extern crate serde_json;
 extern crate sha2;
-
-
-
-
 extern crate uuid;
 
 pub mod adapters;
@@ -21,7 +20,7 @@ pub mod testhelpers;
 
 use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
 use chrono::prelude::*;
-use serde::de::DeserializeOwned;
+pub use event_store_derive_internals::EventData;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
@@ -113,34 +112,6 @@ where
         Self { id, ..self }
     }
 }
-
-// /// Trait to be implemented by all domain events
-// pub trait EventData {}
-
-/// Trait to be implemented by the enum of all domain events. Must also implement `serde::Serialize`
-///
-/// ```rust
-/// # #[macro_use]
-/// # extern crate serde_derive;
-/// # extern crate event_store;
-/// # use event_store::EventData;
-/// #[derive(Serialize, Deserialize)]
-/// struct EventA;
-///
-/// #[derive(Serialize, Deserialize)]
-/// struct EventB;
-///
-/// #[derive(Serialize, Deserialize)]
-/// enum DomainEvents {
-///     A(EventA),
-///     B(EventB),
-/// }
-///
-/// impl EventData for DomainEvents {}
-///
-/// fn main() {}
-/// ```
-pub trait EventData: Serialize + DeserializeOwned {}
 
 /// A query to be passed to the store
 ///

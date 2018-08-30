@@ -1,5 +1,6 @@
 [workspace]
 members = [
 	"event-store",
-	"event-store-derive"
+	"event-store-derive",
+	"event-store-derive-internals",
 ]
