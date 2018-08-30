@@ -27,5 +27,9 @@ use serde::{de::DeserializeOwned, Serialize};
 /// fn main() {}
 /// ```
 pub trait EventData: Serialize + DeserializeOwned {
-    fn namespaced_type(&self) -> &'static str;
+    fn event_namespace_and_type(&self) -> &'static str;
+
+    fn event_namespace(&self) -> &'static str;
+
+    fn event_type(&self) -> &'static str;
 }

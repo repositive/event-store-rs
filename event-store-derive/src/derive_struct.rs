@@ -139,8 +139,16 @@ pub fn derive_struct(parsed: &DeriveInput, struct_body: &DataStruct) -> TokenStr
     // TODO: Split out into different funcs that return `Fragment`s
     let out = quote!{
         impl event_store_derive_internals::EventData for #item_ident {
-            fn namespaced_type(&self) -> &'static str {
+            fn event_namespace_and_type(&self) -> &'static str {
                 #namespaced_ident
+            }
+
+            fn event_namespace(&self) -> &'static str {
+                #ns
+            }
+
+            fn event_type(&self) -> &'static str {
+                #ty
             }
         }
 
