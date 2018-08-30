@@ -141,7 +141,7 @@ pub fn derive_struct(parsed: &DeriveInput, struct_body: &DataStruct) -> TokenStr
     };
 
     let dummy_const = Ident::new(
-        &format!("_IMPL_EVENT_STORE_FOR_{}", item_ident),
+        &format!("_IMPL_EVENT_STORE_STRUCT_FOR_{}", item_ident),
         Span::call_site(),
     );
 

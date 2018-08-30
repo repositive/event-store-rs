@@ -1,12 +1,12 @@
 use derive_enum::derive_enum;
 use derive_struct::derive_struct;
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::__rt::TokenTree::Group;
 use std::string::ToString;
 use syn::{Attribute, Data, DeriveInput};
 use PROC_MACRO_NAME;
 
-pub fn get_namespace_from_attributes(input: &Vec<Attribute>) -> Option<String> {
+pub fn get_namespace_from_attributes(input: &Vec<Attribute>) -> Option<Ident> {
     input
         .iter()
         .filter_map(|attr| {
@@ -28,8 +28,7 @@ pub fn get_namespace_from_attributes(input: &Vec<Attribute>) -> Option<String> {
                         .stream()
                         .into_iter()
                         .nth(2)
-                        // Convert to string, strip surrounding quotes
-                        .map(|namespace| namespace.to_string().trim_matches('"').into()),
+                        .map(|namespace| Ident::new(namespace.to_string().trim_matches('"').into(), Span::call_site(),)),
                     _ => None,
                 })
         }).next()
