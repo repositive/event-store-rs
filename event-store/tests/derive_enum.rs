@@ -74,9 +74,7 @@ fn it_roundtrips() {
     }
 
     let event = TestEnum::TestStruct(TestStruct { thing: 100 });
-
     let encoded = to_value(event.clone()).expect("Failed to encode");
-
     let decoded: TestEnum = from_value(encoded.clone()).expect("Failed to decode");
 
     assert_eq!(event, decoded.clone());
@@ -85,6 +83,38 @@ fn it_roundtrips() {
         json!({
             "type": "some_namespace.TestStruct",
             "event_namespace": "some_namespace",
+            "event_type": "TestStruct",
+            "thing": 100,
+        })
+    );
+}
+
+#[test]
+#[ignore]
+// TODO: Make this work
+fn it_roundtrips_overridden_namespaces() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct TestStruct {
+        thing: u32,
+    }
+
+    #[derive(Events, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        // #[event_store(namespace = "other_ns")]
+        TestStruct(TestStruct),
+    }
+
+    let event = TestEnum::TestStruct(TestStruct { thing: 100 });
+    let encoded = to_value(event.clone()).expect("Failed to encode");
+    let decoded: TestEnum = from_value(encoded.clone()).expect("Failed to decode");
+
+    assert_eq!(event, decoded.clone());
+    assert_eq!(
+        encoded,
+        json!({
+            "type": "other_ns.TestStruct",
+            "event_namespace": "other_ns",
             "event_type": "TestStruct",
             "thing": 100,
         })

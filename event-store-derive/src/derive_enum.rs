@@ -92,6 +92,9 @@ fn impl_deserialize(
                     pub event_type_and_namespace: Option<String>,
                     pub event_type: Option<String>,
                     pub event_namespace: Option<String>,
+                    #[serde(flatten)]
+                    // TODO: Remove reliance on serde_json and make this generic
+                    payload: serde_json::Value,
                 }
 
                 #[derive(Deserialize, Debug)]
@@ -99,15 +102,12 @@ fn impl_deserialize(
                     #body
                 };
 
-                // TODO: Remove reliance on serde_json and make this generic
-                let v = serde_json::Value::deserialize(deserializer).map_err(de::Error::custom)?;
-
-                let mut type_helper = Helper::deserialize(&v).map_err(de::Error::custom)?;
+                let mut type_helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
 
                 // Map old-style event to new-style if new-style is not defined
                 if let Some(ref ns_and_ty) = &type_helper.event_type_and_namespace {
                     if type_helper.event_type.is_none() && type_helper.event_namespace.is_none() {
-                        let parts: Vec<String> = ns_and_ty.clone().split('.').map(|part| String::from(part)).collect();
+                        let parts: Vec<String> = ns_and_ty.split('.').map(|part| String::from(part)).collect();
 
                         type_helper.event_namespace = Some(parts[0].clone());
                         type_helper.event_type = Some(parts[1].clone());
@@ -118,7 +118,9 @@ fn impl_deserialize(
                     (Some(ref ns), Some(ref ty)) => {
                         match (ns.as_str(), ty.as_str()) {
                             #((#variant_namespaces_quoted, #variant_types_quoted) => {
-                                let variant_value = serde_json::from_value(v).map_err(de::Error::custom)?;
+                                let variant_value = serde_json::from_value(type_helper.payload)
+                                    .map_err(de::Error::custom)?;
+
                                 Ok(#item_idents::#variant_idents(variant_value))
                             },)*
                             _ => Err(de::Error::custom("Could not find matching variant"))
