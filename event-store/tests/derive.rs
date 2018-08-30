@@ -101,6 +101,8 @@ fn it_serializes_structs() {
         to_value(&thing).unwrap(),
         json!({
             "type": "some_namespace.TestStruct",
+            "event_namespace": "some_namespace",
+            "event_type": "TestStruct",
             "thing": 100
         })
     );
