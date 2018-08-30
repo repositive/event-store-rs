@@ -10,6 +10,7 @@ use event_store::testhelpers::{
 };
 use event_store::{Aggregator, Event};
 use serde_json::{from_str, to_string, to_value, Value};
+use std::time::Duration;
 
 fn aggregate_from_default(c: &mut Criterion) {
     c.bench_function("aggregate from default", move |b| {
@@ -91,10 +92,17 @@ fn deserialize_event(c: &mut Criterion) {
 }
 
 criterion_group!(
-    testhelpers,
-    aggregate_from_default,
-    serialize_event,
-    deserialize_old_event,
-    deserialize_event
+    name = testhelpers;
+
+    config = Criterion::default()
+        .warm_up_time(Duration::from_millis(1000))
+        .sample_size(100)
+        .measurement_time(Duration::from_millis(4000));
+
+    targets =
+        aggregate_from_default,
+        serialize_event,
+        deserialize_old_event,
+        deserialize_event
 );
 criterion_main!(testhelpers);

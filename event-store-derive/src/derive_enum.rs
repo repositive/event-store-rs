@@ -1,20 +1,21 @@
 use ns::get_enum_struct_names;
-use ns::get_namespace_from_attributes;
 use ns::get_quoted_namespaces;
+use ns::EnumInfo;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
 use std::iter::repeat;
 use syn::{DataEnum, DeriveInput};
 
-// TODO: Make args a struct to make passing them around easier
-fn impl_serialize(
-    item_ident: &TokenStream,
-    enum_body: &DataEnum,
-    variant_idents: &Vec<Ident>,
-) -> TokenStream {
+fn impl_serialize(info: &EnumInfo) -> TokenStream {
+    let EnumInfo {
+        item_ident,
+        variant_idents,
+        ..
+    } = info;
+
     let item_idents = repeat(item_ident);
 
-    let struct_idents = get_enum_struct_names(&enum_body);
+    let struct_idents = get_enum_struct_names(&info.enum_body);
 
     let struct_idents2 = struct_idents.clone();
     let struct_idents3 = struct_idents.clone();
@@ -59,21 +60,19 @@ fn impl_serialize(
     }
 }
 
-// TODO: Make args a struct to make passing them around easier
-fn impl_deserialize(
-    enum_namespace: &Ident,
-    item_ident: &TokenStream,
-    enum_body: &DataEnum,
-    // TODO: Make a struct that holds variant metadata
-    variant_idents: &Vec<Ident>,
-) -> TokenStream {
-    let item_idents = repeat(item_ident);
+fn impl_deserialize(info: &EnumInfo) -> TokenStream {
+    let EnumInfo {
+        item_ident,
+        variant_idents,
+        ..
+    } = info;
 
-    let body = enum_body.clone().variants.into_token_stream();
+    let item_idents = repeat(&info.item_ident);
+    let body = info.enum_body.clone().variants.into_token_stream();
+    let variant_namespaces_quoted = get_quoted_namespaces(&info.enum_body, &info.enum_namespace);
 
-    let variant_namespaces_quoted = get_quoted_namespaces(&enum_body, &enum_namespace);
-
-    let variant_types_quoted = enum_body
+    let variant_types_quoted = info
+        .enum_body
         .variants
         .iter()
         .map(|variant| variant.ident.clone().to_string());
@@ -89,9 +88,9 @@ fn impl_deserialize(
                 #[derive(Deserialize, Debug)]
                 struct Helper {
                     #[serde(rename = "type")]
-                    pub event_type_and_namespace: Option<String>,
-                    pub event_type: Option<String>,
-                    pub event_namespace: Option<String>,
+                    event_type_and_namespace: Option<String>,
+                    event_type: Option<String>,
+                    event_namespace: Option<String>,
                     #[serde(flatten)]
                     // TODO: Remove reliance on serde_json and make this generic
                     payload: serde_json::Value,
@@ -102,31 +101,32 @@ fn impl_deserialize(
                     #body
                 };
 
-                let mut type_helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
+                let type_helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
 
-                // Map old-style event to new-style if new-style is not defined
-                if let Some(ref ns_and_ty) = &type_helper.event_type_and_namespace {
-                    if type_helper.event_type.is_none() && type_helper.event_namespace.is_none() {
-                        let parts: Vec<String> = ns_and_ty.split('.').map(|part| String::from(part)).collect();
-
-                        type_helper.event_namespace = Some(parts[0].clone());
-                        type_helper.event_type = Some(parts[1].clone());
-                    }
-                }
-
-                match (&type_helper.event_namespace, &type_helper.event_type) {
-                    (Some(ref ns), Some(ref ty)) => {
-                        match (ns.as_str(), ty.as_str()) {
-                            #((#variant_namespaces_quoted, #variant_types_quoted) => {
-                                let variant_value = serde_json::from_value(type_helper.payload)
-                                    .map_err(de::Error::custom)?;
-
-                                Ok(#item_idents::#variant_idents(variant_value))
-                            },)*
-                            _ => Err(de::Error::custom("Could not find matching variant"))
-                        }
+                let (ns, ty) = match type_helper {
+                    Helper { event_type: Some(ty), event_namespace: Some(ns), ..  } => {
+                        (ns, ty)
                     },
-                    _ => Err(de::Error::custom("Event type and namespace not given"))
+                    // Map old-style event to new-style if new-style is not defined
+                    Helper { event_type_and_namespace: Some(ns_and_ty), ..  } => {
+                        let parts: Vec<String> = ns_and_ty
+                            .split('.')
+                            .map(|part| String::from(part))
+                            .collect();
+
+                        (parts[0].clone(), parts[1].clone())
+                    },
+                    _ => return Err(de::Error::custom("Event type and namespace not given"))
+                };
+
+                match (ns.as_str(), ty.as_str()) {
+                    #((#variant_namespaces_quoted, #variant_types_quoted) => {
+                        let variant_value = serde_json::from_value(type_helper.payload)
+                            .map_err(de::Error::custom)?;
+
+                        Ok(#item_idents::#variant_idents(variant_value))
+                    },)*
+                    _ => Err(de::Error::custom("Could not find matching variant"))
                 }
             }
         }
@@ -134,12 +134,11 @@ fn impl_deserialize(
 }
 
 pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
-    let default_namespace = get_namespace_from_attributes(&parsed.attrs)
-        .expect("Namespace attribute must be provided at the enum level");
+    let info = EnumInfo::new(&parsed, &enum_body);
 
-    let item_ident = parsed.clone().ident.into_token_stream();
+    let item_ident = &info.item_ident;
 
-    let namespaces_quoted = get_quoted_namespaces(&enum_body, &default_namespace);
+    let namespaces_quoted = get_quoted_namespaces(&info.enum_body, &info.enum_namespace);
 
     let variant_idents = enum_body
         .variants
@@ -155,8 +154,8 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         .map(|(ns, ty)| format!("{}.{}", ns, ty))
         .collect::<Vec<String>>();
 
-    let ser = impl_serialize(&item_ident, &enum_body, &variant_idents);
-    let de = impl_deserialize(&default_namespace, &item_ident, &enum_body, &variant_idents);
+    let ser = impl_serialize(&info);
+    let de = impl_deserialize(&info);
 
     let struct_idents = get_enum_struct_names(&enum_body);
 

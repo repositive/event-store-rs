@@ -7,6 +7,35 @@ use std::string::ToString;
 use syn::{Attribute, Data, DataEnum, DeriveInput};
 use PROC_MACRO_NAME;
 
+pub struct EnumInfo {
+    pub enum_namespace: Ident,
+    pub item_ident: TokenStream,
+    pub enum_body: DataEnum,
+    pub variant_idents: Vec<Ident>,
+}
+
+impl EnumInfo {
+    pub fn new(input: &DeriveInput, enum_body: &DataEnum) -> Self {
+        let enum_namespace = get_namespace_from_attributes(&input.attrs)
+            .expect("Namespace attribute must be provided at the enum level");
+
+        let item_ident = input.clone().ident.into_token_stream();
+
+        let variant_idents = enum_body
+            .variants
+            .iter()
+            .map(|v| v.ident.clone())
+            .collect::<Vec<Ident>>();
+
+        Self {
+            enum_namespace,
+            item_ident,
+            variant_idents,
+            enum_body: enum_body.clone(),
+        }
+    }
+}
+
 pub fn get_namespace_from_attributes(input: &Vec<Attribute>) -> Option<Ident> {
     input
         .iter()
