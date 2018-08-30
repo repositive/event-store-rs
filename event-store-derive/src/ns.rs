@@ -1,9 +1,10 @@
 use derive_enum::derive_enum;
 // use derive_struct::derive_struct;
 use proc_macro2::{Ident, Span, TokenStream};
+use quote::ToTokens;
 use quote::__rt::TokenTree::Group;
 use std::string::ToString;
-use syn::{Attribute, Data, DeriveInput};
+use syn::{Attribute, Data, DataEnum, DeriveInput};
 use PROC_MACRO_NAME;
 
 pub fn get_namespace_from_attributes(input: &Vec<Attribute>) -> Option<Ident> {
@@ -34,10 +35,36 @@ pub fn get_namespace_from_attributes(input: &Vec<Attribute>) -> Option<Ident> {
         }).next()
 }
 
+pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
+    enum_body
+        .variants
+        .iter()
+        .map(|variant| {
+            variant
+                .fields
+                .iter()
+                .next()
+                .map(|field| field.ty.clone().into_token_stream())
+                .expect("Expected struct type")
+        }).collect::<Vec<TokenStream>>()
+}
+
 pub fn expand_derive_namespace(parsed: &DeriveInput) -> TokenStream {
     match parsed.data {
         Data::Enum(ref body) => derive_enum(&parsed, &body),
         // Data::Struct(ref body) => derive_struct(&parsed, &body),
         _ => panic!("Namespace can only be derived on enums"),
     }
+}
+
+// Resolve and stringify a list of namespaces for all fields in an enum
+pub fn get_quoted_namespaces(enum_body: &DataEnum, default_namespace: &Ident) -> Vec<String> {
+    enum_body
+        .variants
+        .iter()
+        .map(|variant| {
+            get_namespace_from_attributes(&variant.attrs)
+                .unwrap_or(default_namespace.clone())
+                .to_string()
+        }).collect()
 }
