@@ -1,9 +1,14 @@
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
+#[macro_use]
+extern crate event_store_derive;
+extern crate event_store;
 
-use super::*;
-use event_store::EventData;
 use serde_json::from_value;
-use serde_json::to_value;
+// use serde_json::to_value;
 
 #[test]
 fn it_deserializes_events_correctly() {
