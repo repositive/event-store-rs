@@ -7,6 +7,7 @@ extern crate serde_json;
 extern crate event_store_derive;
 extern crate event_store;
 
+use event_store::EventData;
 use serde_json::from_value;
 use serde_json::to_value;
 
@@ -59,47 +60,86 @@ fn it_serializes_enums() {
     );
 }
 
-// #[test]
-// fn it_gets_namespaced_event_names() {
-//     let event_a = Events::EnumEventA(EventA { thing: 100 });
-//     let event_b = Events::EnumEventB(EventB { thing: 100 });
-//     let event_c = Events::EnumNsEventC(NsEventC { thing: 100 });
+#[test]
+fn it_gets_the_namespace_and_type() {
+    #[derive(EventData, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    struct TestStruct {
+        thing: u32,
+    }
 
-//     assert_eq!(event_a.event_namespace_and_type(), "test_ns.EnumEventA");
-//     assert_eq!(event_b.event_namespace_and_type(), "test_ns.EnumEventB");
-//     assert_eq!(event_c.event_namespace_and_type(), "remote_ns.EnumNsEventC");
-// }
+    #[derive(EventData, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        TestStruct(TestStruct),
+    }
 
-// #[test]
-// fn it_serializes_events_with_extra_fields() {
-//     let event = Events::EnumEventA(EventA { thing: 100 });
+    let thing = TestEnum::TestStruct(TestStruct { thing: 100 });
 
-//     let json = to_value(&event).unwrap();
+    assert_eq!(
+        thing.event_namespace_and_type(),
+        "some_namespace.TestStruct"
+    );
 
-//     assert_eq!(
-//         json,
-//         json!({
-//             "type": "test_ns.EventA",
-//             "event_namespace": "test_ns",
-//             "event_type": "EventA",
-//             "thing": 100,
-//         })
-//     );
-// }
+    assert_eq!(thing.event_namespace(), "some_namespace");
 
-// #[test]
-// fn it_serializes_events_with_overridden_namespace() {
-//     let event = Events::EnumNsEventC(NsEventC { thing: 100 });
+    assert_eq!(thing.event_type(), "TestStruct");
+}
 
-//     let json = to_value(&event).unwrap();
+#[test]
+#[ignore]
+fn it_gets_the_overridden_namespace() {
+    #[derive(EventData, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    struct TestStruct {
+        thing: u32,
+    }
 
-//     assert_eq!(
-//         json,
-//         json!({
-//             "type": "remote_ns.RenamedRemoteEvent",
-//             "event_namespace": "remote_ns",
-//             "event_type": "RenamedRemoteEvent",
-//             "thing": 100,
-//         })
-//     );
-// }
+    #[derive(EventData, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        // TODO: Make this work
+        // #[event_store(namespace = "overridden")]
+        TestStruct(TestStruct),
+    }
+
+    let thing = TestEnum::TestStruct(TestStruct { thing: 100 });
+
+    assert_eq!(thing.event_namespace_and_type(), "overridden.TestStruct");
+
+    assert_eq!(thing.event_namespace(), "overridden");
+
+    assert_eq!(thing.event_type(), "TestStruct");
+}
+
+#[test]
+fn it_roundtrips() {
+    #[derive(EventData, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    struct TestStruct {
+        thing: u32,
+    }
+
+    #[derive(EventData, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        TestStruct(TestStruct),
+    }
+
+    let event = TestEnum::TestStruct(TestStruct { thing: 100 });
+
+    let encoded = to_value(event.clone()).expect("Failed to encode");
+
+    let decoded: TestEnum = from_value(encoded.clone()).expect("Failed to decode");
+
+    assert_eq!(event, decoded.clone());
+    assert_eq!(
+        encoded,
+        json!({
+            "type": "some_namespace.TestStruct",
+            "event_namespace": "some_namespace",
+            "event_type": "TestStruct",
+            "thing": 100,
+        })
+    );
+}
