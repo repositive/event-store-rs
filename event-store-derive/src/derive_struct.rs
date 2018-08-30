@@ -78,8 +78,8 @@ fn impl_deserialize(
 fn impl_serialize(
     item_ident: &TokenStream,
     _struct_body: &DataStruct,
-    _ns: &String,
-    _ty: &String,
+    ns: &String,
+    ty: &String,
     field_idents: &Vec<Ident>,
 ) -> TokenStream {
     let field_idents_rhs = field_idents.clone();
@@ -90,6 +90,10 @@ fn impl_serialize(
     // Number of fields in the struct plust `type`, `event_type` and `event_namespace`
     let total_fields = field_idents.len() + 3;
 
+    let ns_and_ty = format!("\"{}.{}\"", ns, ty);
+    let ns_quoted = format!("\"{}\"", ns);
+    let ty_quoted = format!("\"{}\"", ty);
+
     quote! {
         impl Serialize for #item_ident {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -98,7 +102,12 @@ fn impl_serialize(
             {
                 let mut state = serializer.serialize_struct(#item_ident_quoted, #total_fields)?;
 
+                state.serialize_field("type", #ns_and_ty);
+                state.serialize_field("event_namespace", #ns_quoted);
+                state.serialize_field("event_type", #ty_quoted);
+
                 #(state.serialize_field(#field_idents_quoted, &self.#field_idents_rhs)?;)*
+
 
                 state.end()
             }
