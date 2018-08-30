@@ -132,6 +132,31 @@ fn it_deserializes_enums() {
     );
 }
 
+#[test]
+fn it_serializes_enums() {
+    #[derive(EventData, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    struct TestStruct {
+        thing: u32,
+    }
+
+    #[derive(EventData, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        TestStruct(TestStruct),
+    }
+
+    assert_eq!(
+        to_value(TestEnum::TestStruct(TestStruct { thing: 100 })).unwrap(),
+        json!({
+            "type": "some_namespace.TestStruct",
+            "event_namespace": "some_namespace",
+            "event_type": "TestStruct",
+            "thing": 100,
+        }),
+    );
+}
+
 // #[test]
 // fn it_gets_namespaced_event_names() {
 //     let event_a = Events::EnumEventA(EventA { thing: 100 });

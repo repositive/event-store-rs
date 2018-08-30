@@ -160,7 +160,7 @@ pub fn derive_struct(parsed: &DeriveInput, struct_body: &DataStruct) -> TokenStr
     );
 
     quote! {
-        #[allow(non_upper_case_globals)]
+        #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
         const #dummy_const: () = {
             extern crate serde;
             extern crate serde_json;

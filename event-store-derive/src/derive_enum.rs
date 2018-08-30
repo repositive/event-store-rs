@@ -10,43 +10,23 @@ fn impl_serialize(
     _struct_body: &DataEnum,
     _ns: &String,
     _ty: &String,
-    _variant_idents: &Vec<Ident>,
+    variant_idents: &Vec<Ident>,
 ) -> TokenStream {
-    // let variant_idents_rhs = variant_idents.clone();
-    // let variant_idents_quoted = variant_idents.iter().map(|ident| ident.to_string());
-
-    // let item_ident_quoted = item_ident.to_string();
-
-    // Number of fields in the struct plust `type`, `event_type` and `event_namespace`
-    // let total_fields = variant_idents.len() + 3;
+    let item_idents = repeat(item_ident);
 
     quote! {
         impl Serialize for #item_ident {
-            fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
-                // serde_json::to_value(&self)
-                //     .map_err(ser::Error::custom)
-                //     .and_then(|v| {
-                //          let mut map = serializer.serialize_map(None)?;
-                //             // for (k, v) in self {
-                //             //     map.serialize_entry(k, v)?;
-                //             // }
-                //             map.end().unwrap();
+                use serde_json;
 
-                //             Err(ser::Error::custom("Could not turn item into object"))
-                //         // if let serde_json::Value::Object(items) = v {
-                //         //     let mut map = serializer.serialize_map(None)?;
-                //         //     // for (k, v) in self {
-                //         //     //     map.serialize_entry(k, v)?;
-                //         //     // }
-                //         //     map.end()
-                //         // } else {
-                //         //     Err(ser::Error::custom("Could not turn item into object"))
-                //         // }
-                //     })?
-                Err(ser::Error::custom("Could not turn item into object"))
+                // TODO: Handle rename attribs on enum variant
+
+                match self {
+                    #(#item_idents::#variant_idents(evt) => evt.serialize(serializer),)*
+                }
             }
         }
     }
@@ -136,21 +116,6 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         .expect("Namespace attribute must be provided at the enum level");
 
     let item_ident = parsed.clone().ident.into_token_stream();
-    // let item_idents = repeat(&item_ident);
-
-    // let variant_idents = enum_body.variants.iter().map(|v| v.ident.clone());
-    // let variant_namespaces = enum_body.variants.iter().map(|variant| {
-    //     get_namespace_from_attributes(&variant.attrs).unwrap_or(default_namespace.clone())
-    // });
-
-    // let namespaced_variants_quoted = enum_body
-    //     .variants
-    //     .iter()
-    //     .map(|v| v.ident.clone())
-    //     .zip(enum_body.variants.iter())
-    //     .map(|(ns, variant)| {
-    //         TokenStream::from_str(&format!("\"{}.{}\"", ns, variant.ident)).expect("Variant name")
-    //     }).collect::<Vec<TokenStream>>();
 
     let collected = enum_body
         .variants
@@ -205,7 +170,7 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
     );
 
     quote! {
-        #[allow(non_upper_case_globals)]
+        #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
         const #dummy_const: () = {
             extern crate serde;
             extern crate serde_json;
