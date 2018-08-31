@@ -172,42 +172,6 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
     let namespace_and_types_quoted_clone = namespace_and_types_quoted.clone();
     let namespaces_quoted_clone = namespaces_quoted.clone();
     let types_quoted_clone = types_quoted.clone();
-    let out = quote! {
-        // Get the type or namespace of an instance of an events enum
-        impl event_store_derive_internals::Events for #item_ident {
-            fn event_namespace_and_type(&self) -> &'static str {
-                match self {
-                    #(
-                      #struct_idents_clone1 => #namespace_and_types_quoted_clone,
-                    )*
-                }
-            }
-            fn event_namespace(&self) -> &'static str {
-                match self {
-                    #(
-                      #struct_idents_clone2 => #namespaces_quoted_clone,
-                    )*
-                }
-            }
-            fn event_type(&self) -> &'static str {
-                match self {
-                    #(
-                      #struct_idents_clone3 => #types_quoted_clone,
-                    )*
-                }
-            }
-        }
-
-        #(
-            impl event_store_derive_internals::EventData for #struct_idents {
-                fn event_namespace_and_type() -> &'static str { #namespace_and_types_quoted }
-                fn event_namespace() -> &'static str { #namespaces_quoted }
-                fn event_type() -> &'static str { #types_quoted }
-            }
-        )*
-        #ser
-        #de
-    };
 
     let dummy_const = Ident::new(
         &format!("_IMPL_EVENT_STORE_ENUM_FOR_{}", item_ident),
@@ -225,7 +189,40 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
             use serde::de::{Deserialize, Deserializer};
             use serde::ser::{Serialize, Serializer, SerializeMap};
 
-            #out
+            // Get the type or namespace of an instance of an events enum
+            impl event_store_derive_internals::Events for #item_ident {
+                fn event_namespace_and_type(&self) -> &'static str {
+                    match self {
+                        #(
+                          #struct_idents_clone1 => #namespace_and_types_quoted_clone,
+                        )*
+                    }
+                }
+                fn event_namespace(&self) -> &'static str {
+                    match self {
+                        #(
+                          #struct_idents_clone2 => #namespaces_quoted_clone,
+                        )*
+                    }
+                }
+                fn event_type(&self) -> &'static str {
+                    match self {
+                        #(
+                          #struct_idents_clone3 => #types_quoted_clone,
+                        )*
+                    }
+                }
+            }
+
+            #(
+                impl event_store_derive_internals::EventData for #struct_idents {
+                    fn event_namespace_and_type() -> &'static str { #namespace_and_types_quoted }
+                    fn event_namespace() -> &'static str { #namespaces_quoted }
+                    fn event_type() -> &'static str { #types_quoted }
+                }
+            )*
+            #ser
+            #de
         };
     }
 }
