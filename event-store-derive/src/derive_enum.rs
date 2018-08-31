@@ -1,5 +1,6 @@
 use ns::get_enum_struct_names;
 use ns::get_quoted_namespaces;
+use ns::remove_own_attributes;
 use ns::EnumInfo;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
@@ -71,6 +72,8 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
     let body = info.enum_body.clone().variants.into_token_stream();
     let variant_namespaces_quoted = get_quoted_namespaces(&info.enum_body, &info.enum_namespace);
 
+    let filtered_body = remove_own_attributes(body);
+
     let variant_types_quoted = info
         .enum_body
         .variants
@@ -98,7 +101,7 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
 
                 #[derive(Deserialize, Debug)]
                 enum Output {
-                    #body
+                    #filtered_body
                 };
 
                 let type_helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;

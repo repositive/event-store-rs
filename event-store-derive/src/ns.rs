@@ -1,8 +1,9 @@
 use derive_enum::derive_enum;
 // use derive_struct::derive_struct;
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, Punct, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use quote::__rt::TokenTree::Group;
+use std::iter::FromIterator;
 use std::string::ToString;
 use syn::{Attribute, Data, DataEnum, DeriveInput};
 use PROC_MACRO_NAME;
@@ -96,4 +97,49 @@ pub fn get_quoted_namespaces(enum_body: &DataEnum, default_namespace: &Ident) ->
                 .unwrap_or(default_namespace.clone())
                 .to_string()
         }).collect()
+}
+
+/// Remove any `#[event_store]` attributes from a token stream
+///
+/// The attribute `#[the_thing(other_thing = "nice")]` is comprised of two tokens; a # character
+/// and the rest of the attribute as a token tree. This function filters both adjacent elements
+/// out of a TokenStream so this crate doesn't generate code that depends on the generated
+/// code existing in the first place.
+pub fn remove_own_attributes(input: TokenStream) -> TokenStream {
+    let to_match = Ident::new("event_store", Span::call_site());
+
+    let mut out: Vec<TokenTree> = Vec::new();
+
+    let mut it = input.clone().into_iter().peekable();
+
+    while let Some(token) = it.next() {
+        let after = it.peek();
+
+        let should_ignore = match token {
+            // If this is the actual attribute, remove it
+            TokenTree::Group(ref g) => match g.stream().into_iter().next() {
+                Some(TokenTree::Ident(ref name)) if *name == to_match => true,
+                _ => false,
+            },
+            // If this is the # char before a matching attribute, remove it
+            TokenTree::Punct(ref p) if *p.to_string() == *"#" => {
+                match after {
+                    // If this is the actual attribute, remove it
+                    Some(Group(g)) => match g.stream().into_iter().next() {
+                        Some(TokenTree::Ident(ref name)) if *name == to_match => true,
+                        _ => false,
+                    },
+                    _ => false,
+                }
+            }
+
+            _ => false,
+        };
+
+        if !should_ignore {
+            out.push(token);
+        }
+    }
+
+    TokenStream::from_iter(out.into_iter())
 }

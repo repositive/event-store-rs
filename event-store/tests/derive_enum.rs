@@ -90,8 +90,6 @@ fn it_roundtrips() {
 }
 
 #[test]
-#[ignore]
-// TODO: Make this work
 fn it_roundtrips_overridden_namespaces() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     struct TestStruct {
@@ -101,7 +99,7 @@ fn it_roundtrips_overridden_namespaces() {
     #[derive(Events, PartialEq, Debug, Clone)]
     #[event_store(namespace = "some_namespace")]
     enum TestEnum {
-        // #[event_store(namespace = "other_ns")]
+        #[event_store(namespace = "other_ns")]
         TestStruct(TestStruct),
     }
 
