@@ -29,38 +29,36 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
         .map(|(ns, ty)| format!("{}.{}", ns, ty))
         .collect::<Vec<String>>();
 
+    let struct_idents = get_enum_struct_names(&enum_body);
+
     quote! {
         impl Serialize for #item_ident {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
-                use serde_json;
-
-                #[derive(Serialize)]
-                struct Output<'a> {
-                    #[serde(rename = "type")]
-                    event_type_and_namespace: &'a str,
-                    event_type: &'a str,
-                    event_namespace: &'a str,
-                    #[serde(flatten)]
-                    payload: serde_json::Value,
-                }
-
-                let out = match self {
+                match self {
                     #(#item_idents::#variant_idents(evt) => {
-                        let payload: serde_json::Value = serde_json::to_value(evt).expect("Ser");
+                        #[derive(Serialize)]
+                        struct Output<'a> {
+                            #[serde(rename = "type")]
+                            event_type_and_namespace: &'a str,
+                            event_type: &'a str,
+                            event_namespace: &'a str,
+                            #[serde(flatten)]
+                            payload: &'a #struct_idents,
+                        }
 
-                        Output {
-                            payload,
+                        let out = Output {
+                            payload: evt,
                             event_type_and_namespace: #namespace_and_types_quoted,
                             event_namespace: #namespaces_quoted,
                             event_type: #types_quoted
-                        }
-                    },)*
-                };
+                        };
 
-                out.serialize(serializer).map_err(ser::Error::custom)
+                        out.serialize(serializer).map_err(ser::Error::custom)
+                    },)*
+                }
             }
         }
     }
