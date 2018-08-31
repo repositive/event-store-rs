@@ -1,9 +1,7 @@
 use ns::get_enum_struct_names;
 use ns::get_quoted_namespaces;
-use ns::remove_own_attributes;
 use ns::EnumInfo;
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::ToTokens;
 use std::iter::repeat;
 use syn::{DataEnum, DeriveInput};
 
@@ -66,19 +64,18 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
 
 fn impl_deserialize(info: &EnumInfo) -> TokenStream {
     let EnumInfo {
+        enum_body,
         item_ident,
         variant_idents,
+        renamed_variant_idents,
         ..
     } = info;
 
+    let struct_idents = get_enum_struct_names(&enum_body);
     let item_idents = repeat(&info.item_ident);
-    let body = info.enum_body.clone().variants.into_token_stream();
-    let variant_namespaces_quoted = get_quoted_namespaces(&info.enum_body, &info.enum_namespace);
+    let variant_namespaces_quoted = get_quoted_namespaces(&enum_body, &info.enum_namespace);
 
-    let filtered_body = remove_own_attributes(body);
-
-    let renamed_variant_types_quoted = info
-        .renamed_variant_idents
+    let renamed_variant_types_quoted = renamed_variant_idents
         .iter()
         .map(|variant| variant.to_string());
 
@@ -91,29 +88,37 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
                 use serde::de;
 
                 #[derive(Deserialize, Debug)]
+                #[serde(untagged)]
+                enum Output {
+                    #(#renamed_variant_idents(#struct_idents),)*
+                }
+
+                #[derive(Deserialize)]
                 struct Helper {
                     #[serde(rename = "type")]
                     event_type_and_namespace: Option<String>,
                     event_type: Option<String>,
                     event_namespace: Option<String>,
                     #[serde(flatten)]
-                    // TODO: Remove reliance on serde_json and make this generic
-                    payload: serde_json::Value,
+                    payload: Output,
                 }
 
-                #[derive(Deserialize, Debug)]
-                enum Output {
-                    #filtered_body
-                };
+                impl From<Output> for #item_ident {
+                    fn from(out: Output) -> Self {
+                        match out {
+                            #(Output::#renamed_variant_idents(evt) => #item_idents::#variant_idents(evt),)*
+                        }
+                    }
+                }
 
                 let type_helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
 
                 let (ns, ty) = match type_helper {
-                    Helper { event_type: Some(ty), event_namespace: Some(ns), ..  } => {
+                    Helper { event_type: Some(ty), event_namespace: Some(ns), .. } => {
                         (ns, ty)
                     },
                     // Map old-style event to new-style if new-style is not defined
-                    Helper { event_type_and_namespace: Some(ns_and_ty), ..  } => {
+                    Helper { event_type_and_namespace: Some(ns_and_ty), .. } => {
                         let parts: Vec<String> = ns_and_ty
                             .split('.')
                             .map(|part| String::from(part))
@@ -126,10 +131,7 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
 
                 match (ns.as_str(), ty.as_str()) {
                     #((#variant_namespaces_quoted, #renamed_variant_types_quoted) => {
-                        let variant_value = serde_json::from_value(type_helper.payload)
-                            .map_err(de::Error::custom)?;
-
-                        Ok(#item_idents::#variant_idents(variant_value))
+                        Ok(type_helper.payload.into())
                     },)*
                     _ => Err(de::Error::custom("Could not find matching variant"))
                 }
@@ -180,7 +182,6 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
         const #dummy_const: () = {
             extern crate serde;
-            extern crate serde_json;
             extern crate event_store_derive_internals;
 
             use serde::ser;

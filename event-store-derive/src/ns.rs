@@ -3,7 +3,6 @@ use derive_enum::derive_enum;
 use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use quote::__rt::TokenTree::Group;
-use std::iter::FromIterator;
 use std::string::ToString;
 use syn::{Attribute, Data, DataEnum, DeriveInput};
 use PROC_MACRO_NAME;
@@ -36,7 +35,8 @@ impl EnumInfo {
                 let name_override = get_attribute_ident(&v.attrs, "rename");
 
                 name_override.unwrap_or(v.ident.clone())
-            }).collect::<Vec<Ident>>();
+            })
+            .collect::<Vec<Ident>>();
 
         Self {
             enum_namespace,
@@ -65,7 +65,8 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                         Group(_) => true,
                         _ => false,
                     })
-                }).and_then(|tt| match tt {
+                })
+                .and_then(|tt| match tt {
                     Group(g) => {
                         let mut it = g.stream().into_iter();
 
@@ -73,8 +74,7 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                             (
                                 Some(TokenTree::Ident(ref ident)),
                                 Some(TokenTree::Literal(ref attribute_value)),
-                            )
-                                if *ident == ident_match =>
+                            ) if *ident == ident_match =>
                             {
                                 Some(Ident::new(
                                     attribute_value.to_string().trim_matches('"').into(),
@@ -86,7 +86,8 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                     }
                     _ => None,
                 })
-        }).next()
+        })
+        .next()
 }
 
 pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
@@ -100,7 +101,8 @@ pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
                 .next()
                 .map(|field| field.ty.clone().into_token_stream())
                 .expect("Expected struct type")
-        }).collect::<Vec<TokenStream>>()
+        })
+        .collect::<Vec<TokenStream>>()
 }
 
 pub fn expand_derive_namespace(parsed: &DeriveInput) -> TokenStream {
@@ -120,50 +122,6 @@ pub fn get_quoted_namespaces(enum_body: &DataEnum, default_namespace: &Ident) ->
             get_attribute_ident(&variant.attrs, "namespace")
                 .unwrap_or(default_namespace.clone())
                 .to_string()
-        }).collect()
-}
-
-/// Remove any `#[event_store]` attributes from a token stream
-///
-/// The attribute `#[the_thing(other_thing = "nice")]` is comprised of two tokens; a # character
-/// and the rest of the attribute as a token tree. This function filters both adjacent elements
-/// out of a TokenStream so this crate doesn't generate code that depends on the generated
-/// code existing in the first place.
-pub fn remove_own_attributes(input: TokenStream) -> TokenStream {
-    let to_match = Ident::new("event_store", Span::call_site());
-
-    let mut out: Vec<TokenTree> = Vec::new();
-
-    let mut it = input.clone().into_iter().peekable();
-
-    while let Some(token) = it.next() {
-        let after = it.peek();
-
-        let should_ignore = match token {
-            // If this is the actual attribute, remove it
-            TokenTree::Group(ref g) => match g.stream().into_iter().next() {
-                Some(TokenTree::Ident(ref name)) if *name == to_match => true,
-                _ => false,
-            },
-            // If this is the # char before a matching attribute, remove it
-            TokenTree::Punct(ref p) if *p.to_string() == *"#" => {
-                match after {
-                    // If this is the actual attribute, remove it
-                    Some(Group(g)) => match g.stream().into_iter().next() {
-                        Some(TokenTree::Ident(ref name)) if *name == to_match => true,
-                        _ => false,
-                    },
-                    _ => false,
-                }
-            }
-
-            _ => false,
-        };
-
-        if !should_ignore {
-            out.push(token);
-        }
-    }
-
-    TokenStream::from_iter(out.into_iter())
+        })
+        .collect()
 }
