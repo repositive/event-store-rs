@@ -6,10 +6,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate event_store_derive;
 extern crate event_store;
-// TODO: Figure out how to remove this
-extern crate event_store_derive_internals;
 
-// use event_store::EventData;
 use serde_json::from_value;
 use serde_json::to_value;
 

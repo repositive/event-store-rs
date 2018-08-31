@@ -11,15 +11,23 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
     let EnumInfo {
         item_ident,
         variant_idents,
+        enum_body,
+        enum_namespace,
+        renamed_variant_idents,
         ..
     } = info;
 
     let item_idents = repeat(item_ident);
 
-    let struct_idents = get_enum_struct_names(&info.enum_body);
+    let namespaces_quoted = get_quoted_namespaces(&enum_body, &enum_namespace);
 
-    let struct_idents2 = struct_idents.clone();
-    let struct_idents3 = struct_idents.clone();
+    let types_quoted = renamed_variant_idents.iter().map(|ident| ident.to_string());
+
+    let namespace_and_types_quoted = namespaces_quoted
+        .iter()
+        .zip(renamed_variant_idents.iter())
+        .map(|(ns, ty)| format!("{}.{}", ns, ty))
+        .collect::<Vec<String>>();
 
     quote! {
         impl Serialize for #item_ident {
@@ -28,14 +36,13 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
                 S: Serializer,
             {
                 use serde_json;
-                use event_store_derive_internals::EventData;
 
                 #[derive(Serialize)]
-                struct Output {
+                struct Output<'a> {
                     #[serde(rename = "type")]
-                    event_type_and_namespace: String,
-                    event_type: String,
-                    event_namespace: String,
+                    event_type_and_namespace: &'a str,
+                    event_type: &'a str,
+                    event_namespace: &'a str,
                     #[serde(flatten)]
                     payload: serde_json::Value,
                 }
@@ -46,9 +53,9 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
 
                         Output {
                             payload,
-                            event_type_and_namespace: #struct_idents::event_namespace_and_type().into(),
-                            event_namespace: #struct_idents2::event_namespace().into(),
-                            event_type: #struct_idents3::event_type().into()
+                            event_type_and_namespace: #namespace_and_types_quoted,
+                            event_namespace: #namespaces_quoted,
+                            event_type: #types_quoted
                         }
                     },)*
                 };
