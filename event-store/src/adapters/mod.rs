@@ -4,23 +4,21 @@
 //! integration with other event-driven domains. Use the adapters exposed by this module to suit
 //! your application and architecture.
 
-mod amqp;
 mod pg;
 mod stub;
 
-pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
-
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
 use Aggregator;
 use Event;
-use EventData;
+use Events;
 use StoreQuery;
 
 /// Storage backend
-pub trait StoreAdapter<E: EventData, Q: StoreQuery> {
+pub trait StoreAdapter<E: Events, Q: StoreQuery> {
     /// Read a list of events matching a query
     fn aggregate<T, A>(
         &self,
@@ -52,13 +50,19 @@ pub trait CacheAdapter<K> {
 }
 
 /// Closure called when an incoming event must be handled
-pub type EventHandler<E> = Fn(&Event<E>) -> () + Send + Sync;
+pub type EventHandler<E> = fn(&Event<E>) -> ();
 
 /// Event emitter interface
-pub trait EmitterAdapter<E: EventData> {
+pub trait EmitterAdapter<E: Events> {
+    /// Get all subscribed handlers
+    fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>>;
+
     /// Emit an event
-    fn emit(&mut self, event: &Event<E>);
+    fn emit(&self, event: &Event<E>);
 
     /// Subscribe to an event
-    fn subscribe(&mut self, event_name: String, handler: Box<EventHandler<E>>);
+    fn subscribe<H>(&mut self, event_name: String, handler: EventHandler<E>);
+
+    /// Stop listening for an event
+    fn unsubscribe(&mut self, event_name: String);
 }

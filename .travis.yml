@@ -2,8 +2,14 @@ dist: trusty
 language: rust
 rust:
   - stable
+  - beta
   - nightly
 sudo: required
+
+matrix:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
 
 services:
   - docker
@@ -19,8 +25,8 @@ before_install:
 
 script:
   - cargo +nightly fmt --all -- --check
-  - cargo build --release
-  - cargo test --release
+  - cargo build --all --release
+  - cargo test --all --release
 
 cache: cargo
 before_cache:

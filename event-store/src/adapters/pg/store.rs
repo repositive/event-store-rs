@@ -11,7 +11,7 @@ use uuid::Uuid;
 use Aggregator;
 use Event;
 use EventContext;
-use EventData;
+use Events;
 
 /// Postgres store adapter
 pub struct PgStoreAdapter<'a, E> {
@@ -21,7 +21,7 @@ pub struct PgStoreAdapter<'a, E> {
 
 impl<'a, E> PgStoreAdapter<'a, E>
 where
-    E: EventData,
+    E: Events,
 {
     /// Create a new PgStore from a Postgres DB connection
     pub fn new(conn: &'a Connection) -> Self {
@@ -54,7 +54,7 @@ where
 
 impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<'a, E>
 where
-    E: EventData,
+    E: Events,
 {
     fn aggregate<T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
     where
