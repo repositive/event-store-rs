@@ -33,7 +33,8 @@ impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter<'a> {
                 ON CONFLICT (id)
                 DO UPDATE SET data = EXCLUDED.data, time = now() RETURNING data"#,
                 &[&args_hash.as_slice(), &to_value(value).expect("To value")],
-            ).expect("Cache");
+            )
+            .expect("Cache");
     }
 
     fn get<T>(&self, key: &PgQuery) -> Option<CacheResult<T>>
@@ -47,7 +48,8 @@ impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter<'a> {
             .query(
                 "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
                 &[&args_hash.as_slice()],
-            ).expect("Ret");
+            )
+            .expect("Ret");
 
         // `rows.get()` panics if index is out of bounds, hence this check
         if rows.len() != 1 {

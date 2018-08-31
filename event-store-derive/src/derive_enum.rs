@@ -72,11 +72,10 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
 
     let filtered_body = remove_own_attributes(body);
 
-    let variant_types_quoted = info
-        .enum_body
-        .variants
+    let renamed_variant_types_quoted = info
+        .renamed_variant_idents
         .iter()
-        .map(|variant| variant.ident.clone().to_string());
+        .map(|variant| variant.to_string());
 
     quote! {
         impl<'de> Deserialize<'de> for #item_ident {
@@ -121,7 +120,7 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
                 };
 
                 match (ns.as_str(), ty.as_str()) {
-                    #((#variant_namespaces_quoted, #variant_types_quoted) => {
+                    #((#variant_namespaces_quoted, #renamed_variant_types_quoted) => {
                         let variant_value = serde_json::from_value(type_helper.payload)
                             .map_err(de::Error::custom)?;
 
@@ -140,17 +139,17 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         ref enum_namespace,
         ref enum_body,
         ref item_ident,
-        ref variant_idents,
+        ref renamed_variant_idents,
         ..
     } = &info;
 
     let namespaces_quoted = get_quoted_namespaces(&enum_body, &enum_namespace);
 
-    let types_quoted = variant_idents.iter().map(|ident| ident.to_string());
+    let types_quoted = renamed_variant_idents.iter().map(|ident| ident.to_string());
 
     let namespace_and_types_quoted = namespaces_quoted
         .iter()
-        .zip(variant_idents.iter())
+        .zip(renamed_variant_idents.iter())
         .map(|(ns, ty)| format!("{}.{}", ns, ty))
         .collect::<Vec<String>>();
 

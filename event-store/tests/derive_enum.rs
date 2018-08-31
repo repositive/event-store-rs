@@ -118,3 +118,39 @@ fn it_roundtrips_overridden_namespaces() {
         })
     );
 }
+
+#[test]
+fn it_roundtrips_renamed_variants() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct TestStruct {
+        thing: u32,
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct OtherStruct {
+        foo: u32,
+    }
+
+    #[derive(Events, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        #[event_store(rename = "RenamedTestStruct")]
+        Variant(TestStruct),
+        A(OtherStruct),
+    }
+
+    let event = TestEnum::Variant(TestStruct { thing: 100 });
+    let encoded = to_value(event.clone()).expect("Failed to encode");
+    let decoded: TestEnum = from_value(encoded.clone()).expect("Failed to decode");
+
+    assert_eq!(event, decoded.clone());
+    assert_eq!(
+        encoded,
+        json!({
+            "type": "some_namespace.RenamedTestStruct",
+            "event_namespace": "some_namespace",
+            "event_type": "RenamedTestStruct",
+            "thing": 100,
+        })
+    );
+}
