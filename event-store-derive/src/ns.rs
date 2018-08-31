@@ -1,6 +1,6 @@
 use derive_enum::derive_enum;
 // use derive_struct::derive_struct;
-use proc_macro2::{Ident, Punct, Span, TokenStream, TokenTree};
+use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use quote::__rt::TokenTree::Group;
 use std::iter::FromIterator;
