@@ -9,17 +9,16 @@ mod stub;
 
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
-
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 use Aggregator;
 use Event;
-use EventData;
+use Events;
 use StoreQuery;
 
 /// Storage backend
-pub trait StoreAdapter<E: EventData, Q: StoreQuery> {
+pub trait StoreAdapter<E: Events, Q: StoreQuery> {
     /// Read a list of events matching a query
     fn aggregate<T, A>(
         &self,
@@ -54,7 +53,7 @@ pub trait CacheAdapter<K> {
 pub type EventHandler<E> = fn(&Event<E>) -> ();
 
 /// Event emitter interface
-pub trait EmitterAdapter<E: EventData> {
+pub trait EmitterAdapter<E: Events> {
     /// Get all subscribed handlers
     fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>>;
 
