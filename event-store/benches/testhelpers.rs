@@ -91,6 +91,21 @@ fn deserialize_event(c: &mut Criterion) {
     });
 }
 
+fn roundtrip(c: &mut Criterion) {
+    c.bench_function("serialize deserialize roundtrip", move |b| {
+        b.iter(|| {
+            let event = TestEvents::Inc(TestIncrementEvent {
+                by: 1,
+                ident: "serialize_event".into(),
+            });
+
+            let json = to_string(&event).unwrap();
+
+            let _decoded: TestEvents = from_str(&json).unwrap();
+        })
+    });
+}
+
 criterion_group!(
     name = testhelpers;
 
@@ -103,6 +118,7 @@ criterion_group!(
         aggregate_from_default,
         serialize_event,
         deserialize_old_event,
-        deserialize_event
+        deserialize_event,
+        roundtrip
 );
 criterion_main!(testhelpers);
