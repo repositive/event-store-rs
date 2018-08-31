@@ -22,11 +22,14 @@ impl EnumInfo {
 
         let item_ident = input.clone().ident.into_token_stream();
 
+        // TODO: Handle variant renames
         let variant_idents = enum_body
             .variants
             .iter()
-            .map(|v| v.ident.clone())
-            .collect::<Vec<Ident>>();
+            .map(|v| {
+                println!("VARIANT {:#?}", v);
+                v.ident.clone()
+            }).collect::<Vec<Ident>>();
 
         Self {
             enum_namespace,

@@ -40,8 +40,6 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
                     payload: serde_json::Value,
                 }
 
-                // TODO: Handle rename attribs on enum variant
-
                 let out = match self {
                     #(#item_idents::#variant_idents(evt) => {
                         let payload: serde_json::Value = serde_json::to_value(evt).expect("Ser");
