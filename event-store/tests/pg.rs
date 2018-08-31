@@ -68,8 +68,7 @@ fn it_queries_the_database() {
             .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
                 by: 99,
                 ident: ident.clone()
-            })))
-            .is_ok()
+            }))).is_ok()
     );
 
     let entity: TestCounterEntity = store.aggregate(ident).unwrap();
@@ -123,8 +122,7 @@ fn it_uses_the_aggregate_cache() {
             .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
                 by: 1,
                 ident: ident.into()
-            })))
-            .is_ok()
+            }))).is_ok()
     );
 
     assert!(
@@ -132,8 +130,7 @@ fn it_uses_the_aggregate_cache() {
             .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
                 by: 2,
                 ident: ident.into()
-            })))
-            .is_ok()
+            }))).is_ok()
     );
 
     // Wait for DB to process

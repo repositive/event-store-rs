@@ -58,31 +58,35 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
             attr.path
                 .segments
                 .iter()
-                // Filter attributes we're interested in
                 .find(|segment| segment.ident.to_string() == PROC_MACRO_NAME)
-                // Find attribute triples like `namespace = "something"`
                 .and_then(|_| {
+                    // Find attribute triples like `namespace = "something"`
                     attr.clone().tts.into_iter().find(|tt| match tt {
                         Group(_) => true,
                         _ => false,
                     })
-                }).and_then(|tt| {
-                    match tt {
-                        Group(g) => {
-                            let mut it = g.stream().into_iter();
+                }).and_then(|tt| match tt {
+                    Group(g) => {
+                        let mut it = g.stream().into_iter();
 
-                            match (it.nth(0), it.nth(1)) {
-                                (Some(TokenTree::Ident(ref ident)), Some(TokenTree::Literal(ref attribute_value))) if *ident == ident_match => {
-                                    Some(Ident::new(attribute_value.to_string().trim_matches('"').into(), Span::call_site()))
-                                },
-                                _ => None
+                        match (it.nth(0), it.nth(1)) {
+                            (
+                                Some(TokenTree::Ident(ref ident)),
+                                Some(TokenTree::Literal(ref attribute_value)),
+                            )
+                                if *ident == ident_match =>
+                            {
+                                Some(Ident::new(
+                                    attribute_value.to_string().trim_matches('"').into(),
+                                    Span::call_site(),
+                                ))
                             }
-                        },
-                        _ => None,
+                            _ => None,
+                        }
                     }
+                    _ => None,
                 })
-        })
-        .next()
+        }).next()
 }
 
 pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
