@@ -18,10 +18,6 @@ impl StubEmitterAdapter {
 }
 
 impl EmitterAdapter for StubEmitterAdapter {
-    fn get_subscriptions(&self) -> Vec<String> {
-        vec![]
-    }
-
     fn emit<E: Events>(
         &self,
         _event: &Event<E>,
@@ -30,7 +26,7 @@ impl EmitterAdapter for StubEmitterAdapter {
     }
 
     fn subscribe<ED: EventData, H>(
-        &mut self,
+        &self,
         _handler: H,
     ) -> Box<Future<Item = (), Error = Error> + Send>
     where
@@ -38,6 +34,4 @@ impl EmitterAdapter for StubEmitterAdapter {
     {
         Box::new(ok(()))
     }
-
-    fn unsubscribe<ED: EventData>(&mut self) {}
 }

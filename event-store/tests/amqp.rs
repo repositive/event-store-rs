@@ -24,43 +24,29 @@ fn emiter_emits_and_subscribes() {
     env_logger::init();
     let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
     let mut runtime = Runtime::new().expect("Create runtime");
+    let (tx, rx) = mpsc::channel();
+    let original_sh = Arc::new(Mutex::new(tx));
+    let sh = original_sh.clone();
 
     // The adapter is configured in such a way that it can't receive messages that it sent.
     // For this reason we need an adapter to emit and another to subscribe
-    let mut subscribe_adapter = AMQPEmitterAdapter::new(
-        addr,
-        "iris".into(),
-        "testing_namespace".into(),
-        &mut runtime,
-    );
-
-    let emit_adapter = AMQPEmitterAdapter::new(
-        addr,
-        "iris".into(),
-        "testing_namespace".into(),
-        &mut runtime,
-    );
-
-    let (tx, rx) = mpsc::channel();
-    let original_sh = Arc::new(Mutex::new(tx));
-
-    let sh = original_sh.clone();
-    let subscription = subscribe_adapter.subscribe(move |_e: &Event<TestIncrementEvent>| {
-        &sh.lock().unwrap().send(()).unwrap();
-    });
-
-    runtime.spawn(subscription.map_err(|e| error!("Something went south: {}", e)));
-
-    // Wait for the handler to be ready before emit with an optimistic sync
-    thread::sleep(Duration::from_millis(100));
-
-    runtime.spawn(
-        emit_adapter
-            .emit(&Event::from_data(TestEvents::Inc(TestIncrementEvent {
+    let task = AMQPEmitterAdapter::new(addr, "iris".into(), "testing_namespace".into())
+        .and_then(move |adapter| {
+            adapter.subscribe(move |_e: &Event<TestIncrementEvent>| {
+                // Message received, let the main thread know about it.
+                &sh.lock().unwrap().send(()).unwrap();
+            })
+        })
+        .and_then(move |_| AMQPEmitterAdapter::new(addr, "iris".into(), "testing_namespace".into()))
+        .and_then(|adapter| {
+            adapter.emit(&Event::from_data(TestEvents::Inc(TestIncrementEvent {
                 by: 1,
                 ident: "".into(),
-            }))).map_err(|_| ()),
-    );
+            })))
+        })
+        .map_err(|_| ());
+
+    runtime.spawn(task);
 
     assert!(rx.recv_timeout(Duration::from_secs(5)).is_ok());
 }

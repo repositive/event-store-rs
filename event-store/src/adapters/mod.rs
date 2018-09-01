@@ -57,9 +57,6 @@ pub trait CacheAdapter<K> {
 
 /// Event emitter interface
 pub trait EmitterAdapter {
-    /// Get all subscribed handlers
-    fn get_subscriptions(&self) -> Vec<String>;
-
     /// Emit an event
     fn emit<E: Events + Sync>(
         &self,
@@ -67,11 +64,9 @@ pub trait EmitterAdapter {
     ) -> Box<Future<Item = (), Error = io::Error> + Send + Sync>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&mut self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
+    fn subscribe<ED, H>(&self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 
-    /// Stop listening for an event
-    fn unsubscribe<ED: EventData>(&mut self);
 }

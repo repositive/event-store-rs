@@ -13,11 +13,8 @@ use serde_json;
 use std::io;
 use std::net::SocketAddr;
 use std::str;
-use std::sync::mpsc;
-use std::time::Duration;
 use tokio;
 use tokio::net::TcpStream;
-use tokio::runtime::Runtime;
 use Event;
 use EventData;
 use Events;
@@ -33,47 +30,43 @@ impl AMQPEmitterAdapter {
     /// Create a new AMQPEmiterAdapter
     pub fn new(
         uri: SocketAddr,
-        _exchange: String,
+        exchange: String,
         namespace: String,
-        runtime: &mut Runtime,
-    ) -> Self {
-        let (tx, rx) = mpsc::channel();
-        let exchange = _exchange.clone();
-        runtime.spawn(
+    ) -> Box<Future<Item = Self, Error = io::Error> + Send> {
+        let exchange1 = exchange.clone();
+        info!("Connecting to AMQP using {}", uri);
+        Box::new(
             TcpStream::connect(&uri)
                 .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
                 .and_then(|(client, heartbeat)| {
+                    info!("Connection stablished");
                     info!("Starting heartbeat task");
                     tokio::spawn(heartbeat.map_err(|_| ()));
                     info!("Creating amqp channel");
                     client.create_channel()
-                }).and_then(move |channel: Channel<TcpStream>| {
+                })
+                .and_then(move |channel: Channel<TcpStream>| {
                     let ch = channel.clone();
-                    tx.send(ch).expect("Send channel to main thread");
-                    channel.exchange_declare(
-                        &exchange,
-                        &"topic",
-                        ExchangeDeclareOptions {
-                            durable: true,
-                            ..ExchangeDeclareOptions::default()
-                        },
-                        FieldTable::new(),
-                    )
-                }).map_err(|e| {
-                    error!("Error connecting to AMQP: {}", e);
+                    channel
+                        .exchange_declare(
+                            &exchange1,
+                            &"topic",
+                            ExchangeDeclareOptions {
+                                durable: true,
+                                ..ExchangeDeclareOptions::default()
+                            },
+                            FieldTable::new(),
+                        )
+                        .and_then(move |_| ok(ch))
+                })
+                .and_then(|channel| {
+                    ok(Self {
+                        channel,
+                        namespace,
+                        exchange,
+                    })
                 }),
-        );
-        let channel = rx
-            .recv_timeout(Duration::from_secs(5))
-            .map_err(|e| {
-                error!("AMQP channel was not made available: {}", e);
-                panic!(e);
-            }).expect("AMQP channel was not made available");
-        Self {
-            channel,
-            namespace,
-            exchange: _exchange,
-        }
+        )
     }
 }
 
@@ -86,7 +79,7 @@ fn prepare_subscription<E, H>(
 ) -> impl Future<Item = (), Error = io::Error>
 where
     E: EventData,
-    H: Fn(&Event<E>) -> (),
+    H: Fn(&Event<E>) -> () + Send + 'static,
 {
     let c_channel = channel.clone();
     let queue_name1 = queue_name.clone();
@@ -101,7 +94,8 @@ where
                 ..QueueDeclareOptions::default()
             },
             FieldTable::new(),
-        ).and_then(move |queue| {
+        )
+        .and_then(move |queue| {
             info!("Binding queue {} to exchange {}", queue_name, exchange);
             channel
                 .queue_bind(
@@ -110,32 +104,39 @@ where
                     &event_name,
                     QueueBindOptions::default(),
                     FieldTable::new(),
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     channel.basic_consume(
                         &queue,
                         &queue_name,
                         BasicConsumeOptions::default(),
                         FieldTable::new(),
                     )
-                }).and_then(move |stream| {
-                    info!("Starting to consume from queue {}", queue_name1);
-                    stream.for_each(move |message| {
-                        let data: Event<E> =
-                            serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
-                        info!("Receiving message with id {}", data.id);
-                        handler(&data);
-                        c_channel.basic_ack(message.delivery_tag, false)
-                    })
                 })
-        }).and_then(|_| ok(()))
+                .and_then(move |stream| {
+                    let handle_events = stream
+                        .for_each(move |message| {
+                            let data: Event<E> = serde_json::from_str(
+                                str::from_utf8(&message.data).unwrap(),
+                            ).unwrap();
+                            info!("Receiving message with id {}", data.id);
+                            handler(&data);
+                            c_channel.basic_ack(message.delivery_tag, false)
+                        })
+                        .map_err(|e| {
+                            panic!(e);
+                        });
+
+                    info!("Starting to consume from queue {}", queue_name1);
+                    tokio::spawn(handle_events);
+                    ok(())
+                })
+        })
+        .and_then(|_| ok(()))
         .map_err(|e| e.into())
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn get_subscriptions(&self) -> Vec<String> {
-        vec![]
-    }
-
     fn emit<'a, E: Events + Sync>(
         &self,
         event: &Event<E>,
@@ -155,14 +156,15 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     payload,
                     BasicPublishOptions::default(),
                     BasicProperties::default(),
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     info!("Event with id {} delivered", id);
                     ok(())
                 }),
         )
     }
 
-    fn subscribe<ED, H>(&mut self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
+    fn subscribe<ED, H>(&self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
@@ -177,6 +179,4 @@ impl EmitterAdapter for AMQPEmitterAdapter {
             self.channel.clone(),
         ))
     }
-
-    fn unsubscribe<ED: EventData>(&mut self) {}
 }
