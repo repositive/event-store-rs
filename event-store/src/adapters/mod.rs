@@ -6,16 +6,20 @@
 
 mod pg;
 mod stub;
+mod amqp;
 
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
+pub use self::amqp::{AMQPEmitterAdapter};
 use chrono::{DateTime, Utc};
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
 use Aggregator;
 use Event;
 use Events;
+use EventData;
 use StoreQuery;
+use futures::future::Future;
+use std::io;
 
 /// Storage backend
 pub trait StoreAdapter<E: Events, Q: StoreQuery> {
@@ -50,19 +54,18 @@ pub trait CacheAdapter<K> {
 }
 
 /// Closure called when an incoming event must be handled
-pub type EventHandler<E> = fn(&Event<E>) -> ();
 
 /// Event emitter interface
-pub trait EmitterAdapter<E: Events> {
+pub trait EmitterAdapter {
     /// Get all subscribed handlers
-    fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>>;
+    fn get_subscriptions(&self) -> Vec<String>;
 
     /// Emit an event
-    fn emit(&self, event: &Event<E>);
+    fn emit<E: Events + Sync>(&self, event: &Event<E>) -> Box<Future<Item=(), Error=io::Error> + Send + Sync>;
 
     /// Subscribe to an event
-    fn subscribe<H>(&mut self, event_name: String, handler: EventHandler<E>);
+    fn subscribe<ED, H>(&mut self, handler: H) -> Box<Future<Item=(), Error=io::Error> + Send> where ED: EventData + 'static, H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 
     /// Stop listening for an event
-    fn unsubscribe(&mut self, event_name: String);
+    fn unsubscribe<ED: EventData>(&mut self);
 }

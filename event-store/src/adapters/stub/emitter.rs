@@ -1,8 +1,10 @@
 //! Stub emitter implementation
 
-use adapters::{EmitterAdapter, EventHandler};
-use std::collections::HashMap;
+use adapters::EmitterAdapter;
+use futures::future::{ok, Future};
+use std::io::Error;
 use Event;
+use EventData;
 use Events;
 
 /// Stub event emitter
@@ -15,17 +17,27 @@ impl StubEmitterAdapter {
     }
 }
 
-impl<E> EmitterAdapter<E> for StubEmitterAdapter
-where
-    E: Events,
-{
-    fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>> {
-        HashMap::new()
+impl EmitterAdapter for StubEmitterAdapter {
+    fn get_subscriptions(&self) -> Vec<String> {
+        vec![]
     }
 
-    fn emit(&self, _event: &Event<E>) {}
+    fn emit<E: Events>(
+        &self,
+        _event: &Event<E>,
+    ) -> Box<Future<Item = (), Error = Error> + Send + Sync> {
+        Box::new(ok(()))
+    }
 
-    fn subscribe<H>(&mut self, _event_name: String, _handler: EventHandler<E>) {}
+    fn subscribe<ED: EventData, H>(
+        &mut self,
+        _handler: H,
+    ) -> Box<Future<Item = (), Error = Error> + Send>
+    where
+        H: Fn(&Event<ED>) -> (),
+    {
+        Box::new(ok(()))
+    }
 
-    fn unsubscribe(&mut self, _event_name: String) {}
+    fn unsubscribe<ED: EventData>(&mut self) {}
 }

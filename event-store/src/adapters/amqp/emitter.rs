@@ -1,6 +1,6 @@
 //! AMQP emitter implementation
 
-use adapters::{EmitterAdapter, EventHandler};
+use adapters::EmitterAdapter;
 use futures::future::{ok, Future};
 use futures::Stream;
 use lapin::channel::{
@@ -10,98 +10,90 @@ use lapin::channel::{
 use lapin::client::{Client, ConnectionOptions};
 use lapin::types::FieldTable;
 use serde_json;
-use std::error::Error;
-use std::marker::PhantomData;
+use std::io;
 use std::net::SocketAddr;
 use std::str;
 use std::sync::mpsc;
+use std::time::Duration;
 use tokio;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 use Event;
 use EventData;
+use Events;
 
 /// AMQP emitter
-pub struct AMQPEmitterAdapter<E>
-where
-    E: EventData,
-{
-    phantom: PhantomData<E>,
+pub struct AMQPEmitterAdapter {
     channel: Channel<TcpStream>,
     exchange: String,
     namespace: String,
-    runtime: Runtime,
 }
 
-impl<E> AMQPEmitterAdapter<E>
-where
-    E: EventData,
-{
+impl AMQPEmitterAdapter {
     /// Create a new AMQPEmiterAdapter
-    pub fn new(uri: SocketAddr, _exchange: String, namespace: String) -> Self {
+    pub fn new(
+        uri: SocketAddr,
+        _exchange: String,
+        namespace: String,
+        runtime: &mut Runtime,
+    ) -> Self {
         let (tx, rx) = mpsc::channel();
         let exchange = _exchange.clone();
-        let mut runtime = Runtime::new().unwrap();
-        runtime
-            .block_on(
-                TcpStream::connect(&uri)
-                    .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
-                    .and_then(|(client, heartbeat)| {
-                        tokio::spawn(heartbeat.map_err(|_| ()));
-                        client.create_channel()
-                    }).and_then(move |channel: Channel<TcpStream>| {
-                        let ch = channel.clone();
-                        tx.send(ch).unwrap();
-                        channel.exchange_declare(
-                            &exchange,
-                            &"topic",
-                            ExchangeDeclareOptions {
-                                durable: true,
-                                ..ExchangeDeclareOptions::default()
-                            },
-                            FieldTable::new(),
-                        )
-                    }),
-            ).unwrap();
-        let channel = rx.recv().unwrap();
+        runtime.spawn(
+            TcpStream::connect(&uri)
+                .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
+                .and_then(|(client, heartbeat)| {
+                    info!("Starting heartbeat task");
+                    tokio::spawn(heartbeat.map_err(|_| ()));
+                    info!("Creating amqp channel");
+                    client.create_channel()
+                })
+                .and_then(move |channel: Channel<TcpStream>| {
+                    let ch = channel.clone();
+                    tx.send(ch).expect("Send channel to main thread");
+                    channel.exchange_declare(
+                        &exchange,
+                        &"topic",
+                        ExchangeDeclareOptions {
+                            durable: true,
+                            ..ExchangeDeclareOptions::default()
+                        },
+                        FieldTable::new(),
+                    )
+                })
+                .map_err(|e| {
+                    error!("Error connecting to AMQP: {}", e);
+                }),
+        );
+        let channel = rx
+            .recv_timeout(Duration::from_secs(5))
+            .map_err(|e| {
+                error!("AMQP channel was not made available: {}", e);
+                panic!(e);
+            })
+            .expect("AMQP channel was not made available");
         Self {
-            phantom: PhantomData,
             channel,
             namespace,
             exchange: _exchange,
-            runtime,
         }
     }
 }
 
-fn publish<'a>(
-    channel: Channel<TcpStream>,
-    exchange: String,
-    routing_key: String,
-    payload: Vec<u8>,
-) -> impl Future<Item = (), Error = ()> {
-    channel
-        .basic_publish(
-            &exchange,
-            &routing_key,
-            payload,
-            BasicPublishOptions::default(),
-            BasicProperties::default(),
-        ).and_then(|_| ok(()))
-        .map_err(|_| ())
-}
-
-fn prepare_subscription<'a, E>(
+fn prepare_subscription<E, H>(
     queue_name: String,
     event_name: String,
     exchange: String,
-    handler: Box<EventHandler<E>>,
+    handler: H,
     channel: Channel<TcpStream>,
-) -> impl Future<Item = (), Error = Box<Error + 'a>>
+) -> impl Future<Item = (), Error = io::Error>
 where
     E: EventData,
+    H: Fn(&Event<E>) -> (),
 {
     let c_channel = channel.clone();
+    let queue_name1 = queue_name.clone();
+    info!("Creating queue {}", queue_name);
     channel
         .queue_declare(
             &queue_name,
@@ -112,7 +104,9 @@ where
                 ..QueueDeclareOptions::default()
             },
             FieldTable::new(),
-        ).and_then(move |queue| {
+        )
+        .and_then(move |queue| {
+            info!("Binding queue {} to exchange {}", queue_name, exchange);
             channel
                 .queue_bind(
                     &queue_name,
@@ -120,57 +114,77 @@ where
                     &event_name,
                     QueueBindOptions::default(),
                     FieldTable::new(),
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     channel.basic_consume(
                         &queue,
                         &queue_name,
                         BasicConsumeOptions::default(),
                         FieldTable::new(),
                     )
-                }).and_then(move |stream| {
+                })
+                .and_then(move |stream| {
+                    info!("Starting to consume from queue {}", queue_name1);
                     stream.for_each(move |message| {
                         let data: Event<E> =
                             serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
+                        info!("Receiving message with id {}", data.id);
                         handler(&data);
                         c_channel.basic_ack(message.delivery_tag, false)
                     })
                 })
-        }).and_then(|_| ok(()))
+        })
+        .and_then(|_| ok(()))
         .map_err(|e| e.into())
 }
 
-impl<E> EmitterAdapter<E> for AMQPEmitterAdapter<E>
-where
-    E: EventData + Send + 'static,
-{
-    fn emit(&mut self, event: &Event<E>) {
-        let payload: Vec<u8> = serde_json::to_string(event).unwrap().into();
+impl EmitterAdapter for AMQPEmitterAdapter {
+    fn get_subscriptions(&self) -> Vec<String> {
+        vec![]
+    }
+
+    fn emit<'a, E: Events + Sync>(
+        &self,
+        event: &Event<E>,
+    ) -> Box<Future<Item = (), Error = io::Error> + Send + Sync> {
+        let payload: Vec<u8> = serde_json::to_string(event)
+            .expect("Cant serialise event")
+            .into();
         let event_type = event.data().event_type();
-        self.runtime.spawn(publish(
-            self.channel.clone(),
-            self.exchange.clone(),
-            event_type,
-            payload,
-        ));
-        // TODO I need the event name here. We may need to rethink the event structure
+        let id = event.id;
+        info!("Emiting event {} with id {}", event_type, id);
+
+        Box::new(
+            self.channel
+                .basic_publish(
+                    &self.exchange,
+                    &event_type,
+                    payload,
+                    BasicPublishOptions::default(),
+                    BasicProperties::default(),
+                )
+                .and_then(move |_| {
+                    info!("Event with id {} delivered", id);
+                    ok(())
+                }),
+        )
     }
 
-    fn subscribe(&mut self, event_name: String, handler: Box<EventHandler<E>>) {
+    fn subscribe<ED, H>(&mut self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
+    where
+        ED: EventData + 'static,
+        H: Fn(&Event<ED>) -> () + Send + 'static,
+    {
+        let event_name = ED::event_type();
         let queue_name = format!("{}-{}", &self.namespace, &event_name);
-
-        self.runtime.spawn(
-            prepare_subscription(
-                queue_name.clone(),
-                event_name,
-                self.exchange.clone(),
-                handler,
-                self.channel.clone(),
-            ).map_err(move |e| {
-                error!(
-                    "Something failed in the {} subscription: {:?}",
-                    queue_name, e
-                );
-            }),
-        );
+        Box::new(prepare_subscription(
+            queue_name.clone(),
+            event_name.into(),
+            self.exchange.clone(),
+            handler,
+            self.channel.clone(),
+        ))
     }
+
+    fn unsubscribe<ED: EventData>(&mut self) {}
 }
