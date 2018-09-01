@@ -13,7 +13,7 @@ services:
   rabbit:
     image: rabbitmq:3-alpine
     ports:
-      - "5672:5672"
+      - "5673:5672"
 
 
   integration_setup:
