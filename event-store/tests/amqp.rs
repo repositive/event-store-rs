@@ -3,8 +3,6 @@ extern crate futures;
 extern crate serde_json;
 extern crate tokio;
 
-#[macro_use]
-extern crate log;
 extern crate env_logger;
 
 use event_store::adapters::{AMQPEmitterAdapter, EmitterAdapter};
@@ -13,7 +11,6 @@ use event_store::Event;
 use futures::future::Future;
 use std::net::SocketAddr;
 use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
