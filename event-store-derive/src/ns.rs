@@ -35,8 +35,7 @@ impl EnumInfo {
                 let name_override = get_attribute_ident(&v.attrs, "rename");
 
                 name_override.unwrap_or(v.ident.clone())
-            })
-            .collect::<Vec<Ident>>();
+            }).collect::<Vec<Ident>>();
 
         Self {
             enum_namespace,
@@ -65,8 +64,7 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                         Group(_) => true,
                         _ => false,
                     })
-                })
-                .and_then(|tt| match tt {
+                }).and_then(|tt| match tt {
                     Group(g) => {
                         let mut it = g.stream().into_iter();
 
@@ -74,7 +72,8 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                             (
                                 Some(TokenTree::Ident(ref ident)),
                                 Some(TokenTree::Literal(ref attribute_value)),
-                            ) if *ident == ident_match =>
+                            )
+                                if *ident == ident_match =>
                             {
                                 Some(Ident::new(
                                     attribute_value.to_string().trim_matches('"').into(),
@@ -86,8 +85,7 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                     }
                     _ => None,
                 })
-        })
-        .next()
+        }).next()
 }
 
 pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
@@ -101,8 +99,7 @@ pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
                 .next()
                 .map(|field| field.ty.clone().into_token_stream())
                 .expect("Expected struct type")
-        })
-        .collect::<Vec<TokenStream>>()
+        }).collect::<Vec<TokenStream>>()
 }
 
 pub fn expand_derive_namespace(parsed: &DeriveInput) -> TokenStream {
@@ -122,6 +119,5 @@ pub fn get_quoted_namespaces(enum_body: &DataEnum, default_namespace: &Ident) ->
             get_attribute_ident(&variant.attrs, "namespace")
                 .unwrap_or(default_namespace.clone())
                 .to_string()
-        })
-        .collect()
+        }).collect()
 }
