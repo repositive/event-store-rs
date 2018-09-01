@@ -54,8 +54,7 @@ fn emiter_emits_and_subscribes() {
             .emit(&Event::from_data(TestEvents::Inc(TestIncrementEvent {
                 by: 1,
                 ident: "".into(),
-            })))
-            .map_err(|_| ()),
+            }))).map_err(|_| ()),
     );
 
     assert!(rx.recv_timeout(Duration::from_secs(5)).is_ok());

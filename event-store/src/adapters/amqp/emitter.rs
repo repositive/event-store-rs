@@ -47,8 +47,7 @@ impl AMQPEmitterAdapter {
                     tokio::spawn(heartbeat.map_err(|_| ()));
                     info!("Creating amqp channel");
                     client.create_channel()
-                })
-                .and_then(move |channel: Channel<TcpStream>| {
+                }).and_then(move |channel: Channel<TcpStream>| {
                     let ch = channel.clone();
                     tx.send(ch).expect("Send channel to main thread");
                     channel.exchange_declare(
@@ -60,8 +59,7 @@ impl AMQPEmitterAdapter {
                         },
                         FieldTable::new(),
                     )
-                })
-                .map_err(|e| {
+                }).map_err(|e| {
                     error!("Error connecting to AMQP: {}", e);
                 }),
         );
@@ -70,8 +68,7 @@ impl AMQPEmitterAdapter {
             .map_err(|e| {
                 error!("AMQP channel was not made available: {}", e);
                 panic!(e);
-            })
-            .expect("AMQP channel was not made available");
+            }).expect("AMQP channel was not made available");
         Self {
             channel,
             namespace,
@@ -104,8 +101,7 @@ where
                 ..QueueDeclareOptions::default()
             },
             FieldTable::new(),
-        )
-        .and_then(move |queue| {
+        ).and_then(move |queue| {
             info!("Binding queue {} to exchange {}", queue_name, exchange);
             channel
                 .queue_bind(
@@ -114,16 +110,14 @@ where
                     &event_name,
                     QueueBindOptions::default(),
                     FieldTable::new(),
-                )
-                .and_then(move |_| {
+                ).and_then(move |_| {
                     channel.basic_consume(
                         &queue,
                         &queue_name,
                         BasicConsumeOptions::default(),
                         FieldTable::new(),
                     )
-                })
-                .and_then(move |stream| {
+                }).and_then(move |stream| {
                     info!("Starting to consume from queue {}", queue_name1);
                     stream.for_each(move |message| {
                         let data: Event<E> =
@@ -133,8 +127,7 @@ where
                         c_channel.basic_ack(message.delivery_tag, false)
                     })
                 })
-        })
-        .and_then(|_| ok(()))
+        }).and_then(|_| ok(()))
         .map_err(|e| e.into())
 }
 
@@ -162,8 +155,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     payload,
                     BasicPublishOptions::default(),
                     BasicProperties::default(),
-                )
-                .and_then(move |_| {
+                ).and_then(move |_| {
                     info!("Event with id {} delivered", id);
                     ok(())
                 }),

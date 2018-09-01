@@ -4,22 +4,22 @@
 //! integration with other event-driven domains. Use the adapters exposed by this module to suit
 //! your application and architecture.
 
+mod amqp;
 mod pg;
 mod stub;
-mod amqp;
 
+pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
-pub use self::amqp::{AMQPEmitterAdapter};
 use chrono::{DateTime, Utc};
+use futures::future::Future;
 use serde::{de::DeserializeOwned, Serialize};
+use std::io;
 use Aggregator;
 use Event;
-use Events;
 use EventData;
+use Events;
 use StoreQuery;
-use futures::future::Future;
-use std::io;
 
 /// Storage backend
 pub trait StoreAdapter<E: Events, Q: StoreQuery> {
@@ -61,10 +61,16 @@ pub trait EmitterAdapter {
     fn get_subscriptions(&self) -> Vec<String>;
 
     /// Emit an event
-    fn emit<E: Events + Sync>(&self, event: &Event<E>) -> Box<Future<Item=(), Error=io::Error> + Send + Sync>;
+    fn emit<E: Events + Sync>(
+        &self,
+        event: &Event<E>,
+    ) -> Box<Future<Item = (), Error = io::Error> + Send + Sync>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&mut self, handler: H) -> Box<Future<Item=(), Error=io::Error> + Send> where ED: EventData + 'static, H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
+    fn subscribe<ED, H>(&mut self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
+    where
+        ED: EventData + 'static,
+        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 
     /// Stop listening for an event
     fn unsubscribe<ED: EventData>(&mut self);
