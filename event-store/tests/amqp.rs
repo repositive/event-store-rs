@@ -27,21 +27,21 @@ fn emiter_emits_and_subscribes() {
 
     // The adapter is configured in such a way that it can't receive messages that it sent.
     // For this reason we need an adapter to emit and another to subscribe
-    let task = AMQPEmitterAdapter::new(addr, "iris".into(), "testing_namespace".into())
-        .and_then(move |adapter| {
-            adapter.subscribe(move |_e: &Event<TestIncrementEvent>| {
-                // Message received, let the main thread know about it.
-                &sh.lock().unwrap().send(()).unwrap();
-            })
-        })
-        .and_then(move |_| AMQPEmitterAdapter::new(addr, "iris".into(), "testing_namespace".into()))
-        .and_then(|adapter| {
-            adapter.emit(&Event::from_data(TestEvents::Inc(TestIncrementEvent {
-                by: 1,
-                ident: "".into(),
-            })))
-        })
-        .map_err(|_| ());
+    let task =
+        AMQPEmitterAdapter::new(addr, "iris".into(), "testing_namespace".into())
+            .and_then(move |adapter| {
+                adapter.subscribe(move |_e: &Event<TestIncrementEvent>| {
+                    // Message received, let the main thread know about it.
+                    &sh.lock().unwrap().send(()).unwrap();
+                })
+            }).and_then(move |_| {
+                AMQPEmitterAdapter::new(addr, "iris".into(), "testing_namespace".into())
+            }).and_then(|adapter| {
+                adapter.emit(&Event::from_data(TestEvents::Inc(TestIncrementEvent {
+                    by: 1,
+                    ident: "".into(),
+                })))
+            }).map_err(|_| ());
 
     runtime.spawn(task);
 

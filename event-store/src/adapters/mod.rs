@@ -68,5 +68,4 @@ pub trait EmitterAdapter {
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
-
 }
