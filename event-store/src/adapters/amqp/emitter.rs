@@ -1,7 +1,7 @@
 //! AMQP emitter implementation
 
 use adapters::EmitterAdapter;
-use futures::future::{ok, Future};
+use futures::future::{ok as FutOk, Future};
 use futures::Stream;
 use lapin::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
@@ -53,8 +53,8 @@ impl AMQPEmitterAdapter {
                                 ..ExchangeDeclareOptions::default()
                             },
                             FieldTable::new(),
-                        ).and_then(move |_| ok(ch))
-                }).and_then(|channel| ok(Self { channel, exchange })),
+                        ).and_then(move |_| FutOk(ch))
+                }).and_then(|channel| FutOk(Self { channel, exchange })),
         )
     }
 }
@@ -115,9 +115,9 @@ where
 
                     info!("Starting to consume from queue {}", queue_name1);
                     tokio::spawn(handle_events);
-                    ok(())
+                    FutOk(())
                 })
-        }).and_then(|_| ok(()))
+        }).and_then(|_| FutOk(()))
         .map_err(|e| e.into())
 }
 
@@ -143,7 +143,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     BasicProperties::default(),
                 ).and_then(move |_| {
                     info!("Event with id {} delivered", id);
-                    ok(())
+                    FutOk(())
                 }),
         )
     }
