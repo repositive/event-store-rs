@@ -4,16 +4,20 @@
 //! integration with other event-driven domains. Use the adapters exposed by this module to suit
 //! your application and architecture.
 
+mod amqp;
 mod pg;
 mod stub;
 
+pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
+use futures::future::Future;
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
+use std::io;
 use Aggregator;
 use Event;
+use EventData;
 use Events;
 use StoreQuery;
 
@@ -50,19 +54,18 @@ pub trait CacheAdapter<K> {
 }
 
 /// Closure called when an incoming event must be handled
-pub type EventHandler<E> = fn(&Event<E>) -> ();
 
 /// Event emitter interface
-pub trait EmitterAdapter<E: Events> {
-    /// Get all subscribed handlers
-    fn get_subscriptions(&self) -> HashMap<String, EventHandler<E>>;
-
+pub trait EmitterAdapter {
     /// Emit an event
-    fn emit(&self, event: &Event<E>);
+    fn emit<E: Events + Sync>(
+        &self,
+        event: &Event<E>,
+    ) -> Box<Future<Item = (), Error = io::Error> + Send + Sync>;
 
     /// Subscribe to an event
-    fn subscribe<H>(&mut self, event_name: String, handler: EventHandler<E>);
-
-    /// Stop listening for an event
-    fn unsubscribe(&mut self, event_name: String);
+    fn subscribe<ED, H>(&self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
+    where
+        ED: EventData + 'static,
+        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 }

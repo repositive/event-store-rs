@@ -1,5 +1,4 @@
 //! Event store for working with event-store-driven applications
-
 #![deny(missing_docs)]
 
 extern crate fallible_iterator;
@@ -14,6 +13,12 @@ extern crate serde;
 extern crate serde_json;
 extern crate sha2;
 extern crate uuid;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+extern crate futures;
+extern crate lapin_futures as lapin;
+extern crate tokio;
 
 pub mod adapters;
 pub mod testhelpers;
@@ -196,11 +201,11 @@ pub struct EventStore<S, C, EM> {
 
 impl<'a, E, Q, S, C, EM> Store<'a, E, Q, S, C, EM> for EventStore<S, C, EM>
 where
-    E: Events,
+    E: Events + Sync,
     Q: StoreQuery,
     S: StoreAdapter<E, Q>,
     C: CacheAdapter<Q>,
-    EM: EmitterAdapter<E>,
+    EM: EmitterAdapter,
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self {
@@ -238,7 +243,6 @@ where
     /// Save an event to the store with optional context
     fn save(&self, event: Event<E>) -> Result<(), String> {
         self.store.save(&event).expect("Save");
-
         self.emitter.emit(&event);
 
         Ok(())
