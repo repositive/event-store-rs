@@ -17,7 +17,7 @@ use tokio::runtime::Runtime;
 #[test]
 /// The intention of this test is to send an event through AMQP using the adapter and validate
 /// that a handler subscribed to that same event receives it.
-fn emiter_emits_and_subscribes() {
+fn emitter_emits_and_subscribes() {
     env_logger::init();
     let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
     let mut runtime = Runtime::new().expect("Create runtime");

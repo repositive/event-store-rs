@@ -131,7 +131,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
             .into();
         let event_type = event.data().event_type();
         let id = event.id;
-        info!("Emiting event {} with id {}", event_type, id);
+        info!("Emitting event {} with id {}", event_type, id);
 
         Box::new(
             self.channel
