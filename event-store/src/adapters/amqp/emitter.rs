@@ -23,7 +23,6 @@ use Events;
 pub struct AMQPEmitterAdapter {
     channel: Channel<TcpStream>,
     exchange: String,
-    namespace: String,
 }
 
 impl AMQPEmitterAdapter {
@@ -31,7 +30,6 @@ impl AMQPEmitterAdapter {
     pub fn new(
         uri: SocketAddr,
         exchange: String,
-        namespace: String,
     ) -> Box<Future<Item = Self, Error = io::Error> + Send> {
         let exchange1 = exchange.clone();
         info!("Connecting to AMQP using {}", uri);
@@ -56,13 +54,7 @@ impl AMQPEmitterAdapter {
                             },
                             FieldTable::new(),
                         ).and_then(move |_| ok(ch))
-                }).and_then(|channel| {
-                    ok(Self {
-                        channel,
-                        namespace,
-                        exchange,
-                    })
-                }),
+                }).and_then(|channel| ok(Self { channel, exchange })),
         )
     }
 }
@@ -160,8 +152,9 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
+        let event_namespace = ED::event_namespace();
         let event_name = ED::event_type();
-        let queue_name = format!("{}-{}", &self.namespace, &event_name);
+        let queue_name = format!("{}-{}", &event_namespace, &event_name);
         Box::new(prepare_subscription(
             queue_name.clone(),
             event_name.into(),
