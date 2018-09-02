@@ -165,15 +165,34 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
 
     let struct_idents = get_enum_struct_names(&enum_body);
 
-    let struct_idents_clone = struct_idents.clone();
+    let struct_idents_clone1 = struct_idents.clone();
+    let struct_idents_clone2 = struct_idents.clone();
+    let struct_idents_clone3 = struct_idents.clone();
+
+    let namespace_and_types_quoted_clone = namespace_and_types_quoted.clone();
+    let namespaces_quoted_clone = namespaces_quoted.clone();
     let types_quoted_clone = types_quoted.clone();
     let out = quote! {
         // Get the type or namespace of an instance of an events enum
         impl event_store_derive_internals::Events for #item_ident {
+            fn event_namespace_and_type(&self) -> &'static str {
+                match self {
+                    #(
+                      #struct_idents_clone1 => #namespace_and_types_quoted_clone,
+                    )*
+                }
+            }
+            fn event_namespace(&self) -> &'static str {
+                match self {
+                    #(
+                      #struct_idents_clone2 => #namespaces_quoted_clone,
+                    )*
+                }
+            }
             fn event_type(&self) -> &'static str {
                 match self {
                     #(
-                      #struct_idents_clone => #types_quoted_clone,
+                      #struct_idents_clone3 => #types_quoted_clone,
                     )*
                 }
             }
