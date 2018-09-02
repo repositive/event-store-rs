@@ -147,8 +147,15 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         ref enum_body,
         ref item_ident,
         ref renamed_variant_idents,
+        ref variant_idents,
         ..
     } = &info;
+
+    let item_idents = repeat(item_ident);
+    let item_idents2 = repeat(item_ident);
+    let item_idents3 = repeat(item_ident);
+    let variant_idents2 = variant_idents.iter();
+    let variant_idents3 = variant_idents.iter();
 
     let namespaces_quoted = get_quoted_namespaces(&enum_body, &enum_namespace);
 
@@ -164,10 +171,6 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
     let de = impl_deserialize(&info);
 
     let struct_idents = get_enum_struct_names(&enum_body);
-
-    let struct_idents_clone1 = struct_idents.clone();
-    let struct_idents_clone2 = struct_idents.clone();
-    let struct_idents_clone3 = struct_idents.clone();
 
     let namespace_and_types_quoted_clone = namespace_and_types_quoted.clone();
     let namespaces_quoted_clone = namespaces_quoted.clone();
@@ -192,23 +195,17 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
             impl event_store_derive_internals::Events for #item_ident {
                 fn event_namespace_and_type(&self) -> &'static str {
                     match self {
-                        #(
-                          #struct_idents_clone1 => #namespace_and_types_quoted_clone,
-                        )*
+                        #(#item_idents::#variant_idents(_) => #namespace_and_types_quoted_clone,)*
                     }
                 }
                 fn event_namespace(&self) -> &'static str {
                     match self {
-                        #(
-                          #struct_idents_clone2 => #namespaces_quoted_clone,
-                        )*
+                        #(#item_idents2::#variant_idents2(_) => #namespaces_quoted_clone,)*
                     }
                 }
                 fn event_type(&self) -> &'static str {
                     match self {
-                        #(
-                          #struct_idents_clone3 => #types_quoted_clone,
-                        )*
+                        #(#item_idents3::#variant_idents3(_) => #types_quoted_clone,)*
                     }
                 }
             }

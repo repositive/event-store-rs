@@ -7,6 +7,7 @@ extern crate serde_json;
 extern crate event_store_derive;
 extern crate event_store;
 
+use event_store::Events;
 use serde_json::from_value;
 use serde_json::to_value;
 
@@ -150,4 +151,57 @@ fn it_roundtrips_renamed_variants() {
             "thing": 100,
         })
     );
+}
+
+#[test]
+fn it_gets_variant_strings() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingA;
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingB;
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingC;
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingD;
+
+    #[derive(Events, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        A(ThingA),
+        #[event_store(rename = "RenamedB")]
+        B(ThingB),
+        #[event_store(namespace = "other_ns")]
+        #[event_store(rename = "RenamedC")]
+        C(ThingC),
+        #[event_store(namespace = "other_ns")]
+        D(ThingD),
+    }
+
+    let cases = vec![
+        (
+            TestEnum::A(ThingA),
+            "some_namespace.A",
+            "some_namespace",
+            "A",
+        ),
+        (
+            TestEnum::B(ThingB),
+            "some_namespace.RenamedB",
+            "some_namespace",
+            "RenamedB",
+        ),
+        (
+            TestEnum::C(ThingC),
+            "other_ns.RenamedC",
+            "other_ns",
+            "RenamedC",
+        ),
+        (TestEnum::D(ThingD), "other_ns.D", "other_ns", "D"),
+    ];
+
+    for (variant, expected_ns_and_ty, expected_ns, expected_ty) in cases {
+        assert_eq!(variant.event_namespace_and_type(), expected_ns_and_ty);
+        assert_eq!(variant.event_namespace(), expected_ns);
+        assert_eq!(variant.event_type(), expected_ty);
+    }
 }
