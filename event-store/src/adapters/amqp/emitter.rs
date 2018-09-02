@@ -60,8 +60,6 @@ impl AMQPEmitterAdapter {
 }
 
 fn prepare_subscription<E, H>(
-    queue_name: String,
-    event_name: String,
     exchange: String,
     handler: H,
     channel: Channel<TcpStream>,
@@ -70,6 +68,9 @@ where
     E: EventData,
     H: Fn(&Event<E>) -> () + Send + 'static,
 {
+    let event_name = E::event_type();
+    let event_namespace = E::event_namespace();
+    let queue_name = format!("{}-{}", event_namespace, event_name);
     let c_channel = channel.clone();
     let queue_name1 = queue_name.clone();
     info!("Creating queue {}", queue_name);
@@ -152,12 +153,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
-        let event_namespace = ED::event_namespace();
-        let event_name = ED::event_type();
-        let queue_name = format!("{}-{}", &event_namespace, &event_name);
         Box::new(prepare_subscription(
-            queue_name.clone(),
-            event_name.into(),
             self.exchange.clone(),
             handler,
             self.channel.clone(),
