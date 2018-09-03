@@ -205,3 +205,35 @@ fn it_gets_variant_strings() {
         assert_eq!(variant.event_type(), expected_ty);
     }
 }
+
+#[test]
+fn it_differentiates_structs_with_same_shape() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingA {
+        foo: u32,
+    };
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingB {
+        foo: u32,
+    };
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingC {
+        bar: u8,
+    };
+
+    #[derive(Events, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        A(ThingA),
+        B(ThingB),
+        C(ThingC),
+    }
+
+    let v: TestEnum = from_value(json!({
+        "event_type": "B",
+        "event_namespace": "some_namespace",
+        "foo": 100
+    })).unwrap();
+
+    assert_eq!(v, TestEnum::B(ThingB { foo: 100 }));
+}
