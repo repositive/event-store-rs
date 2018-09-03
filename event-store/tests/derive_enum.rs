@@ -7,6 +7,7 @@ extern crate serde_json;
 extern crate event_store_derive;
 extern crate event_store;
 
+use event_store::Events;
 use serde_json::from_value;
 use serde_json::to_value;
 
@@ -49,7 +50,6 @@ fn it_serializes_enums() {
     assert_eq!(
         to_value(TestEnum::TestStruct(TestStruct { thing: 100 })).unwrap(),
         json!({
-            "type": "some_namespace.TestStruct",
             "event_namespace": "some_namespace",
             "event_type": "TestStruct",
             "thing": 100,
@@ -78,7 +78,6 @@ fn it_roundtrips() {
     assert_eq!(
         encoded,
         json!({
-            "type": "some_namespace.Variant",
             "event_namespace": "some_namespace",
             "event_type": "Variant",
             "thing": 100,
@@ -108,7 +107,6 @@ fn it_roundtrips_overridden_namespaces() {
     assert_eq!(
         encoded,
         json!({
-            "type": "other_ns.Variant",
             "event_namespace": "other_ns",
             "event_type": "Variant",
             "thing": 100,
@@ -144,10 +142,94 @@ fn it_roundtrips_renamed_variants() {
     assert_eq!(
         encoded,
         json!({
-            "type": "some_namespace.RenamedTestStruct",
             "event_namespace": "some_namespace",
             "event_type": "RenamedTestStruct",
             "thing": 100,
         })
     );
+}
+
+#[test]
+fn it_gets_variant_strings() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingA;
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingB;
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingC;
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingD;
+
+    #[derive(Events, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        A(ThingA),
+        #[event_store(rename = "RenamedB")]
+        B(ThingB),
+        #[event_store(namespace = "other_ns")]
+        #[event_store(rename = "RenamedC")]
+        C(ThingC),
+        #[event_store(namespace = "other_ns")]
+        D(ThingD),
+    }
+
+    let cases = vec![
+        (
+            TestEnum::A(ThingA),
+            "some_namespace.A",
+            "some_namespace",
+            "A",
+        ),
+        (
+            TestEnum::B(ThingB),
+            "some_namespace.RenamedB",
+            "some_namespace",
+            "RenamedB",
+        ),
+        (
+            TestEnum::C(ThingC),
+            "other_ns.RenamedC",
+            "other_ns",
+            "RenamedC",
+        ),
+        (TestEnum::D(ThingD), "other_ns.D", "other_ns", "D"),
+    ];
+
+    for (variant, expected_ns_and_ty, expected_ns, expected_ty) in cases {
+        assert_eq!(variant.event_namespace_and_type(), expected_ns_and_ty);
+        assert_eq!(variant.event_namespace(), expected_ns);
+        assert_eq!(variant.event_type(), expected_ty);
+    }
+}
+
+#[test]
+fn it_differentiates_structs_with_same_shape() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingA {
+        foo: u32,
+    };
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingB {
+        foo: u32,
+    };
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct ThingC {
+        bar: u8,
+    };
+
+    #[derive(Events, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        A(ThingA),
+        B(ThingB),
+        C(ThingC),
+    }
+
+    let v: TestEnum = from_value(json!({
+        "event_type": "B",
+        "event_namespace": "some_namespace",
+        "foo": 100
+    })).unwrap();
+
+    assert_eq!(v, TestEnum::B(ThingB { foo: 100 }));
 }

@@ -62,20 +62,6 @@ fn serialize_event(c: &mut Criterion) {
     });
 }
 
-fn deserialize_old_event(c: &mut Criterion) {
-    let incoming_str = to_string(&json!({
-        "type": "some_namespace.Inc",
-        "by": 1,
-        "ident": "deserialize_event"
-    })).expect("Could not create test event JSON");
-
-    c.bench_function("deserialize old style event", move |b| {
-        b.iter(|| {
-            let _event: TestEvents = from_str(&incoming_str).unwrap();
-        })
-    });
-}
-
 fn deserialize_event(c: &mut Criterion) {
     let incoming_str = to_string(&json!({
         "event_namespace": "some_namespace",
@@ -117,7 +103,6 @@ criterion_group!(
     targets =
         aggregate_from_default,
         serialize_event,
-        deserialize_old_event,
         deserialize_event,
         roundtrip
 );
