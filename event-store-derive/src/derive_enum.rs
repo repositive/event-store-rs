@@ -21,12 +21,6 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
 
     let types_quoted = renamed_variant_idents.iter().map(|ident| ident.to_string());
 
-    let namespace_and_types_quoted = namespaces_quoted
-        .iter()
-        .zip(renamed_variant_idents.iter())
-        .map(|(ns, ty)| format!("{}.{}", ns, ty))
-        .collect::<Vec<String>>();
-
     let struct_idents = get_enum_struct_names(&enum_body);
 
     quote! {
@@ -39,8 +33,6 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
                     #(#item_idents::#variant_idents(evt) => {
                         #[derive(Serialize)]
                         struct Output<'a> {
-                            #[serde(rename = "type")]
-                            event_type_and_namespace: &'a str,
                             event_type: &'a str,
                             event_namespace: &'a str,
                             #[serde(flatten)]
@@ -49,7 +41,6 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
 
                         let out = Output {
                             payload: evt,
-                            event_type_and_namespace: #namespace_and_types_quoted,
                             event_namespace: #namespaces_quoted,
                             event_type: #types_quoted
                         };
@@ -71,13 +62,11 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
         ..
     } = info;
 
+    let renamed_variant_idents2 = renamed_variant_idents.iter();
+
     let struct_idents = get_enum_struct_names(&enum_body);
     let item_idents = repeat(&info.item_ident);
     let variant_namespaces_quoted = get_quoted_namespaces(&enum_body, &info.enum_namespace);
-
-    let renamed_variant_types_quoted = renamed_variant_idents
-        .iter()
-        .map(|variant| variant.to_string());
 
     quote! {
         impl<'de> Deserialize<'de> for #item_ident {
@@ -88,50 +77,23 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
                 use serde::de;
 
                 #[derive(Deserialize, Debug)]
-                #[serde(untagged)]
+                #[serde(tag = "event_type")]
                 enum Output {
                     #(#renamed_variant_idents(#struct_idents),)*
                 }
 
                 #[derive(Deserialize)]
                 struct Helper {
-                    #[serde(rename = "type")]
-                    event_type_and_namespace: Option<String>,
-                    event_type: Option<String>,
-                    event_namespace: Option<String>,
+                    event_namespace: String,
                     #[serde(flatten)]
                     payload: Output,
                 }
 
-                impl From<Output> for #item_ident {
-                    fn from(out: Output) -> Self {
-                        match out {
-                            #(Output::#renamed_variant_idents(evt) => #item_idents::#variant_idents(evt),)*
-                        }
-                    }
-                }
-
                 let type_helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
 
-                let (ns, ty) = match type_helper {
-                    Helper { event_type: Some(ty), event_namespace: Some(ns), .. } => {
-                        (ns, ty)
-                    },
-                    // Map old-style event to new-style if new-style is not defined
-                    Helper { event_type_and_namespace: Some(ns_and_ty), .. } => {
-                        let parts: Vec<String> = ns_and_ty
-                            .split('.')
-                            .map(|part| String::from(part))
-                            .collect();
-
-                        (parts[0].clone(), parts[1].clone())
-                    },
-                    _ => return Err(de::Error::custom("Event type and namespace not given"))
-                };
-
-                match (ns.as_str(), ty.as_str()) {
-                    #((#variant_namespaces_quoted, #renamed_variant_types_quoted) => {
-                        Ok(type_helper.payload.into())
+                match (type_helper.event_namespace.as_str(), type_helper.payload) {
+                    #((#variant_namespaces_quoted, Output::#renamed_variant_idents2(evt)) => {
+                        Ok(#item_idents::#variant_idents(evt))
                     },)*
                     _ => Err(de::Error::custom("Could not find matching variant"))
                 }

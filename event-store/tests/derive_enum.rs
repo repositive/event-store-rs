@@ -50,7 +50,6 @@ fn it_serializes_enums() {
     assert_eq!(
         to_value(TestEnum::TestStruct(TestStruct { thing: 100 })).unwrap(),
         json!({
-            "type": "some_namespace.TestStruct",
             "event_namespace": "some_namespace",
             "event_type": "TestStruct",
             "thing": 100,
@@ -79,7 +78,6 @@ fn it_roundtrips() {
     assert_eq!(
         encoded,
         json!({
-            "type": "some_namespace.Variant",
             "event_namespace": "some_namespace",
             "event_type": "Variant",
             "thing": 100,
@@ -109,7 +107,6 @@ fn it_roundtrips_overridden_namespaces() {
     assert_eq!(
         encoded,
         json!({
-            "type": "other_ns.Variant",
             "event_namespace": "other_ns",
             "event_type": "Variant",
             "thing": 100,
@@ -145,7 +142,6 @@ fn it_roundtrips_renamed_variants() {
     assert_eq!(
         encoded,
         json!({
-            "type": "some_namespace.RenamedTestStruct",
             "event_namespace": "some_namespace",
             "event_type": "RenamedTestStruct",
             "thing": 100,
