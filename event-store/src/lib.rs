@@ -15,7 +15,6 @@ extern crate sha2;
 extern crate uuid;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
 extern crate futures;
 extern crate lapin_futures as lapin;
 extern crate tokio;
