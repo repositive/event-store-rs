@@ -1,9 +1,8 @@
+extern crate env_logger;
 extern crate event_store;
 extern crate futures;
 extern crate serde_json;
 extern crate tokio;
-
-extern crate env_logger;
 
 use event_store::adapters::{AMQPEmitterAdapter, EmitterAdapter};
 use event_store::testhelpers::{TestEvents, TestIncrementEvent};
