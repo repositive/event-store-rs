@@ -29,6 +29,7 @@ pub use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
+use tokio::runtime::current_thread;
 use uuid::Uuid;
 
 /// Event context
@@ -242,9 +243,8 @@ where
 
     /// Save an event to the store with optional context
     fn save(&self, event: Event<E>) -> Result<(), String> {
-        self.store.save(&event).expect("Save");
-        self.emitter.emit(&event);
-
-        Ok(())
+        self.store.save(&event)?;
+        current_thread::block_on_all(self.emitter.emit(&event))
+            .map_err(|_| "It was not possible to emit the event".into())
     }
 }
