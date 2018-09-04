@@ -1,4 +1,5 @@
 use ns::get_enum_struct_names;
+use ns::get_namespaces;
 use ns::get_quoted_namespaces;
 use ns::EnumInfo;
 use proc_macro2::{Ident, Span, TokenStream};
@@ -18,10 +19,16 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
     let item_idents = repeat(item_ident);
 
     let namespaces_quoted = get_quoted_namespaces(&enum_body, &enum_namespace);
+    let namespaces = get_namespaces(&enum_body, &enum_namespace);
 
     let types_quoted = renamed_variant_idents.iter().map(|ident| ident.to_string());
 
     let struct_idents = get_enum_struct_names(&enum_body);
+
+    let namespace_and_types_combined = namespaces
+        .iter()
+        .zip(renamed_variant_idents.iter())
+        .map(|(ns, ty)| format!("{}.{}", ns, ty));
 
     quote! {
         impl Serialize for #item_ident {
@@ -33,6 +40,8 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
                     #(#item_idents::#variant_idents(evt) => {
                         #[derive(Serialize)]
                         struct Output<'a> {
+                            #[serde(rename = "type")]
+                            event_namespace_and_type: &'a str,
                             event_type: &'a str,
                             event_namespace: &'a str,
                             #[serde(flatten)]
@@ -41,6 +50,7 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
 
                         let out = Output {
                             payload: evt,
+                            event_namespace_and_type: #namespace_and_types_combined,
                             event_namespace: #namespaces_quoted,
                             event_type: #types_quoted
                         };
