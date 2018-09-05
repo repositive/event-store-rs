@@ -23,7 +23,7 @@ impl EmitterAdapter for StubEmitterAdapter {
         Box::new(ok(()))
     }
 
-    fn subscribe<ED: EventData, H>(&self, _handler: H) -> BoxedFuture<(), Error>
+    fn subscribe<'a, ED: EventData, H>(&self, _handler: H) -> BoxedFuture<'a, (), Error>
     where
         H: Fn(&Event<ED>) -> (),
     {
