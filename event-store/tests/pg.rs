@@ -1,5 +1,6 @@
 extern crate event_store;
-extern crate postgres;
+extern crate r2d2;
+extern crate r2d2_postgres;
 
 use event_store::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
@@ -8,9 +9,21 @@ use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Aggregator, Event, EventStore, Store,
 };
-use postgres::{Connection, TlsMode};
+use r2d2::PooledConnection;
+use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::thread;
 use std::time::Duration;
+
+fn connect() -> PooledConnection<PostgresConnectionManager> {
+    let manager = PostgresConnectionManager::new(
+        "postgres://postgres@localhost:5430/eventstorerust",
+        TlsMode::None,
+    ).unwrap();
+
+    let pool = r2d2::Pool::new(manager).unwrap();
+
+    pool.get().expect("Could not connect to Postgres DB")
+}
 
 #[test]
 fn it_aggregates_events() {
@@ -50,10 +63,7 @@ fn it_aggregates_events() {
 
 #[test]
 fn it_queries_the_database() {
-    let conn = Connection::connect(
-        "postgres://postgres@localhost:5430/eventstorerust",
-        TlsMode::None,
-    ).expect("Could not connect to DB");
+    let conn = connect();
 
     let store_adapter = PgStoreAdapter::new(&conn);
     let cache_adapter = PgCacheAdapter::new(&conn);
@@ -78,10 +88,7 @@ fn it_queries_the_database() {
 
 #[test]
 fn it_saves_events() {
-    let conn = Connection::connect(
-        "postgres://postgres@localhost:5430/eventstorerust",
-        TlsMode::None,
-    ).expect("Could not connect to DB");
+    let conn = connect();
 
     let store_adapter = PgStoreAdapter::new(&conn);
     let cache_adapter = PgCacheAdapter::new(&conn);
@@ -99,10 +106,7 @@ fn it_saves_events() {
 
 #[test]
 fn it_uses_the_aggregate_cache() {
-    let conn = Connection::connect(
-        "postgres://postgres@localhost:5430/eventstorerust",
-        TlsMode::None,
-    ).expect("Could not connect to DB");
+    let conn = connect();
 
     let ident = "aggregatecache";
 

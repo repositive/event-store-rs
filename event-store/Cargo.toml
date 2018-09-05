@@ -22,9 +22,10 @@ lapin-futures = "0.13"
 futures = "0.1.23"
 tokio = "0.1.8"
 
-
 [dev-dependencies]
 criterion = "0.2.4"
+r2d2_postgres = "0.14.0"
+r2d2 = "0.8.2"
 env_logger = "0.5.13"
 
 [[bench]]
