@@ -60,7 +60,7 @@ impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     }
 
     fn query(field: String) -> PgQuery<'a> {
-        let mut params: Vec<Box<ToSql>> = Vec::new();
+        let mut params: Vec<Box<ToSql + Send + Sync>> = Vec::new();
 
         params.push(Box::new(field));
 
