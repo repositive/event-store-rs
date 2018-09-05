@@ -1,25 +1,25 @@
 //! Cache adapter backed by postgres
 
+use super::Connection;
 use adapters::{pg::PgQuery, CacheAdapter, CacheResult};
 use chrono::prelude::*;
-use postgres::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, to_value};
 use sha2::{Digest, Sha256};
 
 /// Postgres cache adapter
-pub struct PgCacheAdapter<'a> {
-    conn: &'a Connection,
+pub struct PgCacheAdapter {
+    conn: Connection,
 }
 
-impl<'a> PgCacheAdapter<'a> {
+impl PgCacheAdapter {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: &'a Connection) -> Self {
+    pub fn new(conn: Connection) -> Self {
         Self { conn }
     }
 }
 
-impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter<'a> {
+impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
     fn insert<V>(&self, key: &PgQuery, value: V)
     where
         V: Serialize,
@@ -27,6 +27,8 @@ impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter<'a> {
         let args_hash = Sha256::digest(format!("{:?}:[{}]", key.args, key.query).as_bytes());
 
         self.conn
+            .get()
+            .expect("Could not get PG connection")
             .execute(
                 r#"INSERT INTO aggregate_cache (id, data, time)
                 VALUES ($1, $2, NOW())
@@ -44,6 +46,8 @@ impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter<'a> {
 
         let rows = self
             .conn
+            .get()
+            .expect("Could not get PG connection")
             .query(
                 "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
                 &[&args_hash.as_slice()],

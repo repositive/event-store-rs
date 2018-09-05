@@ -2,7 +2,7 @@
 
 use super::{Aggregator, Event};
 use adapters::PgQuery;
-use postgres::types::ToSql;
+use r2d2_postgres::postgres::types::ToSql;
 
 #[derive(Serialize, Deserialize, Debug)]
 /// Test event

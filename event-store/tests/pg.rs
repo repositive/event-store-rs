@@ -9,12 +9,12 @@ use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Aggregator, Event, EventStore, Store,
 };
-use r2d2::PooledConnection;
+use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::thread;
 use std::time::Duration;
 
-fn connect() -> PooledConnection<PostgresConnectionManager> {
+fn connect() -> Pool<PostgresConnectionManager> {
     let manager = PostgresConnectionManager::new(
         "postgres://postgres@localhost:5430/eventstorerust",
         TlsMode::None,
@@ -22,7 +22,7 @@ fn connect() -> PooledConnection<PostgresConnectionManager> {
 
     let pool = r2d2::Pool::new(manager).unwrap();
 
-    pool.get().expect("Could not connect to Postgres DB")
+    pool
 }
 
 #[test]
@@ -65,8 +65,8 @@ fn it_aggregates_events() {
 fn it_queries_the_database() {
     let conn = connect();
 
-    let store_adapter = PgStoreAdapter::new(&conn);
-    let cache_adapter = PgCacheAdapter::new(&conn);
+    let store_adapter = PgStoreAdapter::new(conn.clone());
+    let cache_adapter = PgCacheAdapter::new(conn.clone());
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
@@ -90,8 +90,8 @@ fn it_queries_the_database() {
 fn it_saves_events() {
     let conn = connect();
 
-    let store_adapter = PgStoreAdapter::new(&conn);
-    let cache_adapter = PgCacheAdapter::new(&conn);
+    let store_adapter = PgStoreAdapter::new(conn.clone());
+    let cache_adapter = PgCacheAdapter::new(conn.clone());
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
@@ -110,13 +110,17 @@ fn it_uses_the_aggregate_cache() {
 
     let ident = "aggregatecache";
 
-    conn.execute("DELETE FROM events WHERE data->>'ident' = $1", &[&ident])
+    conn.get()
+        .unwrap()
+        .execute("DELETE FROM events WHERE data->>'ident' = $1", &[&ident])
         .expect("Truncate");
-    conn.execute("TRUNCATE aggregate_cache", &[])
+    conn.get()
+        .unwrap()
+        .execute("TRUNCATE aggregate_cache", &[])
         .expect("Truncate");
 
-    let store_adapter = PgStoreAdapter::new(&conn);
-    let cache_adapter = PgCacheAdapter::new(&conn);
+    let store_adapter = PgStoreAdapter::new(conn.clone());
+    let cache_adapter = PgCacheAdapter::new(conn.clone());
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
