@@ -22,6 +22,7 @@ extern crate tokio;
 
 pub mod adapters;
 pub mod testhelpers;
+mod utils;
 
 use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
 use chrono::prelude::*;

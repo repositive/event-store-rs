@@ -15,6 +15,7 @@ use std::net::SocketAddr;
 use std::str;
 use tokio;
 use tokio::net::TcpStream;
+use utils::BoxedFuture;
 use Event;
 use EventData;
 use Events;
@@ -27,10 +28,7 @@ pub struct AMQPEmitterAdapter {
 
 impl AMQPEmitterAdapter {
     /// Create a new AMQPEmiterAdapter
-    pub fn new(
-        uri: SocketAddr,
-        exchange: String,
-    ) -> Box<Future<Item = Self, Error = io::Error> + Send> {
+    pub fn new(uri: SocketAddr, exchange: String) -> BoxedFuture<Self, io::Error> {
         let exchange1 = exchange.clone();
         info!("Connecting to AMQP using {}", uri);
         Box::new(
@@ -122,10 +120,7 @@ where
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: Events + Sync>(
-        &self,
-        event: &Event<E>,
-    ) -> Box<Future<Item = (), Error = io::Error> + Send + Sync> {
+    fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
@@ -148,7 +143,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         )
     }
 
-    fn subscribe<ED, H>(&self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,

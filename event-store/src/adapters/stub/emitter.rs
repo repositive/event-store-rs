@@ -1,8 +1,9 @@
 //! Stub emitter implementation
 
 use adapters::EmitterAdapter;
-use futures::future::{ok, Future};
+use futures::future::ok;
 use std::io::Error;
+use utils::BoxedFuture;
 use Event;
 use EventData;
 use Events;
@@ -18,17 +19,11 @@ impl StubEmitterAdapter {
 }
 
 impl EmitterAdapter for StubEmitterAdapter {
-    fn emit<E: Events>(
-        &self,
-        _event: &Event<E>,
-    ) -> Box<Future<Item = (), Error = Error> + Send + Sync> {
+    fn emit<E: Events>(&self, _event: &Event<E>) -> BoxedFuture<(), Error> {
         Box::new(ok(()))
     }
 
-    fn subscribe<ED: EventData, H>(
-        &self,
-        _handler: H,
-    ) -> Box<Future<Item = (), Error = Error> + Send>
+    fn subscribe<ED: EventData, H>(&self, _handler: H) -> BoxedFuture<(), Error>
     where
         H: Fn(&Event<ED>) -> (),
     {
