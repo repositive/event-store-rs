@@ -36,6 +36,8 @@ pub trait StoreAdapter<E: Events, Q: StoreQuery> {
 
     /// Save an event to the store
     fn save(&self, event: &Event<E>) -> Result<(), String>;
+
+    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search

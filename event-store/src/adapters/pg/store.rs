@@ -3,14 +3,17 @@
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use fallible_iterator::FallibleIterator;
+use futures::future::ok as FutOk;
 use postgres::types::ToSql;
 use postgres::Connection;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use std::marker::PhantomData;
+use utils::BoxedFuture;
 use uuid::Uuid;
 use Aggregator;
 use Event;
 use EventContext;
+use EventData;
 use Events;
 
 /// Postgres store adapter
@@ -85,7 +88,8 @@ where
                 let context: EventContext = from_value(context_json).unwrap();
 
                 Event { id, data, context }
-            }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
+            })
+            .fold(initial_state, |acc, event| T::apply_event(acc, &event))
             .expect("Fold");
 
         trans.finish().expect("Tranny finished");
@@ -103,9 +107,23 @@ where
                     &to_value(&event.data).expect("Item to value"),
                     &to_value(&event.context).expect("Context to value"),
                 ],
-            ).expect("Save");
+            )
+            .expect("Save");
 
         Ok(())
+    }
+
+    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
+        self.conn
+            .execute(
+                r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2
+                "#,
+                &[
+                    &ED::event_namespace(),
+                    &ED::event_type()
+                ],
+                ).expect("Response");
+        Box::new(FutOk(None))
     }
 }
 
