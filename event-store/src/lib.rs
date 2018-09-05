@@ -2,7 +2,6 @@
 #![deny(missing_docs)]
 
 extern crate fallible_iterator;
-extern crate postgres;
 #[macro_use]
 extern crate serde_derive;
 extern crate chrono;
@@ -17,6 +16,8 @@ extern crate uuid;
 extern crate log;
 extern crate futures;
 extern crate lapin_futures as lapin;
+extern crate r2d2;
+extern crate r2d2_postgres;
 extern crate tokio;
 
 pub mod adapters;

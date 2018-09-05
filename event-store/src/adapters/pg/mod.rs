@@ -5,9 +5,13 @@ mod store;
 
 pub use self::cache::PgCacheAdapter;
 pub use self::store::PgStoreAdapter;
+use r2d2::Pool;
+use r2d2_postgres::postgres::types::ToSql;
+use r2d2_postgres::PostgresConnectionManager;
 
-use postgres::types::ToSql;
 use StoreQuery;
+
+type Connection = Pool<PostgresConnectionManager>;
 
 /// Representation of a Postgres query and args
 pub struct PgQuery<'a> {

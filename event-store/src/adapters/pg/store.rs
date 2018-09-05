@@ -1,11 +1,11 @@
 //! Store adapter backed by Postgres
 
+use super::Connection;
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use fallible_iterator::FallibleIterator;
 use futures::future::ok as FutOk;
-use postgres::types::ToSql;
-use postgres::Connection;
+use r2d2_postgres::postgres::types::ToSql;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use std::marker::PhantomData;
 use utils::BoxedFuture;
@@ -17,17 +17,17 @@ use EventData;
 use Events;
 
 /// Postgres store adapter
-pub struct PgStoreAdapter<'a, E> {
+pub struct PgStoreAdapter<E> {
     phantom: PhantomData<E>,
-    conn: &'a Connection,
+    conn: Connection,
 }
 
-impl<'a, E> PgStoreAdapter<'a, E>
+impl<'a, E> PgStoreAdapter<E>
 where
     E: Events,
 {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: &'a Connection) -> Self {
+    pub fn new(conn: Connection) -> Self {
         Self {
             conn,
             phantom: PhantomData,
@@ -55,7 +55,7 @@ where
     }
 }
 
-impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<'a, E>
+impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<E>
 where
     E: Events,
 {
@@ -67,7 +67,9 @@ where
         let q = T::query(query_args);
         let (initial_state, query_string) = Self::generate_query(&q, since);
 
-        let trans = self.conn.transaction().expect("Tranny");
+        let conn = self.conn.get().expect("Could not get PG connection");
+
+        let trans = conn.transaction().expect("Tranny");
         let stmt = trans.prepare(&query_string).expect("Prep");
 
         let mut params: Vec<&ToSql> = Vec::new();
@@ -99,6 +101,8 @@ where
 
     fn save(&self, event: &Event<E>) -> Result<(), String> {
         self.conn
+            .get()
+            .expect("Could not get PG connection")
             .execute(
                 r#"INSERT INTO events (id, data, context)
                 VALUES ($1, $2, $3)"#,
@@ -115,6 +119,8 @@ where
 
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
         self.conn
+            .get()
+            .expect("Could not get PG connection")
             .execute(
                 r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2
                 "#,
