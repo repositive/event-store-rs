@@ -61,7 +61,7 @@ pub trait CacheAdapter<K> {
 /// Event emitter interface
 pub trait EmitterAdapter: Clone {
     /// Emit an event
-    fn emit<E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error>;
+    fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
 
     /// Subscribe to an event
     fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>

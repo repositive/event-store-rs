@@ -120,7 +120,7 @@ where
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error> {
+    fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
