@@ -116,16 +116,30 @@ where
     }
 
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
-        self.conn
-            .execute(
-                r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2
+        let rows = self.conn
+            .get()
+            .expect("Could not get PG connection")
+            .query(
+                r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
                 "#,
                 &[
                     &ED::event_namespace(),
                     &ED::event_type()
                 ],
                 ).expect("Response");
-        Box::new(FutOk(None))
+        if rows.len() == 1 {
+            let row = rows.get(0);
+            let id: Uuid = row.get("id");
+            let data_json: JsonValue = row.get("data");
+            let context_json: JsonValue = row.get("context");
+
+            let data: ED = from_value(data_json).unwrap();
+            let context: EventContext = from_value(context_json).unwrap();
+
+            Box::new(FutOk(Some(Event { id, data, context })))
+        } else {
+            Box::new(FutOk(None))
+        }
     }
 }
 
