@@ -178,7 +178,7 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug +
 ///     // ...
 /// }
 /// ```
-pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM> {
+pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM: EmitterAdapter> {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
