@@ -33,13 +33,19 @@ mod utils;
 
 use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
 pub use aggregator::Aggregator;
+use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
+use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
+use futures::future::Future;
 use serde::{Deserialize, Serialize};
+use std::io::Error;
 use store::Store;
 pub use store_query::StoreQuery;
 use tokio::runtime::current_thread;
+use utils::BoxedFuture;
+use uuid::Uuid;
 
 /// Main event store
 pub struct EventStore<S, C, EM> {
@@ -48,13 +54,51 @@ pub struct EventStore<S, C, EM> {
     emitter: EM,
 }
 
+#[derive(Serialize, Deserialize)]
+struct EventReplayRequested {
+    requested_event_type: String,
+    requested_event_namespace: String,
+    since: DateTime<Utc>,
+}
+
+impl EventData for EventReplayRequested {
+    fn event_type() -> &'static str {
+        "EventReplayRequested"
+    }
+
+    fn event_namespace() -> &'static str {
+        "event_store"
+    }
+
+    fn event_namespace_and_type() -> &'static str {
+        "event_store.EventReplayRequested"
+    }
+}
+
+impl Events for EventReplayRequested {
+    fn event_type(&self) -> &'static str {
+        "EventReplayRequested"
+    }
+
+    fn event_namespace(&self) -> &'static str {
+        "event_store"
+    }
+
+    fn event_namespace_and_type(&self) -> &'static str {
+        "event_store.EventReplayRequested"
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct DummyEvent {}
+
 impl<'a, E, Q, S, C, EM> Store<'a, E, Q, S, C, EM> for EventStore<S, C, EM>
 where
     E: Events + Sync,
     Q: StoreQuery,
     S: StoreAdapter<E, Q>,
     C: CacheAdapter<Q>,
-    EM: EmitterAdapter,
+    EM: EmitterAdapter + Send + Sync,
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self {
@@ -97,4 +141,34 @@ where
         current_thread::block_on_all(self.emitter.emit(&event))
             .map_err(|_| "It was not possible to emit the event".into())
     }
+
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), Error>
+    where
+        ED: EventData + 'static,
+        H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
+    {
+        Box::new(self.emitter.subscribe(handler).and_then(|_| {
+            let event = Event::new(
+                EventReplayRequested {
+                    requested_event_type: ED::event_type().into(),
+                    requested_event_namespace: ED::event_namespace().into(),
+                    since: Utc::now(),
+                },
+                Uuid::new_v4(),
+                EventContext {
+                    action: None,
+                    subject: None,
+                    time: Utc::now(),
+                },
+            );
+            self.emitter.emit(&event)
+        }))
+    }
+
+    // fn subscribe<ED, H>(&self, handler: Vec<H>) -> BoxedFuture<(), Error>
+    // where
+    //     ED: EventData + 'static,
+    //     H: Fn(&Event<ED>) -> () + Send + Sync + 'static {
+    //         self.emitter.subscribe(handler)
+    //     }
 }

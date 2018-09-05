@@ -1,9 +1,11 @@
 use adapters::{EmitterAdapter, StoreAdapter};
 use aggregator::Aggregator;
 use event::Event;
-use event_store_derive_internals::Events;
+use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
+use std::io::Error;
 use store_query::StoreQuery;
+use utils::BoxedFuture;
 
 /// Store trait
 pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM: EmitterAdapter> {
@@ -18,4 +20,10 @@ pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM: Emit
 
     /// Save an event to the store with optional context
     fn save(&self, event: Event<E>) -> Result<(), String>;
+
+    /// Subscribes the store to some events.
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), Error>
+    where
+        ED: EventData + 'static,
+        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 }
