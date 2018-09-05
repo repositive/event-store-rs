@@ -12,6 +12,58 @@ use serde_json::from_value;
 use serde_json::to_value;
 
 #[test]
+fn it_deserializes_combined_type_fields() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestStruct {
+        thing: u32,
+    }
+
+    #[derive(Events, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        TestStruct(TestStruct),
+    }
+
+    assert_eq!(
+        from_value::<TestEnum>(json!({
+            "type": "some_namespace.TestStruct",
+            "thing": 100,
+        })).unwrap(),
+        TestEnum::TestStruct(TestStruct { thing: 100 })
+    );
+}
+
+#[test]
+fn it_overrides_combined_fields() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct TestStruct {
+        thing: u32,
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct OtherStruct {
+        thing: u32,
+    }
+
+    #[derive(Events, PartialEq, Debug)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        TestStruct(TestStruct),
+        OtherStruct(OtherStruct),
+    }
+
+    assert_eq!(
+        from_value::<TestEnum>(json!({
+            "type": "some_namespace.TestStruct",
+            "event_type": "OtherStruct",
+            "event_namespace": "some_namespace",
+            "thing": 100,
+        })).unwrap(),
+        TestEnum::OtherStruct(OtherStruct { thing: 100 })
+    );
+}
+
+#[test]
 fn it_deserializes_enums() {
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct TestStruct {
@@ -50,6 +102,7 @@ fn it_serializes_enums() {
     assert_eq!(
         to_value(TestEnum::TestStruct(TestStruct { thing: 100 })).unwrap(),
         json!({
+            "type": "some_namespace.TestStruct",
             "event_namespace": "some_namespace",
             "event_type": "TestStruct",
             "thing": 100,
@@ -78,6 +131,36 @@ fn it_roundtrips() {
     assert_eq!(
         encoded,
         json!({
+            "type": "some_namespace.Variant",
+            "event_namespace": "some_namespace",
+            "event_type": "Variant",
+            "thing": 100,
+        })
+    );
+}
+
+#[test]
+fn it_roundtrips_combined_type_field() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct TestStruct {
+        thing: u32,
+    }
+
+    #[derive(Events, PartialEq, Debug, Clone)]
+    #[event_store(namespace = "some_namespace")]
+    enum TestEnum {
+        Variant(TestStruct),
+    }
+
+    let event = TestEnum::Variant(TestStruct { thing: 100 });
+    let encoded = to_value(event.clone()).expect("Failed to encode");
+    let decoded: TestEnum = from_value(encoded.clone()).expect("Failed to decode");
+
+    assert_eq!(event, decoded.clone());
+    assert_eq!(
+        encoded,
+        json!({
+            "type": "some_namespace.Variant",
             "event_namespace": "some_namespace",
             "event_type": "Variant",
             "thing": 100,
@@ -107,6 +190,7 @@ fn it_roundtrips_overridden_namespaces() {
     assert_eq!(
         encoded,
         json!({
+            "type": "other_ns.Variant",
             "event_namespace": "other_ns",
             "event_type": "Variant",
             "thing": 100,
@@ -142,6 +226,7 @@ fn it_roundtrips_renamed_variants() {
     assert_eq!(
         encoded,
         json!({
+            "type": "some_namespace.RenamedTestStruct",
             "event_namespace": "some_namespace",
             "event_type": "RenamedTestStruct",
             "thing": 100,

@@ -110,14 +110,19 @@ pub fn expand_derive_namespace(parsed: &DeriveInput) -> TokenStream {
     }
 }
 
-// Resolve and stringify a list of namespaces for all fields in an enum
-pub fn get_quoted_namespaces(enum_body: &DataEnum, default_namespace: &Ident) -> Vec<String> {
+pub fn get_namespaces(enum_body: &DataEnum, default_namespace: &Ident) -> Vec<Ident> {
     enum_body
         .variants
         .iter()
         .map(|variant| {
-            get_attribute_ident(&variant.attrs, "namespace")
-                .unwrap_or(default_namespace.clone())
-                .to_string()
+            get_attribute_ident(&variant.attrs, "namespace").unwrap_or(default_namespace.clone())
         }).collect()
+}
+
+// Resolve and stringify a list of namespaces for all fields in an enum
+pub fn get_quoted_namespaces(enum_body: &DataEnum, default_namespace: &Ident) -> Vec<String> {
+    get_namespaces(enum_body, default_namespace)
+        .iter()
+        .map(|ns| ns.to_string())
+        .collect()
 }
