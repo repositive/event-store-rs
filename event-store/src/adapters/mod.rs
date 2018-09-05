@@ -15,6 +15,7 @@ use chrono::{DateTime, Utc};
 use futures::future::Future;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
+use utils::BoxedFuture;
 use Aggregator;
 use Event;
 use EventData;
@@ -58,13 +59,10 @@ pub trait CacheAdapter<K> {
 /// Event emitter interface
 pub trait EmitterAdapter {
     /// Emit an event
-    fn emit<E: Events + Sync>(
-        &self,
-        event: &Event<E>,
-    ) -> Box<Future<Item = (), Error = io::Error> + Send + Sync>;
+    fn emit<E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H) -> Box<Future<Item = (), Error = io::Error> + Send>
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
