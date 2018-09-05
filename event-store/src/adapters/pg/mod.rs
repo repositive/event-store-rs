@@ -19,14 +19,14 @@ pub struct PgQuery<'a> {
     pub query: &'a str,
 
     /// Arguments to use for the query
-    pub args: Vec<Box<ToSql>>,
+    pub args: Vec<Box<ToSql + Send + Sync>>,
 }
 
 impl<'a> StoreQuery for PgQuery<'a> {}
 
 impl<'a> PgQuery<'a> {
     /// Create a new query from a query string and arguments
-    pub fn new(query: &'a str, args: Vec<Box<ToSql>>) -> Self {
+    pub fn new(query: &'a str, args: Vec<Box<ToSql + Send + Sync>>) -> Self {
         Self { query, args }
     }
 }
