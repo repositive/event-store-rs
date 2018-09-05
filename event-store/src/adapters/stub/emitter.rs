@@ -19,7 +19,7 @@ impl StubEmitterAdapter {
 }
 
 impl EmitterAdapter for StubEmitterAdapter {
-    fn emit<E: Events>(&self, _event: &Event<E>) -> BoxedFuture<(), Error> {
+    fn emit<'a, E: Events>(&self, _event: &Event<E>) -> BoxedFuture<'a, (), Error> {
         Box::new(ok(()))
     }
 
