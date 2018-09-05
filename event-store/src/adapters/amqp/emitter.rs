@@ -28,7 +28,7 @@ pub struct AMQPEmitterAdapter {
 
 impl AMQPEmitterAdapter {
     /// Create a new AMQPEmiterAdapter
-    pub fn new(uri: SocketAddr, exchange: String) -> BoxedFuture<Self, io::Error> {
+    pub fn new<'a>(uri: SocketAddr, exchange: String) -> BoxedFuture<'a, Self, io::Error> {
         let exchange1 = exchange.clone();
         info!("Connecting to AMQP using {}", uri);
         Box::new(
@@ -57,13 +57,13 @@ impl AMQPEmitterAdapter {
     }
 }
 
-fn prepare_subscription<E, H>(
+fn prepare_subscription<'a, E, H>(
     exchange: String,
     handler: H,
     channel: Channel<TcpStream>,
 ) -> impl Future<Item = (), Error = io::Error>
 where
-    E: EventData,
+    E: EventData + 'a,
     H: Fn(&Event<E>) -> () + Send + 'static,
 {
     let event_name = E::event_type();
@@ -143,9 +143,9 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         )
     }
 
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>
     where
-        ED: EventData + 'static,
+        ED: EventData + 'a,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
         Box::new(prepare_subscription(

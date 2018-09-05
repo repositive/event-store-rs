@@ -8,7 +8,15 @@ use store_query::StoreQuery;
 use utils::BoxedFuture;
 
 /// Store trait
-pub trait Store<'a, E: Events, Q: StoreQuery, S: StoreAdapter<E, Q>, C, EM: EmitterAdapter> {
+pub trait Store<
+    'a,
+    E: Events,
+    Q: StoreQuery + Send + Sync,
+    S: StoreAdapter<E, Q> + Send + Sync,
+    C,
+    EM: EmitterAdapter + Send + Sync,
+>
+{
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 

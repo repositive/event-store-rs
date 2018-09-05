@@ -36,8 +36,7 @@ pub use aggregator::Aggregator;
 use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
-use event_store_derive_internals::EventData;
-use event_store_derive_internals::Events;
+pub use event_store_derive_internals::{EventData, Events};
 use futures::future::Future;
 use serde::{Deserialize, Serialize};
 use std::io::Error;
@@ -95,9 +94,9 @@ struct DummyEvent {}
 impl<'a, E, Q, S, C, EM> Store<'a, E, Q, S, C, EM> for EventStore<S, C, EM>
 where
     E: Events + Sync,
-    Q: StoreQuery,
-    S: StoreAdapter<E, Q>,
-    C: CacheAdapter<Q>,
+    Q: StoreQuery + Send + Sync,
+    S: StoreAdapter<E, Q> + Send + Sync,
+    C: CacheAdapter<Q> + Send + Sync,
     EM: EmitterAdapter + Send + Sync,
 {
     /// Create a new event store
@@ -147,7 +146,7 @@ where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
     {
-        Box::new(self.emitter.subscribe(handler).and_then(|_| {
+        Box::new(self.emitter.subscribe(handler).and_then(move |_| {
             let event = Event::new(
                 EventReplayRequested {
                     requested_event_type: ED::event_type().into(),
@@ -164,11 +163,4 @@ where
             self.emitter.emit(&event)
         }))
     }
-
-    // fn subscribe<ED, H>(&self, handler: Vec<H>) -> BoxedFuture<(), Error>
-    // where
-    //     ED: EventData + 'static,
-    //     H: Fn(&Event<ED>) -> () + Send + Sync + 'static {
-    //         self.emitter.subscribe(handler)
-    //     }
 }

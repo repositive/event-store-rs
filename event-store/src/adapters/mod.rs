@@ -36,6 +36,7 @@ pub trait StoreAdapter<E: Events, Q: StoreQuery> {
     /// Save an event to the store
     fn save(&self, event: &Event<E>) -> Result<(), String>;
 
+    /// Returns the last event of the type ED
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
 }
 
@@ -63,8 +64,8 @@ pub trait EmitterAdapter: Clone {
     fn emit<E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>
     where
-        ED: EventData + 'static,
+        ED: EventData + 'a,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 }
