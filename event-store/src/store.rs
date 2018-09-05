@@ -32,6 +32,6 @@ pub trait Store<
     /// Subscribes the store to some events.
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), Error>
     where
-        ED: EventData + 'static,
+        ED: EventData + Send + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 }
