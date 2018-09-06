@@ -4,7 +4,7 @@ use super::Connection;
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use fallible_iterator::FallibleIterator;
-use r2d2_postgres::postgres::types::ToSql;
+use postgres::types::ToSql;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use std::marker::PhantomData;
 use uuid::Uuid;
