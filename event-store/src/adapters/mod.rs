@@ -12,7 +12,6 @@ pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
-use futures::future::Future;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
 use utils::BoxedFuture;
@@ -57,7 +56,7 @@ pub trait CacheAdapter<K> {
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter {
+pub trait EmitterAdapter: Clone {
     /// Emit an event
     fn emit<E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error>;
 
