@@ -3,7 +3,6 @@ use aggregator::Aggregator;
 use event::Event;
 use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
-use std::io::Error;
 use store_query::StoreQuery;
 use utils::BoxedFuture;
 
@@ -29,8 +28,8 @@ pub trait Store<
     /// Save an event to the store with optional context
     fn save<ED: EventData + Send + Sync>(&self, event: Event<ED>) -> Result<(), String>;
 
-    /// Subscribes the store to some events.
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), Error>
+    /// Subscribe to an event
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), String>
     where
         ED: EventData + Send + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;

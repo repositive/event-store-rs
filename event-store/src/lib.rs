@@ -32,16 +32,15 @@ pub mod testhelpers;
 mod utils;
 
 use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
-pub use aggregator::Aggregator;
+use aggregator::Aggregator;
 use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
-pub use event_store_derive_internals::{EventData, Events};
+use event_store_derive_internals::{EventData, Events};
 use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
-use std::io::Error;
 use store::Store;
-pub use store_query::StoreQuery;
+use store_query::StoreQuery;
 use tokio::runtime::current_thread;
 use utils::BoxedFuture;
 use uuid::Uuid;
@@ -141,7 +140,7 @@ where
             .map_err(|_| "It was not possible to emit the event".into())
     }
 
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), Error>
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), String>
     where
         ED: EventData + Send + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
@@ -176,7 +175,7 @@ where
                     };
                     let event = Event { data, id, context };
                     self.emitter.emit(&event)
-                }),
+                }).map_err(|_| "It was not possible to subscribe".into()),
         )
     }
 }
