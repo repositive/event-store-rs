@@ -7,7 +7,7 @@ extern crate serde_json;
 extern crate event_store_derive;
 extern crate event_store;
 
-use event_store::Events;
+use event_store::prelude::*;
 use serde_json::from_value;
 use serde_json::to_value;
 
