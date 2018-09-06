@@ -8,6 +8,7 @@ extern crate chrono;
 #[macro_use]
 extern crate event_store_derive;
 extern crate event_store_derive_internals;
+extern crate postgres;
 extern crate serde;
 extern crate serde_json;
 extern crate sha2;
