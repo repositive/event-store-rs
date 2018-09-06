@@ -112,7 +112,10 @@ where
                     &to_value(&event.context).expect("Context to value"),
                 ],
             ).map(|_| ())
-            .map_err(|err| "".into())
+            .map_err(|err| match err.code() {
+                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
+                _ => "UNEXPECTED".into(),
+            })
     }
 
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
