@@ -21,6 +21,7 @@ use EventData;
 use Events;
 
 /// AMQP emitter
+#[derive(Clone)]
 pub struct AMQPEmitterAdapter {
     channel: Channel<TcpStream>,
     exchange: String,

@@ -59,7 +59,7 @@ pub trait CacheAdapter<K> {
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter {
+pub trait EmitterAdapter: Clone {
     /// Emit an event
     fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
 

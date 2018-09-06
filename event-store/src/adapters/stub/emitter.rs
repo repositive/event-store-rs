@@ -9,6 +9,7 @@ use EventData;
 use Events;
 
 /// Stub event emitter
+#[derive(Clone)]
 pub struct StubEmitterAdapter {}
 
 impl StubEmitterAdapter {
