@@ -158,7 +158,7 @@ pub trait StoreQuery {}
 ///     }
 /// }
 /// ```
-pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug + Default {
+pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Clone + Debug + Default {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.
     fn apply_event(acc: Self, event: &Event<E>) -> Self;
@@ -228,19 +228,21 @@ where
         let q = T::query(query_args.clone());
         let initial_state: Option<CacheResult<T>> = self.cache.get(&q);
 
-        self.store.aggregate(query_args, initial_state).map(|agg| {
-            if let Some((last_cache, _)) = initial_state {
-                // Only update cache if aggregation result has changed
-                if agg != last_cache {
-                    self.cache.insert(&q, agg);
+        self.store
+            .aggregate(query_args, initial_state.clone())
+            .map(|agg| {
+                if let Some((last_cache, _)) = initial_state {
+                    // Only update cache if aggregation result has changed
+                    if agg != last_cache {
+                        self.cache.insert(&q, agg.clone());
+                    }
+                } else {
+                    // If there is no existing cache item, insert one
+                    self.cache.insert(&q, agg.clone());
                 }
-            } else {
-                // If there is no existing cache item, insert one
-                self.cache.insert(&q, agg);
-            }
 
-            agg
-        })
+                agg
+            })
     }
 
     /// Save an event to the store with optional context
