@@ -5,6 +5,7 @@ use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use fallible_iterator::FallibleIterator;
 use futures::future::ok as FutOk;
+use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use std::marker::PhantomData;
@@ -110,9 +111,11 @@ where
                     &to_value(&event.data()).expect("Item to value"),
                     &to_value(&event.context()).expect("Context to value"),
                 ],
-            ).expect("Save");
-
-        Ok(())
+            ).map(|_| ())
+            .map_err(|err| match err.code() {
+                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
+                _ => "UNEXPECTED".into(),
+            })
     }
 
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
