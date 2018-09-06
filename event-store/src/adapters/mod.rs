@@ -12,12 +12,12 @@ pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
+use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
 use utils::BoxedFuture;
 use Aggregator;
 use Event;
-use EventData;
 use Events;
 use StoreQuery;
 

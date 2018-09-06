@@ -1,11 +1,11 @@
 //! Stub emitter implementation
 
 use adapters::EmitterAdapter;
+use event_store_derive_internals::EventData;
 use futures::future::ok;
 use std::io::Error;
 use utils::BoxedFuture;
 use Event;
-use EventData;
 use Events;
 
 /// Stub event emitter

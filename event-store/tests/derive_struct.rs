@@ -5,7 +5,7 @@ extern crate serde_derive;
 extern crate event_store_derive;
 extern crate event_store;
 
-use event_store::EventData;
+use event_store::prelude::*;
 
 #[test]
 fn it_gets_event_name_and_namespace() {

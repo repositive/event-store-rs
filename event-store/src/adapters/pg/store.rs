@@ -104,8 +104,8 @@ where
                 VALUES ($1, $2, $3)"#,
                 &[
                     &event.id,
-                    &to_value(&event.data).expect("Item to value"),
-                    &to_value(&event.context).expect("Context to value"),
+                    &to_value(&event.data()).expect("Item to value"),
+                    &to_value(&event.context()).expect("Context to value"),
                 ],
             ).expect("Save");
 

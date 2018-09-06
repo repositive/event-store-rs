@@ -1,6 +1,7 @@
 //! AMQP emitter implementation
 
 use adapters::EmitterAdapter;
+use event_store_derive_internals::{EventData, Events};
 use futures::future::{ok as FutOk, Future};
 use futures::Stream;
 use lapin::channel::{
@@ -17,8 +18,6 @@ use tokio;
 use tokio::net::TcpStream;
 use utils::BoxedFuture;
 use Event;
-use EventData;
-use Events;
 
 /// AMQP emitter
 #[derive(Clone)]
