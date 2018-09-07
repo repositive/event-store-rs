@@ -12,10 +12,4 @@ pub trait EventData: Serialize + DeserializeOwned {
 }
 
 /// Trait implemented on the events enum
-pub trait Events: Serialize + DeserializeOwned {
-    fn event_namespace_and_type(&self) -> &'static str;
-
-    fn event_namespace(&self) -> &'static str;
-
-    fn event_type(&self) -> &'static str;
-}
+pub trait Events: Serialize + DeserializeOwned {}

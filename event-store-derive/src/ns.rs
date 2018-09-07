@@ -8,7 +8,6 @@ use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsName
 use PROC_MACRO_NAME;
 
 pub struct EnumInfo {
-    pub enum_namespace: Ident,
     pub item_ident: TokenStream,
     pub enum_body: DataEnum,
     pub variant_idents: Vec<Ident>,
@@ -17,10 +16,6 @@ pub struct EnumInfo {
 
 impl EnumInfo {
     pub fn new(input: &DeriveInput, enum_body: &DataEnum) -> Self {
-        // TODO: Remove; enums don't support namespacing anymore
-        let enum_namespace = get_attribute_ident(&input.attrs, "namespace")
-            .expect("Namespace attribute must be provided at the enum level");
-
         let item_ident = input.clone().ident.into_token_stream();
 
         let variant_idents = enum_body
@@ -39,7 +34,6 @@ impl EnumInfo {
             }).collect::<Vec<Ident>>();
 
         Self {
-            enum_namespace,
             item_ident,
             variant_idents,
             renamed_variant_idents,
@@ -167,21 +161,4 @@ pub fn expand_derive_namespace(parsed: &DeriveInput) -> TokenStream {
         Data::Struct(ref body) => derive_struct(&parsed, &body),
         _ => panic!("Namespace can only be derived on enums and structs"),
     }
-}
-
-pub fn get_namespaces(enum_body: &DataEnum, default_namespace: &Ident) -> Vec<Ident> {
-    enum_body
-        .variants
-        .iter()
-        .map(|variant| {
-            get_attribute_ident(&variant.attrs, "namespace").unwrap_or(default_namespace.clone())
-        }).collect()
-}
-
-// Resolve and stringify a list of namespaces for all fields in an enum
-pub fn get_quoted_namespaces(enum_body: &DataEnum, default_namespace: &Ident) -> Vec<String> {
-    get_namespaces(enum_body, default_namespace)
-        .iter()
-        .map(|ns| ns.to_string())
-        .collect()
 }

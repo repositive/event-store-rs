@@ -29,9 +29,9 @@ pub fn derive_eventdata(input: TokenStream) -> TokenStream {
     ns::expand_derive_namespace(&input).into()
 }
 
-// TODO: Use this by returning Result<>s from derive funcs
-fn compile_error(message: String) -> proc_macro2::TokenStream {
-    quote! {
-        compile_error!(#message);
-    }
-}
+// // TODO: Use this by returning Result<>s from derive funcs
+// fn compile_error(message: String) -> proc_macro2::TokenStream {
+//     quote! {
+//         compile_error!(#message);
+//     }
+// }

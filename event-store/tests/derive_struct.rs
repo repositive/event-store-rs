@@ -63,6 +63,22 @@ fn it_deserializes_combined_type_fields() {
 }
 
 #[test]
+fn serialize_outputs_type_fields() {
+    #[derive(EventData, Debug)]
+    #[event_store(namespace = "test_thing")]
+    struct TestEvent {
+        thing: u32,
+    }
+
+    assert_eq!(
+        TestEvent::event_namespace_and_type(),
+        "test_thing.TestEvent"
+    );
+    assert_eq!(TestEvent::event_namespace(), "test_thing");
+    assert_eq!(TestEvent::event_type(), "TestEvent");
+}
+
+#[test]
 fn serialize_renamed_structs() {
     #[derive(EventData, Debug)]
     #[event_store(namespace = "test_thing")]
@@ -72,9 +88,7 @@ fn serialize_renamed_structs() {
     }
 
     assert_eq!(TestEvent::event_namespace_and_type(), "test_thing.A");
-
     assert_eq!(TestEvent::event_namespace(), "test_thing");
-
     assert_eq!(TestEvent::event_type(), "A");
 }
 

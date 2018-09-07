@@ -27,7 +27,6 @@ pub struct TestDecrementEvent {
 }
 
 #[derive(Events, Debug)]
-#[event_store(namespace = "some_namespace")]
 /// Set of all events in the domain
 pub enum TestEvents {
     /// Increment
