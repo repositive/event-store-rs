@@ -115,6 +115,7 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
                     #(#renamed_variant_idents2(#struct_idents2),)*
                 }
 
+                // TODO: Add underscores or something to meta fields to scronch conflicts
                 #[derive(Deserialize)]
                 struct Helper {
                     event_namespace: Option<String>,
