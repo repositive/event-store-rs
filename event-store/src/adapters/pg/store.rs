@@ -83,7 +83,8 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                 let context: EventContext = from_value(context_json).unwrap();
 
                 Event { id, data, context }
-            }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
+            })
+            .fold(initial_state, |acc, event| T::apply_event(acc, &event))
             .expect("Fold");
 
         trans.finish().expect("Tranny finished");
@@ -103,7 +104,8 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                     &to_value(&event.data).expect("Item to value"),
                     &to_value(&event.context).expect("Context to value"),
                 ],
-            ).map(|_| ())
+            )
+            .map(|_| ())
             .map_err(|err| match err.code() {
                 Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
                 _ => "UNEXPECTED".into(),

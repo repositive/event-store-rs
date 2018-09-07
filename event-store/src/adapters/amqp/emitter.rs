@@ -1,6 +1,7 @@
 //! AMQP emitter implementation
 
 use adapters::EmitterAdapter;
+use event_store_derive_internals::{EventData, Events};
 use futures::future::{ok as FutOk, Future};
 use futures::Stream;
 use lapin::channel::{
@@ -17,7 +18,6 @@ use tokio;
 use tokio::net::TcpStream;
 use utils::BoxedFuture;
 use Event;
-use EventData;
 
 /// AMQP emitter
 #[derive(Clone)]
@@ -40,7 +40,8 @@ impl AMQPEmitterAdapter {
                     tokio::spawn(heartbeat.map_err(|_| ()));
                     info!("Creating amqp channel");
                     client.create_channel()
-                }).and_then(move |channel: Channel<TcpStream>| {
+                })
+                .and_then(move |channel: Channel<TcpStream>| {
                     let ch = channel.clone();
                     channel
                         .exchange_declare(
@@ -51,8 +52,10 @@ impl AMQPEmitterAdapter {
                                 ..ExchangeDeclareOptions::default()
                             },
                             FieldTable::new(),
-                        ).and_then(move |_| FutOk(ch))
-                }).and_then(|channel| FutOk(Self { channel, exchange })),
+                        )
+                        .and_then(move |_| FutOk(ch))
+                })
+                .and_then(|channel| FutOk(Self { channel, exchange })),
         )
     }
 }
@@ -82,7 +85,8 @@ where
                 ..QueueDeclareOptions::default()
             },
             FieldTable::new(),
-        ).and_then(move |queue| {
+        )
+        .and_then(move |queue| {
             info!("Binding queue {} to exchange {}", queue_name, exchange);
             channel
                 .queue_bind(
@@ -91,23 +95,26 @@ where
                     &event_name,
                     QueueBindOptions::default(),
                     FieldTable::new(),
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     channel.basic_consume(
                         &queue,
                         &queue_name,
                         BasicConsumeOptions::default(),
                         FieldTable::new(),
                     )
-                }).and_then(move |stream| {
+                })
+                .and_then(move |stream| {
                     let handle_events = stream
                         .for_each(move |message| {
-                            let data: Event<E> =
-                                serde_json::from_str(str::from_utf8(&message.data).unwrap())
-                                    .unwrap();
+                            let data: Event<E> = serde_json::from_str(
+                                str::from_utf8(&message.data).unwrap(),
+                            ).unwrap();
                             info!("Receiving message with id {}", data.id);
                             handler(&data);
                             c_channel.basic_ack(message.delivery_tag, false)
-                        }).map_err(|e| {
+                        })
+                        .map_err(|e| {
                             panic!(e);
                         });
 
@@ -115,7 +122,8 @@ where
                     tokio::spawn(handle_events);
                     FutOk(())
                 })
-        }).and_then(|_| FutOk(()))
+        })
+        .and_then(|_| FutOk(()))
         .map_err(|e| e.into())
 }
 
@@ -136,7 +144,8 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     payload,
                     BasicPublishOptions::default(),
                     BasicProperties::default(),
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     info!("Event with id {} delivered", id);
                     FutOk(())
                 }),
