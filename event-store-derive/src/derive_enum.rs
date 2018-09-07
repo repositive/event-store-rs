@@ -115,27 +115,26 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
                     #(#renamed_variant_idents2(#struct_idents2),)*
                 }
 
-                // TODO: Add underscores or something to meta fields to scronch conflicts
                 #[derive(Deserialize)]
                 struct Helper {
                     event_namespace: Option<String>,
                     #[serde(flatten)]
-                    payload: Option<Output>,
+                    _payload: Option<Output>,
                     #[serde(flatten)]
-                    old_payload: Option<OldOutput>,
+                    _old_payload: Option<OldOutput>,
                 }
 
                 let type_helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
 
                 if let Some(ns) = type_helper.event_namespace {
-                    match (ns.as_str(), type_helper.payload) {
+                    match (ns.as_str(), type_helper._payload) {
                         #((#variant_namespaces_quoted, Some(Output::#renamed_variant_idents3(evt))) => {
                             Ok(#item_idents::#variant_idents(evt))
                         },)*
                         _ => Err(de::Error::custom("Could not find matching variant using 'event_type' and 'event_namespace' fields"))
                     }
                 } else {
-                    match type_helper.old_payload {
+                    match type_helper._old_payload {
                         #(Some(OldOutput::#renamed_variant_idents4(evt)) => {
                             Ok(#item_idents2::#variant_idents2(evt))
                         },)*
@@ -217,13 +216,6 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
                 }
             }
 
-            #(
-                impl event_store_derive_internals::EventData for #struct_idents {
-                    fn event_namespace_and_type() -> &'static str { #namespace_and_types_quoted }
-                    fn event_namespace() -> &'static str { #namespaces_quoted }
-                    fn event_type() -> &'static str { #types_quoted }
-                }
-            )*
             #ser
             #de
         };
