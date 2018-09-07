@@ -62,10 +62,7 @@ pub struct Event<D> {
     id: Uuid,
 }
 
-impl<D> Event<D>
-where
-    D: Events,
-{
+impl<D> Event<D> {
     /// Get the ID of this event
     pub fn id(&self) -> Uuid {
         self.id
@@ -186,24 +183,24 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Clone + Debug + Defaul
 /// ```
 pub trait Store<
     'a,
-    E: Events,
     Q: StoreQuery + Send + Sync,
-    S: StoreAdapter<E, Q> + Send + Sync,
+    S: StoreAdapter<Q> + Send + Sync,
     C,
     EM: EmitterAdapter + Send + Sync,
->
+>: Send + Sync + 'static
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<T, A>(&self, query: A) -> Result<T, String>
+    fn aggregate<E, T, A>(&self, query: A) -> Result<T, String>
     where
+        E: Events,
         T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq,
         A: Clone;
 
     /// Save an event to the store with optional context
-    fn save(&self, event: Event<E>) -> Result<(), String>;
+    fn save<ED: EventData + Send + Sync>(&self, event: Event<ED>) -> Result<(), String>;
 
     /// Subscribes the store to some events.
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), Error>
@@ -257,13 +254,12 @@ impl Events for EventReplayRequested {
 #[derive(Serialize, Deserialize)]
 struct DummyEvent {}
 
-impl<'a, E, Q, S, C, EM> Store<'a, E, Q, S, C, EM> for EventStore<S, C, EM>
+impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
 where
-    E: Events + Sync,
     Q: StoreQuery + Send + Sync,
-    S: StoreAdapter<E, Q> + Send + Sync,
-    C: CacheAdapter<Q> + Send + Sync,
-    EM: EmitterAdapter + Send + Sync,
+    S: StoreAdapter<Q> + Send + Sync + Clone + 'static,
+    C: CacheAdapter<Q> + Send + Sync + Clone + 'static,
+    EM: EmitterAdapter + Send + Sync + Clone + 'static,
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self {
@@ -275,8 +271,9 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<T, A>(&self, query_args: A) -> Result<T, String>
+    fn aggregate<E, T, A>(&self, query_args: A) -> Result<T, String>
     where
+        E: Events,
         T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq,
         A: Clone,
     {
@@ -301,7 +298,7 @@ where
     }
 
     /// Save an event to the store with optional context
-    fn save(&self, event: Event<E>) -> Result<(), String> {
+    fn save<ED: EventData + Send + Sync>(&self, event: Event<ED>) -> Result<(), String> {
         self.store.save(&event)?;
         current_thread::block_on_all(self.emitter.emit(&event))
             .map_err(|_| "It was not possible to emit the event".into())
@@ -312,12 +309,16 @@ where
         ED: EventData + Send + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
     {
-        let me = self.clone();
+        let handler_store = self.store.clone();
         Box::new(
             self.emitter
-                .subscribe(handler)
-                .and_then(move |_| {
-                    me.store
+                .subscribe(move |event: &Event<ED>| {
+                    let _ = handler_store.save(event).map(|_| {
+                        handler(event);
+                    });
+                    /**/
+                }).and_then(move |_| {
+                    self.store
                         .last_event::<ED>()
                         .map(|o_event| {
                             o_event

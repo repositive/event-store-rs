@@ -6,7 +6,6 @@ use std::io::Error;
 use utils::BoxedFuture;
 use Event;
 use EventData;
-use Events;
 
 /// Stub event emitter
 #[derive(Clone)]
@@ -20,7 +19,7 @@ impl StubEmitterAdapter {
 }
 
 impl EmitterAdapter for StubEmitterAdapter {
-    fn emit<'a, E: Events>(&self, _event: &Event<E>) -> BoxedFuture<'a, (), Error> {
+    fn emit<'a, E: EventData>(&self, _event: &Event<E>) -> BoxedFuture<'a, (), Error> {
         Box::new(ok(()))
     }
 

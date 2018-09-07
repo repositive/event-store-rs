@@ -18,7 +18,6 @@ use tokio::net::TcpStream;
 use utils::BoxedFuture;
 use Event;
 use EventData;
-use Events;
 
 /// AMQP emitter
 #[derive(Clone)]
@@ -121,11 +120,11 @@ where
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error> {
+    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
-        let event_type = event.data().event_type();
+        let event_type = E::event_type();
         let id = event.id;
         info!("Emitting event {} with id {}", event_type, id);
 
