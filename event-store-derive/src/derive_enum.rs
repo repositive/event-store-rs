@@ -100,7 +100,7 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
             {
                 use serde::de;
 
-                #[derive(Deserialize, Debug)]
+                #[derive(Deserialize)]
                 #[serde(tag = "type")]
                 enum OldOutput {
                     #(
@@ -109,13 +109,13 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
                     )*
                 }
 
-                #[derive(Deserialize, Debug)]
+                #[derive(Deserialize)]
                 #[serde(tag = "event_type")]
                 enum Output {
                     #(#renamed_variant_idents2(#struct_idents2),)*
                 }
 
-                #[derive(Deserialize, Debug)]
+                #[derive(Deserialize)]
                 struct Helper {
                     event_namespace: Option<String>,
                     #[serde(flatten)]
