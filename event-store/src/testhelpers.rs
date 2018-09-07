@@ -4,8 +4,9 @@ use super::{Aggregator, Event};
 use adapters::PgQuery;
 use r2d2_postgres::postgres::types::ToSql;
 
-#[derive(Serialize, Deserialize, Debug)]
 /// Test event
+#[derive(EventData, Debug)]
+#[event_store(namespace = "some_namespace")]
 pub struct TestIncrementEvent {
     /// Increment by this much
     pub by: i32,
@@ -14,8 +15,9 @@ pub struct TestIncrementEvent {
     pub ident: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 /// Test event
+#[derive(EventData, Debug)]
+#[event_store(namespace = "some_namespace")]
 pub struct TestDecrementEvent {
     /// Decrement by this much
     pub by: i32,
