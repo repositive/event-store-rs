@@ -138,7 +138,7 @@ use store_query::StoreQuery;
 ///     }
 /// }
 /// ```
-pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Copy + Clone + Debug + Default {
+pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Clone + Debug + Default {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.
     fn apply_event(acc: Self, event: &Event<E>) -> Self;

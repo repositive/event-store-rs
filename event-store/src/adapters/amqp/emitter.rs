@@ -1,7 +1,7 @@
 //! AMQP emitter implementation
 
 use adapters::EmitterAdapter;
-use event_store_derive_internals::{EventData, Events};
+use event_store_derive_internals::EventData;
 use futures::future::{ok as FutOk, Future};
 use futures::Stream;
 use lapin::channel::{
@@ -120,11 +120,11 @@ where
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error> {
+    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
-        let event_type = event.data().event_type();
+        let event_type = E::event_type();
         let id = event.id;
         info!("Emitting event {} with id {}", event_type, id);
 

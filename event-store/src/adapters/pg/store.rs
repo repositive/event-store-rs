@@ -8,7 +8,6 @@ use futures::future::ok as FutOk;
 use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
 use serde_json::{from_value, to_value, Value as JsonValue};
-use std::marker::PhantomData;
 use utils::BoxedFuture;
 use uuid::Uuid;
 use Aggregator;
@@ -18,28 +17,23 @@ use EventData;
 use Events;
 
 /// Postgres store adapter
-pub struct PgStoreAdapter<E> {
-    phantom: PhantomData<E>,
+#[derive(Clone)]
+pub struct PgStoreAdapter {
     conn: Connection,
 }
 
-impl<'a, E> PgStoreAdapter<E>
-where
-    E: Events,
-{
+impl<'a> PgStoreAdapter {
     /// Create a new PgStore from a Postgres DB connection
     pub fn new(conn: Connection) -> Self {
-        Self {
-            conn,
-            phantom: PhantomData,
-        }
+        Self { conn }
     }
 
-    fn generate_query<T, A>(
+    fn generate_query<E, T, A>(
         query_string: &PgQuery<'a>,
         since: Option<CacheResult<T>>,
     ) -> (T, String)
     where
+        E: Events,
         T: Aggregator<E, A, PgQuery<'a>> + Default,
         A: Clone,
     {
@@ -56,12 +50,10 @@ where
     }
 }
 
-impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<E>
-where
-    E: Events,
-{
-    fn aggregate<T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
+impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
+    fn aggregate<E, T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
     where
+        E: Events,
         T: Aggregator<E, A, PgQuery<'a>> + Default,
         A: Clone,
     {
@@ -81,7 +73,7 @@ where
 
         let results = stmt
             .lazy_query(&trans, &params, 1000)
-            .expect("Query")
+            .unwrap()
             .map(|row| {
                 let id: Uuid = row.get("id");
                 let data_json: JsonValue = row.get("data");
@@ -99,7 +91,7 @@ where
         Ok(results)
     }
 
-    fn save(&self, event: &Event<E>) -> Result<(), String> {
+    fn save<ED: EventData>(&self, event: &Event<ED>) -> Result<(), String> {
         self.conn
             .get()
             .expect("Could not get PG connection")
@@ -108,8 +100,8 @@ where
                 VALUES ($1, $2, $3)"#,
                 &[
                     &event.id,
-                    &to_value(&event.data()).expect("Item to value"),
-                    &to_value(&event.context()).expect("Context to value"),
+                    &to_value(&event.data).expect("Item to value"),
+                    &to_value(&event.context).expect("Context to value"),
                 ],
             ).map(|_| ())
             .map_err(|err| match err.code() {

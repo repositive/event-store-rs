@@ -10,24 +10,24 @@ use utils::BoxedFuture;
 /// Store trait
 pub trait Store<
     'a,
-    E: Events,
     Q: StoreQuery + Send + Sync,
-    S: StoreAdapter<E, Q> + Send + Sync,
+    S: StoreAdapter<Q> + Send + Sync,
     C,
     EM: EmitterAdapter + Send + Sync,
->
+>: Send + Sync + 'static
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<T, A>(&self, query: A) -> Result<T, String>
+    fn aggregate<E, T, A>(&self, query: A) -> Result<T, String>
     where
+        E: Events,
         T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq,
         A: Clone;
 
     /// Save an event to the store with optional context
-    fn save(&self, event: Event<E>) -> Result<(), String>;
+    fn save<ED: EventData + Send + Sync>(&self, event: Event<ED>) -> Result<(), String>;
 
     /// Subscribes the store to some events.
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), Error>
