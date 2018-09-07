@@ -2,10 +2,11 @@ extern crate event_store;
 extern crate r2d2;
 extern crate r2d2_postgres;
 
+use event_store::prelude::*;
 use event_store::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
 };
-use event_store::{Aggregator, Event};
+use event_store::Event;
 
 #[test]
 fn it_aggregates_events() {

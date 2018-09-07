@@ -1,8 +1,9 @@
 //! Test helpers. Do not use in application code.
 
-use super::{Aggregator, Event};
 use adapters::PgQuery;
+use prelude::*;
 use r2d2_postgres::postgres::types::ToSql;
+use Event;
 
 /// Test event
 #[derive(EventData, Debug)]
@@ -52,7 +53,7 @@ impl Default for TestCounterEntity {
 
 impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     fn apply_event(acc: Self, event: &Event<TestEvents>) -> Self {
-        let counter = match event.data() {
+        let counter = match event.data {
             TestEvents::Inc(ref inc) => acc.counter + inc.by,
             TestEvents::Dec(ref dec) => acc.counter - dec.by,
         };

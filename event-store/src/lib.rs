@@ -74,17 +74,17 @@ impl EventData for EventReplayRequested {
 }
 
 impl Events for EventReplayRequested {
-    fn event_type(&self) -> &'static str {
-        "EventReplayRequested"
-    }
+    // fn event_type(&self) -> &'static str {
+    //     "EventReplayRequested"
+    // }
 
-    fn event_namespace(&self) -> &'static str {
-        "event_store"
-    }
+    // fn event_namespace(&self) -> &'static str {
+    //     "event_store"
+    // }
 
-    fn event_namespace_and_type(&self) -> &'static str {
-        "event_store.EventReplayRequested"
-    }
+    // fn event_namespace_and_type(&self) -> &'static str {
+    //     "event_store.EventReplayRequested"
+    // }
 }
 
 #[derive(Serialize, Deserialize)]

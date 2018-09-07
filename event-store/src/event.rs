@@ -1,6 +1,6 @@
 use chrono::prelude::*;
 use event_context::EventContext;
-use event_store_derive_internals::Events;
+use event_store_derive_internals::EventData;
 use uuid::Uuid;
 
 /// Event with `EventData`, `EventContext` and a `Uuid` ID
@@ -21,23 +21,8 @@ pub struct Event<D> {
 
 impl<D> Event<D>
 where
-    D: Events,
+    D: EventData,
 {
-    /// Get the ID of this event
-    pub fn id(&self) -> Uuid {
-        self.id
-    }
-
-    /// Get the data of this event
-    pub fn data(&self) -> &D {
-        &self.data
-    }
-
-    /// Get the context of this event
-    pub fn context(&self) -> &EventContext {
-        &self.context
-    }
-
     /// Create a new event
     pub fn new(data: D, id: Uuid, context: EventContext) -> Self {
         Self { data, context, id }

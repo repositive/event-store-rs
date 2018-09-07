@@ -5,7 +5,7 @@ extern crate serde_json;
 extern crate tokio;
 
 use event_store::adapters::{AMQPEmitterAdapter, EmitterAdapter};
-use event_store::testhelpers::{TestEvents, TestIncrementEvent};
+use event_store::testhelpers::TestIncrementEvent;
 use event_store::Event;
 use futures::future::Future;
 use std::net::SocketAddr;
