@@ -28,7 +28,7 @@ pub struct AMQPEmitterAdapter {
 
 impl AMQPEmitterAdapter {
     /// Create a new AMQPEmiterAdapter
-    pub fn new(uri: SocketAddr, exchange: String) -> BoxedFuture<Self, io::Error> {
+    pub fn new<'a>(uri: SocketAddr, exchange: String) -> BoxedFuture<'a, Self, io::Error> {
         let exchange1 = exchange.clone();
         info!("Connecting to AMQP using {}", uri);
         Box::new(
@@ -40,7 +40,8 @@ impl AMQPEmitterAdapter {
                     tokio::spawn(heartbeat.map_err(|_| ()));
                     info!("Creating amqp channel");
                     client.create_channel()
-                }).and_then(move |channel: Channel<TcpStream>| {
+                })
+                .and_then(move |channel: Channel<TcpStream>| {
                     let ch = channel.clone();
                     channel
                         .exchange_declare(
@@ -51,19 +52,21 @@ impl AMQPEmitterAdapter {
                                 ..ExchangeDeclareOptions::default()
                             },
                             FieldTable::new(),
-                        ).and_then(move |_| FutOk(ch))
-                }).and_then(|channel| FutOk(Self { channel, exchange })),
+                        )
+                        .and_then(move |_| FutOk(ch))
+                })
+                .and_then(|channel| FutOk(Self { channel, exchange })),
         )
     }
 }
 
-fn prepare_subscription<E, H>(
+fn prepare_subscription<'a, E, H>(
     exchange: String,
     handler: H,
     channel: Channel<TcpStream>,
 ) -> impl Future<Item = (), Error = io::Error>
 where
-    E: EventData,
+    E: EventData + 'a,
     H: Fn(&Event<E>) -> () + Send + 'static,
 {
     let event_name = E::event_type();
@@ -82,7 +85,8 @@ where
                 ..QueueDeclareOptions::default()
             },
             FieldTable::new(),
-        ).and_then(move |queue| {
+        )
+        .and_then(move |queue| {
             info!("Binding queue {} to exchange {}", queue_name, exchange);
             channel
                 .queue_bind(
@@ -91,23 +95,26 @@ where
                     &event_name,
                     QueueBindOptions::default(),
                     FieldTable::new(),
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     channel.basic_consume(
                         &queue,
                         &queue_name,
                         BasicConsumeOptions::default(),
                         FieldTable::new(),
                     )
-                }).and_then(move |stream| {
+                })
+                .and_then(move |stream| {
                     let handle_events = stream
                         .for_each(move |message| {
-                            let data: Event<E> =
-                                serde_json::from_str(str::from_utf8(&message.data).unwrap())
-                                    .unwrap();
+                            let data: Event<E> = serde_json::from_str(
+                                str::from_utf8(&message.data).unwrap(),
+                            ).unwrap();
                             info!("Receiving message with id {}", data.id);
                             handler(&data);
                             c_channel.basic_ack(message.delivery_tag, false)
-                        }).map_err(|e| {
+                        })
+                        .map_err(|e| {
                             panic!(e);
                         });
 
@@ -115,16 +122,17 @@ where
                     tokio::spawn(handle_events);
                     FutOk(())
                 })
-        }).and_then(|_| FutOk(()))
+        })
+        .and_then(|_| FutOk(()))
         .map_err(|e| e.into())
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error> {
+    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
-        let event_type = event.data().event_type();
+        let event_type = E::event_type();
         let id = event.id;
         info!("Emitting event {} with id {}", event_type, id);
 
@@ -136,16 +144,17 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     payload,
                     BasicPublishOptions::default(),
                     BasicProperties::default(),
-                ).and_then(move |_| {
+                )
+                .and_then(move |_| {
                     info!("Event with id {} delivered", id);
                     FutOk(())
                 }),
         )
     }
 
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>
     where
-        ED: EventData + 'static,
+        ED: EventData + 'a,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
         Box::new(prepare_subscription(

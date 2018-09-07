@@ -22,26 +22,30 @@ use Events;
 use StoreQuery;
 
 /// Storage backend
-pub trait StoreAdapter<E: Events, Q: StoreQuery> {
+pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
     /// Read a list of events matching a query
-    fn aggregate<T, A>(
+    fn aggregate<E, T, A>(
         &self,
         query_args: A,
         since: Option<(T, DateTime<Utc>)>,
     ) -> Result<T, String>
     where
+        E: Events,
         T: Aggregator<E, A, Q> + Default,
         A: Clone;
 
     /// Save an event to the store
-    fn save(&self, event: &Event<E>) -> Result<(), String>;
+    fn save<ED: EventData>(&self, event: &Event<ED>) -> Result<(), String>;
+
+    /// Returns the last event of the type ED
+    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter<K> {
+pub trait CacheAdapter<K>: Send + Sync + Clone + 'static {
     /// Insert an item into the cache
     fn insert<V>(&self, key: &K, value: V)
     where
@@ -56,13 +60,13 @@ pub trait CacheAdapter<K> {
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter: Clone {
+pub trait EmitterAdapter: Send + Sync + Clone + 'static {
     /// Emit an event
-    fn emit<E: Events + Sync>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error>;
+    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>
     where
-        ED: EventData + 'static,
+        ED: EventData + 'a,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 }

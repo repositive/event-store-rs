@@ -51,7 +51,7 @@ impl Default for TestCounterEntity {
 
 impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     fn apply_event(acc: Self, event: &Event<TestEvents>) -> Self {
-        let counter = match event.data() {
+        let counter = match event.data {
             TestEvents::Inc(ref inc) => acc.counter + inc.by,
             TestEvents::Dec(ref dec) => acc.counter - dec.by,
         };
@@ -60,7 +60,7 @@ impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     }
 
     fn query(field: String) -> PgQuery<'a> {
-        let mut params: Vec<Box<ToSql>> = Vec::new();
+        let mut params: Vec<Box<ToSql + Send + Sync>> = Vec::new();
 
         params.push(Box::new(field));
 
