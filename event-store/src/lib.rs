@@ -10,6 +10,7 @@ extern crate event_store_derive;
 extern crate event_store_derive_internals;
 extern crate postgres;
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 extern crate sha2;
 extern crate uuid;
@@ -71,20 +72,6 @@ impl EventData for EventReplayRequested {
     fn event_namespace_and_type() -> &'static str {
         "event_store.EventReplayRequested"
     }
-}
-
-impl Events for EventReplayRequested {
-    // fn event_type(&self) -> &'static str {
-    //     "EventReplayRequested"
-    // }
-
-    // fn event_namespace(&self) -> &'static str {
-    //     "event_store"
-    // }
-
-    // fn event_namespace_and_type(&self) -> &'static str {
-    //     "event_store.EventReplayRequested"
-    // }
 }
 
 #[derive(Serialize, Deserialize)]

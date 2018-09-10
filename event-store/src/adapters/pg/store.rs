@@ -79,10 +79,15 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                 let data_json: JsonValue = row.get("data");
                 let context_json: JsonValue = row.get("context");
 
-                let data: E = from_value(data_json).unwrap();
-                let context: EventContext = from_value(context_json).unwrap();
+                let thing = json!({
+                    "id": id,
+                    "data": data_json,
+                    "context": context_json,
+                });
 
-                Event { id, data, context }
+                let evt: E = from_value(thing).expect("Could not decode row");
+
+                evt
             }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
             .expect("Fold");
 

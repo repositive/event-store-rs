@@ -3,7 +3,7 @@ extern crate r2d2;
 extern crate r2d2_postgres;
 
 use event_store::prelude::*;
-use event_store::testhelpers::{TestCounterEntity, TestEvents, TestIncrementEvent};
+use event_store::testhelpers::{TestCounterEntity, TestIncrementEvent};
 use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Event, EventStore,

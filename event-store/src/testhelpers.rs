@@ -31,9 +31,9 @@ pub struct TestDecrementEvent {
 /// Set of all events in the domain
 pub enum TestEvents {
     /// Increment
-    Inc(TestIncrementEvent),
+    Inc(Event<TestIncrementEvent>),
     /// Decrement
-    Dec(TestDecrementEvent),
+    Dec(Event<TestDecrementEvent>),
 }
 
 // impl EventData for TestEvents {}
@@ -52,10 +52,10 @@ impl Default for TestCounterEntity {
 }
 
 impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
-    fn apply_event(acc: Self, event: &Event<TestEvents>) -> Self {
-        let counter = match event.data {
-            TestEvents::Inc(ref inc) => acc.counter + inc.by,
-            TestEvents::Dec(ref dec) => acc.counter - dec.by,
+    fn apply_event(acc: Self, event: &TestEvents) -> Self {
+        let counter = match event {
+            TestEvents::Inc(ref inc) => acc.counter + inc.data.by,
+            TestEvents::Dec(ref dec) => acc.counter - dec.data.by,
         };
 
         Self { counter, ..acc }
