@@ -3,7 +3,7 @@ extern crate r2d2;
 extern crate r2d2_postgres;
 
 use event_store::prelude::*;
-use event_store::testhelpers::{TestCounterEntity, TestEvents, TestIncrementEvent};
+use event_store::testhelpers::{TestCounterEntity, TestIncrementEvent};
 use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Event, EventStore,
@@ -38,10 +38,10 @@ fn it_queries_the_database() {
 
     assert!(
         store
-            .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
+            .save(Event::from_data(TestIncrementEvent {
                 by: 99,
                 ident: ident.clone()
-            }))).is_ok()
+            })).is_ok()
     );
 
     let entity: TestCounterEntity = store.aggregate(ident).unwrap();
@@ -59,10 +59,10 @@ fn it_saves_events() {
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
-    let event = TestEvents::Inc(TestIncrementEvent {
+    let event = TestIncrementEvent {
         by: 123123,
         ident: "it_saves_events".into(),
-    });
+    };
 
     assert!(store.save(Event::from_data(event)).is_ok());
 }
@@ -90,18 +90,18 @@ fn it_uses_the_aggregate_cache() {
 
     assert!(
         store
-            .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
+            .save(Event::from_data(TestIncrementEvent {
                 by: 1,
                 ident: ident.into()
-            }))).is_ok()
+            })).is_ok()
     );
 
     assert!(
         store
-            .save(Event::from_data(TestEvents::Inc(TestIncrementEvent {
+            .save(Event::from_data(TestIncrementEvent {
                 by: 2,
                 ident: ident.into()
-            }))).is_ok()
+            })).is_ok()
     );
 
     // Wait for DB to process

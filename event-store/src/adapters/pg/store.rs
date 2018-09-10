@@ -4,38 +4,36 @@ use super::Connection;
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use fallible_iterator::FallibleIterator;
+use futures::future::ok as FutOk;
+use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
 use serde_json::{from_value, to_value, Value as JsonValue};
-use std::marker::PhantomData;
+use utils::BoxedFuture;
 use uuid::Uuid;
 use Aggregator;
 use Event;
 use EventContext;
+use EventData;
 use Events;
 
 /// Postgres store adapter
-pub struct PgStoreAdapter<E> {
-    phantom: PhantomData<E>,
+#[derive(Clone)]
+pub struct PgStoreAdapter {
     conn: Connection,
 }
 
-impl<'a, E> PgStoreAdapter<E>
-where
-    E: Events,
-{
+impl<'a> PgStoreAdapter {
     /// Create a new PgStore from a Postgres DB connection
     pub fn new(conn: Connection) -> Self {
-        Self {
-            conn,
-            phantom: PhantomData,
-        }
+        Self { conn }
     }
 
-    fn generate_query<T, A>(
+    fn generate_query<E, T, A>(
         query_string: &PgQuery<'a>,
         since: Option<CacheResult<T>>,
     ) -> (T, String)
     where
+        E: Events,
         T: Aggregator<E, A, PgQuery<'a>> + Default,
         A: Clone,
     {
@@ -52,12 +50,10 @@ where
     }
 }
 
-impl<'a, E> StoreAdapter<E, PgQuery<'a>> for PgStoreAdapter<E>
-where
-    E: Events,
-{
-    fn aggregate<T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
+impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
+    fn aggregate<E, T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
     where
+        E: Events,
         T: Aggregator<E, A, PgQuery<'a>> + Default,
         A: Clone,
     {
@@ -77,16 +73,21 @@ where
 
         let results = stmt
             .lazy_query(&trans, &params, 1000)
-            .expect("Query")
+            .unwrap()
             .map(|row| {
                 let id: Uuid = row.get("id");
                 let data_json: JsonValue = row.get("data");
                 let context_json: JsonValue = row.get("context");
 
-                let data: E = from_value(data_json).unwrap();
-                let context: EventContext = from_value(context_json).unwrap();
+                let thing = json!({
+                    "id": id,
+                    "data": data_json,
+                    "context": context_json,
+                });
 
-                Event { id, data, context }
+                let evt: E = from_value(thing).expect("Could not decode row");
+
+                evt
             }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
             .expect("Fold");
 
@@ -95,7 +96,7 @@ where
         Ok(results)
     }
 
-    fn save(&self, event: &Event<E>) -> Result<(), String> {
+    fn save<ED: EventData>(&self, event: &Event<ED>) -> Result<(), String> {
         self.conn
             .get()
             .expect("Could not get PG connection")
@@ -104,12 +105,41 @@ where
                 VALUES ($1, $2, $3)"#,
                 &[
                     &event.id,
-                    &to_value(&event.data()).expect("Item to value"),
-                    &to_value(&event.context()).expect("Context to value"),
+                    &to_value(&event.data).expect("Item to value"),
+                    &to_value(&event.context).expect("Context to value"),
                 ],
-            ).expect("Save");
+            ).map(|_| ())
+            .map_err(|err| match err.code() {
+                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
+                _ => "UNEXPECTED".into(),
+            })
+    }
 
-        Ok(())
+    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
+        let rows = self.conn
+            .get()
+            .expect("Could not get PG connection")
+            .query(
+                r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
+                "#,
+                &[
+                    &ED::event_namespace(),
+                    &ED::event_type()
+                ],
+                ).expect("Response");
+        if rows.len() == 1 {
+            let row = rows.get(0);
+            let id: Uuid = row.get("id");
+            let data_json: JsonValue = row.get("data");
+            let context_json: JsonValue = row.get("context");
+
+            let data: ED = from_value(data_json).unwrap();
+            let context: EventContext = from_value(context_json).unwrap();
+
+            Box::new(FutOk(Some(Event { id, data, context })))
+        } else {
+            Box::new(FutOk(None))
+        }
     }
 }
 

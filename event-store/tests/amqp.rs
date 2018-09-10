@@ -5,7 +5,7 @@ extern crate serde_json;
 extern crate tokio;
 
 use event_store::adapters::{AMQPEmitterAdapter, EmitterAdapter};
-use event_store::testhelpers::{TestEvents, TestIncrementEvent};
+use event_store::testhelpers::TestIncrementEvent;
 use event_store::Event;
 use futures::future::Future;
 use std::net::SocketAddr;
@@ -34,10 +34,10 @@ fn emitter_emits_and_subscribes() {
             })
         }).and_then(move |_| AMQPEmitterAdapter::new(addr, "iris".into()))
         .and_then(|adapter| {
-            adapter.emit(&Event::from_data(TestEvents::Inc(TestIncrementEvent {
+            adapter.emit(&Event::from_data(TestIncrementEvent {
                 by: 1,
                 ident: "".into(),
-            })))
+            }))
         }).map_err(|_| ());
 
     runtime.spawn(task);

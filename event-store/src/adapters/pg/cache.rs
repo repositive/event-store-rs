@@ -8,6 +8,7 @@ use serde_json::{from_value, to_value};
 use sha2::{Digest, Sha256};
 
 /// Postgres cache adapter
+#[derive(Clone)]
 pub struct PgCacheAdapter {
     conn: Connection,
 }

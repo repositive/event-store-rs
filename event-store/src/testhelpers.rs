@@ -1,11 +1,13 @@
 //! Test helpers. Do not use in application code.
 
-use super::{Aggregator, Event};
 use adapters::PgQuery;
+use prelude::*;
 use r2d2_postgres::postgres::types::ToSql;
+use Event;
 
-#[derive(Serialize, Deserialize, Debug)]
 /// Test event
+#[derive(EventData, Debug)]
+#[event_store(namespace = "some_namespace")]
 pub struct TestIncrementEvent {
     /// Increment by this much
     pub by: i32,
@@ -14,8 +16,9 @@ pub struct TestIncrementEvent {
     pub ident: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
 /// Test event
+#[derive(EventData, Debug)]
+#[event_store(namespace = "some_namespace")]
 pub struct TestDecrementEvent {
     /// Decrement by this much
     pub by: i32,
@@ -25,13 +28,12 @@ pub struct TestDecrementEvent {
 }
 
 #[derive(Events, Debug)]
-#[event_store(namespace = "some_namespace")]
 /// Set of all events in the domain
 pub enum TestEvents {
     /// Increment
-    Inc(TestIncrementEvent),
+    Inc(Event<TestIncrementEvent>),
     /// Decrement
-    Dec(TestDecrementEvent),
+    Dec(Event<TestDecrementEvent>),
 }
 
 // impl EventData for TestEvents {}
@@ -50,17 +52,17 @@ impl Default for TestCounterEntity {
 }
 
 impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
-    fn apply_event(acc: Self, event: &Event<TestEvents>) -> Self {
-        let counter = match event.data() {
-            TestEvents::Inc(ref inc) => acc.counter + inc.by,
-            TestEvents::Dec(ref dec) => acc.counter - dec.by,
+    fn apply_event(acc: Self, event: &TestEvents) -> Self {
+        let counter = match event {
+            TestEvents::Inc(ref inc) => acc.counter + inc.data.by,
+            TestEvents::Dec(ref dec) => acc.counter - dec.data.by,
         };
 
         Self { counter, ..acc }
     }
 
     fn query(field: String) -> PgQuery<'a> {
-        let mut params: Vec<Box<ToSql>> = Vec::new();
+        let mut params: Vec<Box<ToSql + Send + Sync>> = Vec::new();
 
         params.push(Box::new(field));
 

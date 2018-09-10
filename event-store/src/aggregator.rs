@@ -1,4 +1,3 @@
-use event::Event;
 use event_store_derive_internals::Events;
 use std::fmt::Debug;
 use store_query::StoreQuery;
@@ -25,33 +24,36 @@ use store_query::StoreQuery;
 /// # extern crate event_store;
 /// # #[macro_use]
 /// # extern crate event_store_derive;
-/// use event_store::{StoreQuery, Event, Aggregator};
+/// use event_store::prelude::*;
+/// use event_store::Event;
 ///
 /// // An example event in this domain
-/// #[derive(Deserialize, Serialize, Debug)]
+/// #[derive(EventData, Debug)]
+/// #[event_store(namespace = "some_namespace")]
 /// struct NameChanged {
 ///     name: String,
 /// }
 ///
 /// // Another example event in this domain
-/// #[derive(Deserialize, Serialize, Debug)]
+/// #[derive(EventData, Debug)]
+/// #[event_store(namespace = "some_namespace")]
 /// struct EmailChanged {
 ///     email: String,
 /// }
 ///
 /// // We want to ignore this event; the password should never be output!
-/// #[derive(Deserialize, Serialize, Debug)]
+/// #[derive(EventData, Debug)]
+/// #[event_store(namespace = "some_namespace")]
 /// struct PasswordChanged {
 ///     password: String,
 /// }
 ///
 /// // Enum of all events for this domain
 /// #[derive(Events)]
-/// #[event_store(namespace = "some_namespace")]
 /// enum UsersEvents {
-///     NameChanged(NameChanged),
-///     EmailChanged(EmailChanged),
-///     PasswordChanged(PasswordChanged),
+///     NameChanged(Event<NameChanged>),
+///     EmailChanged(Event<EmailChanged>),
+///     PasswordChanged(Event<PasswordChanged>),
 /// }
 ///
 /// // The domain entity we want to aggregate to
@@ -75,14 +77,14 @@ use store_query::StoreQuery;
 /// # impl StoreQuery for DummyQuery {}
 ///
 /// impl Aggregator<UsersEvents, String, DummyQuery> for UserDetails {
-///     fn apply_event(acc: Self, event: &Event<UsersEvents>) -> Self {
-///         match event.data() {
+///     fn apply_event(acc: Self, event: &UsersEvents) -> Self {
+///         match event {
 ///             UsersEvents::NameChanged(e) => Self {
-///                 name: e.name.clone(),
+///                 name: e.data.name.clone(),
 ///                 ..acc
 ///             },
 ///             UsersEvents::EmailChanged(e) => Self {
-///                 email: e.email.clone(),
+///                 email: e.data.email.clone(),
 ///                 ..acc
 ///             },
 ///             UsersEvents::PasswordChanged(_) => acc,
@@ -98,9 +100,9 @@ use store_query::StoreQuery;
 ///
 /// fn main() {
 /// #     let example_events = vec![
-/// #         Event::from_data(UsersEvents::NameChanged(NameChanged { name: String::from("Repositive User") })),
-/// #         Event::from_data(UsersEvents::EmailChanged(EmailChanged { email: String::from("bobby@beans.com") })),
-/// #         Event::from_data(UsersEvents::PasswordChanged(PasswordChanged { password: String::from("hunter2") })),
+/// #         UsersEvents::NameChanged(Event::from_data(NameChanged { name: String::from("Repositive User") })),
+/// #         UsersEvents::EmailChanged(Event::from_data(EmailChanged { email: String::from("bobby@beans.com") })),
+/// #         UsersEvents::PasswordChanged(Event::from_data(PasswordChanged { password: String::from("hunter2") })),
 /// #     ];
 /// #
 ///     // Example aggregation without a store. You would normally call `store.aggregate`
@@ -141,7 +143,7 @@ use store_query::StoreQuery;
 pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Clone + Debug + Default {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.
-    fn apply_event(acc: Self, event: &Event<E>) -> Self;
+    fn apply_event(acc: Self, event: &E) -> Self;
 
     /// Produce a query object from some query arguments
     fn query(field: A) -> Q;
