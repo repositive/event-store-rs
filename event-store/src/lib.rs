@@ -38,7 +38,7 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use futures::future::{ok as FutOk, result, Future};
+use futures::future::{ok as FutOk, result as FutResult, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
@@ -102,7 +102,7 @@ where
         let q = T::query(query_args.clone());
         let initial_state: Option<CacheResult<T>> = self.cache.get(&q);
 
-        Box::new(result(
+        Box::new(FutResult(
             self.store
                 .aggregate(query_args, initial_state.clone())
                 .map(|agg| {
@@ -126,7 +126,7 @@ where
         &self,
         event: Event<ED>,
     ) -> BoxedFuture<(), String> {
-        Box::new(result(self.store.save(&event)).and_then(move |_| {
+        Box::new(FutResult(self.store.save(&event)).and_then(move |_| {
             Box::new(
                 self.emitter
                     .emit(&event)
