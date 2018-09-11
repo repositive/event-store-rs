@@ -1,6 +1,7 @@
 extern crate event_store;
 extern crate r2d2;
 extern crate r2d2_postgres;
+extern crate tokio;
 
 use event_store::prelude::*;
 use event_store::testhelpers::{TestCounterEntity, TestIncrementEvent};
@@ -12,6 +13,7 @@ use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::thread;
 use std::time::Duration;
+use tokio::runtime::current_thread::block_on_all;
 
 fn connect() -> Pool<PostgresConnectionManager> {
     let manager = PostgresConnectionManager::new(
@@ -37,14 +39,13 @@ fn it_queries_the_database() {
     let ident = String::from("dbquery");
 
     assert!(
-        store
-            .save(Event::from_data(TestIncrementEvent {
-                by: 99,
-                ident: ident.clone()
-            })).is_ok()
+        block_on_all(store.save(Event::from_data(TestIncrementEvent {
+            by: 99,
+            ident: ident.clone()
+        }))).is_ok()
     );
 
-    let entity: TestCounterEntity = store.aggregate(ident).unwrap();
+    let entity: TestCounterEntity = block_on_all(store.aggregate(ident)).unwrap();
 
     assert_eq!(entity.counter, 99);
 }
@@ -64,7 +65,7 @@ fn it_saves_events() {
         ident: "it_saves_events".into(),
     };
 
-    assert!(store.save(Event::from_data(event)).is_ok());
+    assert!(block_on_all(store.save(Event::from_data(event))).is_ok());
 }
 
 #[test]
@@ -89,25 +90,23 @@ fn it_uses_the_aggregate_cache() {
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
     assert!(
-        store
-            .save(Event::from_data(TestIncrementEvent {
-                by: 1,
-                ident: ident.into()
-            })).is_ok()
+        block_on_all(store.save(Event::from_data(TestIncrementEvent {
+            by: 1,
+            ident: ident.into()
+        }))).is_ok()
     );
 
     assert!(
-        store
-            .save(Event::from_data(TestIncrementEvent {
-                by: 2,
-                ident: ident.into()
-            })).is_ok()
+        block_on_all(store.save(Event::from_data(TestIncrementEvent {
+            by: 2,
+            ident: ident.into()
+        }))).is_ok()
     );
 
     // Wait for DB to process
     thread::sleep(Duration::from_millis(10));
 
-    let entity: TestCounterEntity = store.aggregate(ident.into()).unwrap();
+    let entity: TestCounterEntity = block_on_all(store.aggregate(ident.into())).unwrap();
 
     assert_eq!(entity.counter, 3);
 }

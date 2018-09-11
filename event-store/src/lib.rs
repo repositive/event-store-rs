@@ -38,11 +38,10 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use futures::future::{ok as FutOk, Future};
+use futures::future::{ok as FutOk, result, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
-use tokio::runtime::current_thread;
 use utils::BoxedFuture;
 use uuid::Uuid;
 
@@ -94,37 +93,46 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<E, T, A>(&self, query_args: A) -> Result<T, String>
+    fn aggregate<'b, E, T, A>(&self, query_args: A) -> BoxedFuture<'b, T, String>
     where
         E: Events,
-        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq,
+        T: Aggregator<E, A, Q> + Send + Serialize + for<'de> Deserialize<'de> + PartialEq + 'b,
         A: Clone,
     {
         let q = T::query(query_args.clone());
         let initial_state: Option<CacheResult<T>> = self.cache.get(&q);
 
-        self.store
-            .aggregate(query_args, initial_state.clone())
-            .map(|agg| {
-                if let Some((last_cache, _)) = initial_state {
-                    // Only update cache if aggregation result has changed
-                    if agg != last_cache {
+        Box::new(result(
+            self.store
+                .aggregate(query_args, initial_state.clone())
+                .map(|agg| {
+                    if let Some((last_cache, _)) = initial_state {
+                        // Only update cache if aggregation result has changed
+                        if agg != last_cache {
+                            self.cache.insert(&q, agg.clone());
+                        }
+                    } else {
+                        // If there is no existing cache item, insert one
                         self.cache.insert(&q, agg.clone());
                     }
-                } else {
-                    // If there is no existing cache item, insert one
-                    self.cache.insert(&q, agg.clone());
-                }
 
-                agg
-            })
+                    agg
+                }),
+        ))
     }
 
     /// Save an event to the store with optional context
-    fn save<ED: EventData + Send + Sync>(&self, event: Event<ED>) -> Result<(), String> {
-        self.store.save(&event)?;
-        current_thread::block_on_all(self.emitter.emit(&event))
-            .map_err(|_| "It was not possible to emit the event".into())
+    fn save<ED: EventData + Send + Sync + 'static>(
+        &self,
+        event: Event<ED>,
+    ) -> BoxedFuture<(), String> {
+        Box::new(result(self.store.save(&event)).and_then(move |_| {
+            Box::new(
+                self.emitter
+                    .emit(&event)
+                    .map_err(|_| "It was not possible to emit the event".into()),
+            )
+        }))
     }
 
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), String>
