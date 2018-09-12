@@ -28,7 +28,7 @@ mod event;
 mod event_context;
 pub mod prelude;
 mod store;
-mod store_query;
+pub mod store_query;
 pub mod testhelpers;
 mod utils;
 
