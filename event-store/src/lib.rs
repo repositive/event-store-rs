@@ -28,7 +28,7 @@ mod event;
 mod event_context;
 pub mod prelude;
 mod store;
-mod store_query;
+pub mod store_query;
 pub mod testhelpers;
 mod utils;
 
@@ -46,6 +46,7 @@ use utils::BoxedFuture;
 use uuid::Uuid;
 
 /// Main event store
+#[derive(Clone)]
 pub struct EventStore<S, C, EM> {
     store: S,
     cache: C,
@@ -76,7 +77,7 @@ impl EventData for EventReplayRequested {
 #[derive(Serialize, Deserialize)]
 struct DummyEvent {}
 
-impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
+impl<Q, S, C, EM> Store<Q, S, C, EM> for EventStore<S, C, EM>
 where
     Q: StoreQuery + Send + Sync,
     S: StoreAdapter<Q> + Send + Sync + Clone + 'static,

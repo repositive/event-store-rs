@@ -8,12 +8,11 @@ use utils::BoxedFuture;
 
 /// Store trait
 pub trait Store<
-    'a,
     Q: StoreQuery + Send + Sync,
     S: StoreAdapter<Q> + Send + Sync,
     C,
     EM: EmitterAdapter + Send + Sync,
->: Send + Sync + 'static
+>: Clone + Send + Sync + 'static
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
