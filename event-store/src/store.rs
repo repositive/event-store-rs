@@ -8,7 +8,6 @@ use utils::BoxedFuture;
 
 /// Store trait
 pub trait Store<
-    'a,
     Q: StoreQuery + Send + Sync,
     S: StoreAdapter<Q> + Send + Sync,
     C,
