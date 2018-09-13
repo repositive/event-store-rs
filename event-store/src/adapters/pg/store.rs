@@ -4,13 +4,16 @@ use super::Connection;
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use chrono::Utc;
-use futures::future::{Future, ok as FutOk};
+use futures::future::{ok as FutOk, Future};
 use futures::stream::empty;
 // use postgres::error::DUPLICATE_COLUMN;
-use serde_json::{from_value, to_value, Value as JsonValue};
+use serde_json::{from_value, to_value, Value};
+use std::sync::{Arc, Mutex};
+use tokio_postgres::types::ToSql;
 use utils::{BoxedFuture, BoxedStream};
 use uuid::Uuid;
 use Aggregator;
+
 use Event;
 // use EventContext;
 use EventData;
@@ -19,12 +22,12 @@ use Events;
 /// Postgres store adapter
 #[derive(Clone)]
 pub struct PgStoreAdapter {
-    conn: Connection,
+    conn: Arc<Connection>,
 }
 
 impl<'a> PgStoreAdapter {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection) -> Self {
+    pub fn new(conn: Arc<Connection>) -> Self {
         Self { conn }
     }
 }
@@ -39,20 +42,32 @@ impl StoreAdapter for PgStoreAdapter {
     }
 
     fn save<ED: EventData>(&self, event: &Event<ED>) -> BoxedFuture<(), String> {
-        self.conn.run(|connection| {
-            connection.prepare(r#"
-                INSERT INTO events (id, data, context)
-                VALUES ($1, $2, $3)
-            "#)
-            .and_then(|(insert, connection)| {
-                connection.query(&insert, &[
-                    &event.id,
-                    &to_value(&event.data).expect("Item to value"),
-                    &to_value(&event.context).expect("Context to value"),
-                ]),
-            })
-        });
-        Box::new(FutOk(()))
+        let connection_clone = &self.conn.clone();
+        let connection_lock = connection_clone.lock().unwrap();
+        let task: BoxedFuture<(), String> = Box::new(
+            connection_lock
+                .prepare("INSERT INTO events (id, data, context) VALUES ($1, $2, $3)")
+                .and_then(|(insert, connection)| {
+                    // connection
+                    //     .query(
+                    //         &insert,
+                    //         &[
+                    //             &event.id.clone(),
+                    //             &to_value(&event.data.clone()).expect("Item to value"),
+                    //             &to_value(&event.context.clone()).expect("Context to value"),
+                    //         ],
+                    //     ).into()
+                    FutOk(())
+                }).map_err(|_| String::from("Boom")),
+        );
+        task
+        // .and_then(|(insert, connection)| {
+        //     connection.query(
+        //         &insert,
+        //     )
+        // }).map_err(|_| String::from("Boom!"))
+        // .map(|_| ());
+        // Box::new(FutOk(()))
         //self.conn
         //    .get()
         //    .expect("Could not get PG connection")
@@ -71,7 +86,7 @@ impl StoreAdapter for PgStoreAdapter {
         //    })
     }
 
-    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
+    fn last_event<ED: EventData + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
         Box::new(FutOk(None))
         // let rows = self.conn
         //     .get()

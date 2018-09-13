@@ -7,17 +7,18 @@ use futures::future::ok as FutOk;
 use serde::{de::DeserializeOwned, Serialize};
 // use serde_json::{from_value, to_value};
 use sha2::{Digest, Sha256};
+use std::sync::{Arc, Mutex};
 use utils::BoxedFuture;
 
 /// Postgres cache adapter
 #[derive(Clone)]
 pub struct PgCacheAdapter {
-    conn: Connection,
+    conn: Arc<Mutex<Connection>>,
 }
 
 impl PgCacheAdapter {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection) -> Self {
+    pub fn new(conn: Arc<Mutex<Connection>>) -> Self {
         Self { conn }
     }
 }

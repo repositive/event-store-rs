@@ -1,12 +1,12 @@
 //! Test helpers. Do not use in application code.
 
 use adapters::PgQuery;
-use postgres::types::ToSql;
 use prelude::*;
+use tokio_postgres::types::ToSql;
 use Event;
 
 /// Test event
-#[derive(EventData, Debug)]
+#[derive(Debug, Clone, EventData)]
 #[event_store(namespace = "some_namespace")]
 pub struct TestIncrementEvent {
     /// Increment by this much
@@ -17,7 +17,7 @@ pub struct TestIncrementEvent {
 }
 
 /// Test event
-#[derive(EventData, Debug)]
+#[derive(Debug, Clone, EventData)]
 #[event_store(namespace = "some_namespace")]
 pub struct TestDecrementEvent {
     /// Decrement by this much

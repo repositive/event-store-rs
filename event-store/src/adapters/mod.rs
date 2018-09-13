@@ -29,7 +29,7 @@ pub trait StoreAdapter: Send + Sync + Clone + 'static {
         since: Utc,
     ) -> BoxedStream<'a, E, String>;
     /// Save an event to the store
-    fn save<ED: EventData>(&self, event: &Event<ED>) -> BoxedFuture<(), String>;
+    fn save<ED: EventData + Send + Sync>(&self, event: &Event<ED>) -> BoxedFuture<(), String>;
 
     /// Returns the last event of the type ED
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
@@ -59,7 +59,7 @@ pub trait CacheAdapter: Send + Sync + Clone + 'static {
 /// Event emitter interface
 pub trait EmitterAdapter: Send + Sync + Clone + 'static {
     /// Emit an event
-    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
+    fn emit<'a, E: EventData>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
 
     /// Subscribe to an event
     fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>

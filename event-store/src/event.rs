@@ -7,7 +7,7 @@ use uuid::Uuid;
 ///
 /// This is what gets stored in the store and emitted from the emitter
 // TODO: Make `pub` -> `crate` when it's stabilised
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Event<D> {
     /// Event data payload
     pub data: D,

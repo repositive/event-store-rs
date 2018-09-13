@@ -15,12 +15,10 @@ extern crate sha2;
 extern crate uuid;
 #[macro_use]
 extern crate log;
-extern crate bb8;
-extern crate bb8_postgres;
 extern crate futures;
 extern crate lapin_futures as lapin;
 extern crate tokio;
-extern crate tokio_postgres as postgres;
+extern crate tokio_postgres;
 
 pub mod adapters;
 mod aggregator;
@@ -41,6 +39,7 @@ use event_store_derive_internals::{EventData, Events};
 use futures::future::{err as FutErr, ok as FutOk, result as FutResult, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
+
 use store_query::StoreQuery;
 use utils::BoxedFuture;
 use uuid::Uuid;
@@ -52,25 +51,12 @@ pub struct EventStore<S, C, EM> {
     emitter: EM,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, EventData)]
+#[event_store(namespace = "event_store")]
 struct EventReplayRequested {
     requested_event_type: String,
     requested_event_namespace: String,
     since: DateTime<Utc>,
-}
-
-impl EventData for EventReplayRequested {
-    fn event_type() -> &'static str {
-        "EventReplayRequested"
-    }
-
-    fn event_namespace() -> &'static str {
-        "event_store"
-    }
-
-    fn event_namespace_and_type() -> &'static str {
-        "event_store.EventReplayRequested"
-    }
 }
 
 #[derive(Serialize, Deserialize)]

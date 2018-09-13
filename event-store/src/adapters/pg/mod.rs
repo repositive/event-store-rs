@@ -5,13 +5,10 @@ mod store;
 
 pub use self::cache::PgCacheAdapter;
 pub use self::store::PgStoreAdapter;
-use bb8::Pool;
-use bb8_postgres::PostgresConnectionManager;
-use postgres::types::ToSql;
+use tokio_postgres::types::ToSql;
+use tokio_postgres::Connection;
 
 use StoreQuery;
-
-type Connection = Pool<PostgresConnectionManager>;
 
 /// Representation of a Postgres query and args
 pub struct PgQuery<'a> {
