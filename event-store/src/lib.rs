@@ -8,7 +8,6 @@ extern crate chrono;
 #[macro_use]
 extern crate event_store_derive;
 extern crate event_store_derive_internals;
-extern crate postgres;
 extern crate serde;
 #[macro_use]
 extern crate serde_json;
@@ -21,6 +20,7 @@ extern crate bb8_postgres;
 extern crate futures;
 extern crate lapin_futures as lapin;
 extern crate tokio;
+extern crate tokio_postgres as postgres;
 
 pub mod adapters;
 mod aggregator;

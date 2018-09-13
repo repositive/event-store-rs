@@ -4,12 +4,12 @@ use super::Connection;
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use chrono::Utc;
-use futures::future::ok as FutOk;
+use futures::future::{Future, ok as FutOk};
 use futures::stream::empty;
 // use postgres::error::DUPLICATE_COLUMN;
-// use serde_json::{from_value, to_value, Value as JsonValue};
+use serde_json::{from_value, to_value, Value as JsonValue};
 use utils::{BoxedFuture, BoxedStream};
-// use uuid::Uuid;
+use uuid::Uuid;
 use Aggregator;
 use Event;
 // use EventContext;
@@ -39,6 +39,19 @@ impl StoreAdapter for PgStoreAdapter {
     }
 
     fn save<ED: EventData>(&self, event: &Event<ED>) -> BoxedFuture<(), String> {
+        self.conn.run(|connection| {
+            connection.prepare(r#"
+                INSERT INTO events (id, data, context)
+                VALUES ($1, $2, $3)
+            "#)
+            .and_then(|(insert, connection)| {
+                connection.query(&insert, &[
+                    &event.id,
+                    &to_value(&event.data).expect("Item to value"),
+                    &to_value(&event.context).expect("Context to value"),
+                ]),
+            })
+        });
         Box::new(FutOk(()))
         //self.conn
         //    .get()
