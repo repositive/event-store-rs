@@ -38,7 +38,7 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use futures::future::{ok as FutOk, result as FutResult, Future};
+use futures::future::{err as FutErr, ok as FutOk, result as FutResult, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
@@ -76,11 +76,13 @@ impl EventData for EventReplayRequested {
 #[derive(Serialize, Deserialize)]
 struct DummyEvent {}
 
+type OptionalCache<T> = Option<CacheResult<T>>;
+
 impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
 where
     Q: StoreQuery + Send + Sync,
     S: StoreAdapter + Send + Sync + Clone + 'static,
-    C: CacheAdapter<Q> + Send + Sync + Clone + 'static,
+    C: CacheAdapter + Send + Sync + Clone + 'static,
     EM: EmitterAdapter + Send + Sync + Clone + 'static,
 {
     /// Create a new event store
@@ -100,25 +102,25 @@ where
         A: Clone,
     {
         let q = T::query(query_args.clone());
-        let initial_state: Option<CacheResult<T>> = self.cache.get(&q);
+        let result: BoxedFuture<OptionalCache<T>, String> = self.cache.get(String::from(""));
+        Box::new(FutErr("Not Implemented".into()))
+        // Box::new(FutResult(
+        //     self.store
+        //         .aggregate(query_args, initial_state.clone())
+        //         .map(|agg| {
+        //             if let Some((last_cache, _)) = initial_state {
+        //                 // Only update cache if aggregation result has changed
+        //                 if agg != last_cache {
+        //                     self.cache.insert(&q, agg.clone());
+        //                 }
+        //             } else {
+        //                 // If there is no existing cache item, insert one
+        //                 self.cache.insert(&q, agg.clone());
+        //             }
 
-        Box::new(FutResult(
-            self.store
-                .aggregate(query_args, initial_state.clone())
-                .map(|agg| {
-                    if let Some((last_cache, _)) = initial_state {
-                        // Only update cache if aggregation result has changed
-                        if agg != last_cache {
-                            self.cache.insert(&q, agg.clone());
-                        }
-                    } else {
-                        // If there is no existing cache item, insert one
-                        self.cache.insert(&q, agg.clone());
-                    }
-
-                    agg
-                }),
-        ))
+        //             agg
+        //         }),
+        // ))
     }
 
     /// Save an event to the store with optional context
@@ -126,7 +128,7 @@ where
         &self,
         event: Event<ED>,
     ) -> BoxedFuture<(), String> {
-        Box::new(FutResult(self.store.save(&event)).and_then(move |_| {
+        Box::new(self.store.save(&event).and_then(move |_| {
             Box::new(
                 self.emitter
                     .emit(&event)

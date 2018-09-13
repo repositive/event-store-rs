@@ -1,8 +1,8 @@
 //! Test helpers. Do not use in application code.
 
 use adapters::PgQuery;
+use postgres::types::ToSql;
 use prelude::*;
-use r2d2_postgres::postgres::types::ToSql;
 use Event;
 
 /// Test event

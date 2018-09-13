@@ -13,7 +13,7 @@ pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io;
 use utils::BoxedFuture;
 use utils::BoxedStream;
@@ -39,14 +39,17 @@ pub trait StoreAdapter: Send + Sync + Clone + 'static {
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter<K>: Send + Sync + Clone + 'static {
+pub trait CacheAdapter: Send + Sync + Clone + 'static {
     /// Insert an item into the cache
-    fn insert<V>(&self, key: &K, value: V)
+    fn insert<V>(&self, key: String, value: V) -> BoxedFuture<(), String>
     where
         V: Serialize;
 
     /// Retrieve an item from the cache
-    fn get<T>(&self, key: &K) -> Option<CacheResult<T>>
+    fn get<'a, T: Send + DeserializeOwned + 'a>(
+        &self,
+        key: String,
+    ) -> BoxedFuture<'a, Option<CacheResult<T>>, String>
     where
         T: DeserializeOwned;
 }
