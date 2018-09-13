@@ -20,9 +20,9 @@ log = "0.4"
 lapin-futures = "0.13"
 futures = "0.1.23"
 tokio = "0.1.8"
-r2d2 = "0.8.2"
 postgres = { version = "0.15.2", features = [ "with-serde_json", "with-uuid", "with-chrono" ] }
-r2d2_postgres = "0.14.0"
+bb8 = { git = "https://github.com/khuey/bb8.git" }
+bb8-postgres = { git = "https://github.com/khuey/bb8.git" }
 
 [dev-dependencies]
 criterion = "0.2.4"

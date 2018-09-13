@@ -10,7 +10,7 @@ use utils::BoxedFuture;
 pub trait Store<
     'a,
     Q: StoreQuery + Send + Sync,
-    S: StoreAdapter<Q> + Send + Sync,
+    S: StoreAdapter + Send + Sync,
     C,
     EM: EmitterAdapter + Send + Sync,
 >: Send + Sync + 'static

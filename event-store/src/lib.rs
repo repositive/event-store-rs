@@ -16,10 +16,10 @@ extern crate sha2;
 extern crate uuid;
 #[macro_use]
 extern crate log;
+extern crate bb8;
+extern crate bb8_postgres;
 extern crate futures;
 extern crate lapin_futures as lapin;
-extern crate r2d2;
-extern crate r2d2_postgres;
 extern crate tokio;
 
 pub mod adapters;
@@ -79,7 +79,7 @@ struct DummyEvent {}
 impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
 where
     Q: StoreQuery + Send + Sync,
-    S: StoreAdapter<Q> + Send + Sync + Clone + 'static,
+    S: StoreAdapter + Send + Sync + Clone + 'static,
     C: CacheAdapter<Q> + Send + Sync + Clone + 'static,
     EM: EmitterAdapter + Send + Sync + Clone + 'static,
 {

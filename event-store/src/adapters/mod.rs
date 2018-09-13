@@ -16,26 +16,20 @@ use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
 use utils::BoxedFuture;
-use Aggregator;
+use utils::BoxedStream;
 use Event;
 use Events;
-use StoreQuery;
 
 /// Storage backend
-pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
-    /// Read a list of events matching a query
-    fn aggregate<E, T, A>(
+pub trait StoreAdapter: Send + Sync + Clone + 'static {
+    /// Reads a list of events from the db
+    fn read<'a, E: Events + Send + 'a, A: Clone>(
         &self,
         query_args: A,
-        since: Option<(T, DateTime<Utc>)>,
-    ) -> Result<T, String>
-    where
-        E: Events,
-        T: Aggregator<E, A, Q> + Default,
-        A: Clone;
-
+        since: Utc,
+    ) -> BoxedStream<'a, E, String>;
     /// Save an event to the store
-    fn save<ED: EventData>(&self, event: &Event<ED>) -> Result<(), String>;
+    fn save<ED: EventData>(&self, event: &Event<ED>) -> BoxedFuture<(), String>;
 
     /// Returns the last event of the type ED
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
