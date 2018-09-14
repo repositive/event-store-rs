@@ -17,7 +17,7 @@ use futures::future::Future;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io;
 use std::sync::Arc;
-use utils::{ArcFuture, BoxedFuture, BoxedStream};
+use utils::{ArcFuture, ArcStream, BoxedFuture, BoxedStream};
 use Event;
 use Events;
 
@@ -28,12 +28,13 @@ pub trait StoreAdapter: Send + Sync + 'static {
         &self,
         query_args: A,
         since: Utc,
-    ) -> BoxedStream<'a, E, String>;
+    ) -> ArcStream<'a, E, String>;
     /// Save an event to the store
     fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> ArcFuture<'a, (), String>;
 
     /// Returns the last event of the type ED
-    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
+    fn last_event<'a, ED: EventData + Send + 'a>(&self)
+        -> ArcFuture<'a, Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search

@@ -4,20 +4,23 @@ use super::Connection;
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
 use chrono::Utc;
-use futures::future::{ok as FutOk, Future};
-use futures::stream::empty;
+use futures::future::{ok as FutOk, AndThen, Future};
+use futures::stream::{empty, Stream};
 // use postgres::error::DUPLICATE_COLUMN;
 use bb8::Pool;
+use bb8_postgres::tokio_postgres::rows::Row as PgRow;
 use bb8_postgres::tokio_postgres::types::ToSql;
 use bb8_postgres::PostgresConnectionManager;
+use futures_state_stream::{IntoFuture, IntoStream, StateStream};
 use serde_json::{from_value, to_value, Value};
 use std::sync::{Arc, Mutex};
-use utils::{ArcFuture, BoxedFuture, BoxedStream};
+use utils::{ArcFuture, ArcStream, BoxedFuture, BoxedStream};
 use uuid::Uuid;
 use Aggregator;
 
 use Event;
 // use EventContext;
+use EventContext;
 use EventData;
 use Events;
 
@@ -38,12 +41,23 @@ impl StoreAdapter for PgStoreAdapter {
         &self,
         args: A,
         since: Utc,
-    ) -> BoxedStream<'a, E, String> {
-        Box::new(empty())
+    ) -> ArcStream<'a, E, String> {
+        // Somehow this is meant to turn args: A -> A stream of events.
+        //  Get a stream from the db
+        //  map stream of records to stream of events
+        //  return that mapped stream
+        //  also handle errors
+        let task = self.pool.run(|connection| {
+            connection
+                .prepare("something")
+                .and_then(|(insert, connection)| connection.query(&insert, &[]).into())
+        });
+        Arc::new(empty())
     }
 
     //fn save<ED: EventData>(&self, event: &Event<ED>) -> Arc<Future<Item = (), Error = String>> {
     fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> ArcFuture<'a, (), String> {
+        // Logic for this fn
         Arc::from(
             self.pool
                 .run(|connection| {
@@ -64,32 +78,50 @@ impl StoreAdapter for PgStoreAdapter {
         )
     }
 
-    fn last_event<ED: EventData + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
-        Box::new(FutOk(None))
-        // let rows = self.conn
-        //     .get()
-        //     .expect("Could not get PG connection")
-        //     .query(
-        //         r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
-        //         "#,
-        //         &[
-        //             &ED::event_namespace(),
-        //             &ED::event_type()
-        //         ],
-        //         ).expect("Response");
-        // if rows.len() == 1 {
-        //     let row = rows.get(0);
-        //     let id: Uuid = row.get("id");
-        //     let data_json: JsonValue = row.get("data");
-        //     let context_json: JsonValue = row.get("context");
+    fn last_event<'a, ED: EventData + 'a>(&self) -> ArcFuture<'a, Option<Event<ED>>, String> {
+        // Utility functions for this fn
+        fn extract_one_event<'a, ED: EventData + 'a, E: 'a>(
+            rows: Vec<PgRow>,
+        ) -> impl Future<Item = Option<Event<ED>>, Error = E> + 'a {
+            if let Some(row) = rows.get(0) {
+                let id: Uuid = row.get("id");
+                let data_json = row.get("data");
+                let context_json = row.get("context");
 
-        //     let data: ED = from_value(data_json).unwrap();
-        //     let context: EventContext = from_value(context_json).unwrap();
+                let data: ED = from_value(data_json).unwrap();
+                let context: EventContext = from_value(context_json).unwrap();
 
-        //     Box::new(FutOk(Some(Event { id, data, context })))
-        // } else {
-        //     Box::new(FutOk(None))
-        // }
+                FutOk(Some(Event { id, data, context }))
+            } else {
+                FutOk(None)
+            }
+        }
+
+        Arc::from(self.pool
+            // XXX: This fn is defined at https://github.com/khuey/bb8/blob/master/src/lib.rs#L706
+            // approach with caution!
+            .run(|connection| {
+                connection
+                    .prepare("SELECT * FROM events WHERE data->>'event_namespace' = $1 AND data->>'event_type' = $2 ORDER BY data->>'time' desc limit 1")
+                    .map_err(|(e, _)| e)
+                    .and_then(|(select, conn)| {
+                        conn
+                            .query(
+                                &select,
+                                &[
+                                    &ED::event_namespace(),
+                                    &ED::event_type(),
+                                ],
+                            // conn.query returns a "state stream" that doesn't have .collect so it
+                            // will be converted into a normal stream
+                            ).into_stream().collect().and_then(extract_one_event)
+                    })
+                    // Tuple weirdness because pool.run needs tuples of stuff
+                    .map(|ev| (ev, connection))
+                    .map_err(|e| (e, connection))
+            // TODO: properly handle errors
+            }).map_err(|_| String::from("Error"))
+        )
     }
 }
 
