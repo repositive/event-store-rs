@@ -15,10 +15,11 @@ extern crate sha2;
 extern crate uuid;
 #[macro_use]
 extern crate log;
+extern crate bb8;
+extern crate bb8_postgres;
 extern crate futures;
 extern crate lapin_futures as lapin;
 extern crate tokio;
-extern crate tokio_postgres;
 
 pub mod adapters;
 mod aggregator;

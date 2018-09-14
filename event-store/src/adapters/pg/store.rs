@@ -7,10 +7,12 @@ use chrono::Utc;
 use futures::future::{ok as FutOk, Future};
 use futures::stream::empty;
 // use postgres::error::DUPLICATE_COLUMN;
+use bb8::Pool;
+use bb8_postgres::tokio_postgres::types::ToSql;
+use bb8_postgres::PostgresConnectionManager;
 use serde_json::{from_value, to_value, Value};
 use std::sync::{Arc, Mutex};
-use tokio_postgres::types::ToSql;
-use utils::{BoxedFuture, BoxedStream};
+use utils::{ArcFuture, BoxedFuture, BoxedStream};
 use uuid::Uuid;
 use Aggregator;
 
@@ -20,15 +22,14 @@ use EventData;
 use Events;
 
 /// Postgres store adapter
-#[derive(Clone)]
 pub struct PgStoreAdapter {
-    conn: Arc<Connection>,
+    pool: Pool<PostgresConnectionManager>,
 }
 
 impl<'a> PgStoreAdapter {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Arc<Connection>) -> Self {
-        Self { conn }
+    pub fn new(pool: Pool<PostgresConnectionManager>) -> Self {
+        Self { pool }
     }
 }
 
@@ -41,49 +42,26 @@ impl StoreAdapter for PgStoreAdapter {
         Box::new(empty())
     }
 
-    fn save<ED: EventData>(&self, event: &Event<ED>) -> BoxedFuture<(), String> {
-        let connection_clone = &self.conn.clone();
-        let connection_lock = connection_clone.lock().unwrap();
-        let task: BoxedFuture<(), String> = Box::new(
-            connection_lock
-                .prepare("INSERT INTO events (id, data, context) VALUES ($1, $2, $3)")
-                .and_then(|(insert, connection)| {
-                    // connection
-                    //     .query(
-                    //         &insert,
-                    //         &[
-                    //             &event.id.clone(),
-                    //             &to_value(&event.data.clone()).expect("Item to value"),
-                    //             &to_value(&event.context.clone()).expect("Context to value"),
-                    //         ],
-                    //     ).into()
-                    FutOk(())
-                }).map_err(|_| String::from("Boom")),
-        );
-        task
-        // .and_then(|(insert, connection)| {
-        //     connection.query(
-        //         &insert,
-        //     )
-        // }).map_err(|_| String::from("Boom!"))
-        // .map(|_| ());
-        // Box::new(FutOk(()))
-        //self.conn
-        //    .get()
-        //    .expect("Could not get PG connection")
-        //    .execute(
-        //        r#"INSERT INTO events (id, data, context)
-        //        VALUES ($1, $2, $3)"#,
-        //        &[
-        //            &event.id,
-        //            &to_value(&event.data).expect("Item to value"),
-        //            &to_value(&event.context).expect("Context to value"),
-        //        ],
-        //    ).map(|_| ())
-        //    .map_err(|err| match err.code() {
-        //        Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
-        //        _ => "UNEXPECTED".into(),
-        //    })
+    //fn save<ED: EventData>(&self, event: &Event<ED>) -> Arc<Future<Item = (), Error = String>> {
+    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> ArcFuture<'a, (), String> {
+        Arc::from(
+            self.pool
+                .run(|connection| {
+                    connection
+                        .prepare("INSERT INTO events (id, data, context) VALUES ($1, $2, $3)")
+                        .and_then(|(insert, connection)| {
+                            connection
+                                .query(
+                                    &insert,
+                                    &[
+                                        &event.id,
+                                        &to_value(&event.data).expect("Item to value"),
+                                        &to_value(&event.context).expect("Context to value"),
+                                    ],
+                                ).into()
+                        })
+                }).map_err(|_| String::from("Failed to insert event")),
+        )
     }
 
     fn last_event<ED: EventData + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {

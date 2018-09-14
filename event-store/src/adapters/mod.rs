@@ -13,15 +13,16 @@ pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
+use futures::future::Future;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::io;
-use utils::BoxedFuture;
-use utils::BoxedStream;
+use std::sync::Arc;
+use utils::{ArcFuture, BoxedFuture, BoxedStream};
 use Event;
 use Events;
 
 /// Storage backend
-pub trait StoreAdapter: Send + Sync + Clone + 'static {
+pub trait StoreAdapter: Send + Sync + 'static {
     /// Reads a list of events from the db
     fn read<'a, E: Events + Send + 'a, A: Clone>(
         &self,
@@ -29,7 +30,7 @@ pub trait StoreAdapter: Send + Sync + Clone + 'static {
         since: Utc,
     ) -> BoxedStream<'a, E, String>;
     /// Save an event to the store
-    fn save<ED: EventData + Send + Sync>(&self, event: &Event<ED>) -> BoxedFuture<(), String>;
+    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> ArcFuture<'a, (), String>;
 
     /// Returns the last event of the type ED
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;

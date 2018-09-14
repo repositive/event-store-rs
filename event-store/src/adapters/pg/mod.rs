@@ -5,8 +5,8 @@ mod store;
 
 pub use self::cache::PgCacheAdapter;
 pub use self::store::PgStoreAdapter;
-use tokio_postgres::types::ToSql;
-use tokio_postgres::Connection;
+use bb8_postgres::tokio_postgres::types::ToSql;
+use bb8_postgres::tokio_postgres::Connection;
 
 use StoreQuery;
 
