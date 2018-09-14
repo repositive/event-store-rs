@@ -18,6 +18,7 @@ extern crate log;
 extern crate bb8;
 extern crate bb8_postgres;
 extern crate futures;
+extern crate futures_state_stream;
 extern crate lapin_futures as lapin;
 extern crate tokio;
 

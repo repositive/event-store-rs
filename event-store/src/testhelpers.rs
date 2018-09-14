@@ -1,8 +1,8 @@
 //! Test helpers. Do not use in application code.
 
 use adapters::PgQuery;
+use bb8_postgres::tokio_postgres::types::ToSql;
 use prelude::*;
-use tokio_postgres::types::ToSql;
 use Event;
 
 /// Test event
