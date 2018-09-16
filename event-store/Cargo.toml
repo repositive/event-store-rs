@@ -19,7 +19,6 @@ event-store-derive-internals = { path = "../event-store-derive-internals" }
 log = "0.4"
 lapin-futures = "0.13"
 futures = "0.1.23"
-# tokio-postgres = { git = "https://github.com/sfackler/rust-postgres", rev = "5ad78500095c0a9a59533b9164f46edd23cb9e1b", features = ["with-serde_json", "with-chronos", "with-uuid"]}
 tokio = "0.1.8"
 bb8 = { git = "https://github.com/khuey/bb8.git" }
 bb8-postgres = {git = "https://github.com/khuey/bb8.git", features = ["with-chrono-0.4", "with-uuid-0.6", "with-serde_json-1"]}
