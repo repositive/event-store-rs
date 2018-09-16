@@ -15,18 +15,24 @@ use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
-use utils::{BoxedFuture, BoxedStream};
+use store_query::StoreQuery;
+use utils::BoxedFuture;
 use Event;
 use Events;
 
 /// Storage backend
-pub trait StoreAdapter {
+pub trait StoreAdapter<SQ> {
     /// Reads a list of events from the db
-    fn read<'a, E: Events + Sync + Send + 'a, A: Clone>(
+    fn read<'a, E, A, Q, H>(
         &self,
         query_args: A,
         since: Utc,
-    ) -> BoxedStream<'a, E, String>;
+        handler: H,
+    ) -> BoxedFuture<'a, (), String>
+    where
+        E: Events + 'a,
+        Q: StoreQuery<'a, SQ, A>,
+        H: Fn(E) -> () + 'a;
     /// Save an event to the store
     fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> BoxedFuture<'a, (), String>;
 

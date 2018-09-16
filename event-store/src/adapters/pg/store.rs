@@ -2,7 +2,7 @@
 
 use adapters::StoreAdapter;
 use chrono::Utc;
-use futures::future::{ok as FutOk, Future};
+use futures::future::{ok as FutOk, result as FutResult, Future};
 use futures::stream::{empty, Stream};
 // use postgres::error::DUPLICATE_COLUMN;
 use bb8::Pool;
@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use Event;
 // use EventContext;
+use super::StoreQuery;
 use EventContext;
 use EventData;
 use Events;
@@ -32,46 +33,44 @@ impl<'a> PgStoreAdapter {
     }
 }
 
-impl StoreAdapter for PgStoreAdapter {
-    fn read<'a, E: Events + Sync + Send + 'a, A: Clone>(
+impl<'s> StoreAdapter<&'s str> for PgStoreAdapter {
+    fn read<'a, E: Events + 'a, A, Q: StoreQuery<'a, &'s str, A>, H: Fn(E) -> () + 'a>(
         &self,
-        args: A,
+        query_args: A,
         since: Utc,
-    ) -> BoxedStream<'a, E, String> {
+        handler: H,
+    ) -> BoxedFuture<'a, (), String> {
         // Somehow this is meant to turn args: A -> A stream of events.
         //  Get a stream from the db
         //  map stream of records to stream of events
         //  return that mapped stream
         //  also handle errors
 
-        let _result = self
-            .pool
-            .run(|connection| {
-                let result = connection
-                    .prepare("SELECT 1")
-                    .and_then(|(_, connection)| {
-                        FutOk(connection)
-                        //let stream = connection.query(&select, &[]).map(|row| {
-                        //    let id: Uuid = row.get("id");
-                        //    let data_json: JsonValue = row.get("data");
-                        //    let context_json: JsonValue = row.get("context");
+        let task = self.pool.run(|connection| {
+            connection
+                .prepare("SELECT 1")
+                .and_then(|(select, connection)| {
+                    let stream = connection.query(&select, &[]).map(|row| {
+                        let id: Uuid = row.get("id");
+                        let data_json: JsonValue = row.get("data");
+                        let context_json: JsonValue = row.get("context");
 
-                        //    let thing = json!({
-                        //                "id": id,
-                        //                "data": data_json,
-                        //                "context": context_json,
-                        //            });
+                        let thing = json!({
+                                    "id": id,
+                                    "data": data_json,
+                                    "context": context_json,
+                                });
 
-                        //    let evt: E = from_value(thing).expect("Could not decode row");
+                        let evt: E = from_value(thing).expect("Could not decode row");
 
-                        //    evt
-                        //});
-                    }).map(|connection| ((), connection));
-                result
-            }).wait()
-            .unwrap();
+                        evt
+                    });
 
-        Box::new(empty())
+                    stream.for_each(handler)
+                }).map(|connection| ((), connection))
+        });
+
+        Box::new(task.map_err(|_| String::from("Internal tokio error")))
     }
 
     //fn save<ED: EventData>(&self, event: &Event<ED>) -> Arc<Future<Item = (), Error = String>> {

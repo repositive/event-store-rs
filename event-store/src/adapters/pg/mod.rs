@@ -14,16 +14,17 @@ use StoreQuery;
 pub struct PgQuery<'a> {
     /// Query string with placeholders
     pub query: &'a str,
-
-    /// Arguments to use for the query
-    pub args: Vec<Box<ToSql + Send + Sync>>,
 }
 
-impl<'a> StoreQuery for PgQuery<'a> {}
+impl<'a> StoreQuery<'a, &'a str, Vec<Box<ToSql + Send + Sync>>> for PgQuery<'a> {
+    fn get_query(&self) -> &'a str {
+        self.query
+    }
+}
 
 impl<'a> PgQuery<'a> {
     /// Create a new query from a query string and arguments
-    pub fn new(query: &'a str, args: Vec<Box<ToSql + Send + Sync>>) -> Self {
-        Self { query, args }
+    pub fn new(query: &'a str) -> Self {
+        Self { query }
     }
 }

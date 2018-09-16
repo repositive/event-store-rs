@@ -9,6 +9,7 @@ extern crate chrono;
 extern crate event_store_derive;
 extern crate event_store_derive_internals;
 extern crate serde;
+#[macro_use]
 extern crate serde_json;
 extern crate sha2;
 extern crate uuid;
@@ -41,6 +42,7 @@ use event_store_derive_internals::{EventData, Events};
 use futures::future::{ok as FutOk, Future};
 use store::Store;
 
+use serde::Serialize;
 use store_query::StoreQuery;
 use utils::BoxedFuture;
 use uuid::Uuid;
@@ -65,10 +67,9 @@ struct DummyEvent {}
 
 type OptionalCache<T> = Option<CacheResult<T>>;
 
-impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
+impl<'a, SQ, S, C, EM> Store<'a, SQ, S, C, EM> for EventStore<S, C, EM>
 where
-    Q: StoreQuery + Send + Sync,
-    S: StoreAdapter + Send + Sync + Clone + 'static,
+    S: StoreAdapter<SQ> + Send + Sync + Clone + 'static,
     C: CacheAdapter + Send + Sync + Clone + 'static,
     EM: EmitterAdapter + Send + Sync + Clone + 'static,
 {
@@ -82,13 +83,14 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&self, query_args: A) -> BoxedFuture<'b, Option<T>, String>
+    fn aggregate<'b, E, A, Q, T>(&self, query_args: A) -> BoxedFuture<'b, Option<T>, String>
     where
         E: Events,
-        T: Aggregator<'b, E, A, Q>,
-        A: Clone,
+        A: Serialize,
+        Q: StoreQuery<'b, SQ, A>,
+        T: Aggregator<'b, E, SQ, A, Q>,
     {
-        let _q = T::query(query_args.clone());
+        let _q = T::query();
         let _result: BoxedFuture<OptionalCache<T>, String> = self.cache.get(String::from(""));
         Box::new(FutOk(None))
         // Box::new(FutResult(
