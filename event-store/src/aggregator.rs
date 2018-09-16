@@ -141,7 +141,7 @@ use store_query::StoreQuery;
 ///     }
 /// }
 /// ```
-pub trait Aggregator<'a, E: Events, SQ, A, Q: StoreQuery<'a, SQ, A>>:
+pub trait Aggregator<'a, E: Events, A, Q: StoreQuery<'a, A>>:
     Send + Sync + Clone + Debug + Default + Serialize + DeserializeOwned + PartialEq + 'a
 {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
@@ -149,5 +149,5 @@ pub trait Aggregator<'a, E: Events, SQ, A, Q: StoreQuery<'a, SQ, A>>:
     fn apply_event(acc: Self, event: &E) -> Self;
 
     /// Produce a query object from some query arguments
-    fn query() -> Q;
+    fn query(args: A) -> Q;
 }

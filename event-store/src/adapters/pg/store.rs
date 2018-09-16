@@ -33,10 +33,10 @@ impl<'a> PgStoreAdapter {
     }
 }
 
-impl<'s> StoreAdapter<&'s str> for PgStoreAdapter {
-    fn read<'a, E: Events + 'a, A, Q: StoreQuery<'a, &'s str, A>, H: Fn(E) -> () + 'a>(
+impl StoreAdapter for PgStoreAdapter {
+    fn read<'a, E: Events + 'a, A, Q: StoreQuery<'a, A>, H: Fn(E) -> () + 'a>(
         &self,
-        query_args: A,
+        query: Q,
         since: Utc,
         handler: H,
     ) -> BoxedFuture<'a, (), String> {

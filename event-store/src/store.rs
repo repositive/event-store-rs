@@ -8,7 +8,7 @@ use EventData;
 use Events;
 
 /// Store trait
-pub trait Store<'a, SQ, S: StoreAdapter<SQ> + Send + Sync, C, EM: EmitterAdapter + Send + Sync> {
+pub trait Store<'a, SQ, S: StoreAdapter + Send + Sync, C, EM: EmitterAdapter + Send + Sync> {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
@@ -17,8 +17,8 @@ pub trait Store<'a, SQ, S: StoreAdapter<SQ> + Send + Sync, C, EM: EmitterAdapter
     where
         E: Events,
         A: Serialize,
-        Q: StoreQuery<'b, SQ, A>,
-        T: Aggregator<'b, E, SQ, A, Q>,
+        Q: StoreQuery<'b, A>,
+        T: Aggregator<'b, E, A, Q>,
         A: Clone;
 
     /// Save an event to the store with optional context
