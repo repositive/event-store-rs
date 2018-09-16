@@ -13,42 +13,41 @@ pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
-use futures::future::Future;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use std::io;
-use std::sync::Arc;
-use utils::{ArcFuture, ArcStream, BoxedFuture, BoxedStream};
+use utils::{BoxedFuture, BoxedStream};
 use Event;
 use Events;
 
 /// Storage backend
-pub trait StoreAdapter: Send + Sync + 'static {
+pub trait StoreAdapter {
     /// Reads a list of events from the db
-    fn read<'a, E: Events + Send + 'a, A: Clone>(
+    fn read<'a, E: Events + Sync + Send + 'a, A: Clone>(
         &self,
         query_args: A,
         since: Utc,
-    ) -> ArcStream<'a, E, String>;
+    ) -> BoxedStream<'a, E, String>;
     /// Save an event to the store
-    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> ArcFuture<'a, (), String>;
+    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> BoxedFuture<'a, (), String>;
 
     /// Returns the last event of the type ED
-    fn last_event<'a, ED: EventData + Send + 'a>(&self)
-        -> ArcFuture<'a, Option<Event<ED>>, String>;
+    fn last_event<'a, ED: EventData + Send + 'a>(
+        &self,
+    ) -> BoxedFuture<'a, Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter: Send + Sync + Clone + 'static {
+pub trait CacheAdapter {
     /// Insert an item into the cache
     fn insert<V>(&self, key: String, value: V) -> BoxedFuture<(), String>
     where
         V: Serialize;
 
     /// Retrieve an item from the cache
-    fn get<'a, T: Send + DeserializeOwned + 'a>(
+    fn get<'a, T: Sync + Send + DeserializeOwned + 'a>(
         &self,
         key: String,
     ) -> BoxedFuture<'a, Option<CacheResult<T>>, String>
@@ -59,7 +58,7 @@ pub trait CacheAdapter: Send + Sync + Clone + 'static {
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter: Send + Sync + Clone + 'static {
+pub trait EmitterAdapter {
     /// Emit an event
     fn emit<'a, E: EventData>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
 

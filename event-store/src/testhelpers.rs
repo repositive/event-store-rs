@@ -51,7 +51,7 @@ impl Default for TestCounterEntity {
     }
 }
 
-impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
+impl<'a> Aggregator<'a, TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     fn apply_event(acc: Self, event: &TestEvents) -> Self {
         let counter = match event {
             TestEvents::Inc(ref inc) => acc.counter + inc.data.by,

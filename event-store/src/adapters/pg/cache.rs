@@ -43,7 +43,7 @@ impl CacheAdapter for PgCacheAdapter {
         //     ).expect("Cache");
     }
 
-    fn get<'a, T: Send + DeserializeOwned + 'a>(
+    fn get<'a, T: Sync + Send + DeserializeOwned + 'a>(
         &self,
         key: String,
     ) -> BoxedFuture<'a, Option<CacheResult<T>>, String> {

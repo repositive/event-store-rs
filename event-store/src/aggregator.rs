@@ -1,4 +1,5 @@
 use event_store_derive_internals::Events;
+use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use store_query::StoreQuery;
 
@@ -140,7 +141,9 @@ use store_query::StoreQuery;
 ///     }
 /// }
 /// ```
-pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Clone + Debug + Default {
+pub trait Aggregator<'a, E: Events, A: Clone, Q: StoreQuery>:
+    Send + Sync + Clone + Debug + Default + Serialize + DeserializeOwned + PartialEq + 'a
+{
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.
     fn apply_event(acc: Self, event: &E) -> Self;

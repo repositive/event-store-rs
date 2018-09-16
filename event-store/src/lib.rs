@@ -9,7 +9,6 @@ extern crate chrono;
 extern crate event_store_derive;
 extern crate event_store_derive_internals;
 extern crate serde;
-#[macro_use]
 extern crate serde_json;
 extern crate sha2;
 extern crate uuid;
@@ -35,11 +34,11 @@ mod utils;
 use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
 use aggregator::Aggregator;
 use chrono::prelude::*;
-pub use event::Event;
-pub use event_context::EventContext;
+use event::Event;
+use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use futures::future::{err as FutErr, ok as FutOk, result as FutResult, Future};
-use serde::{Deserialize, Serialize};
+
+use futures::future::{ok as FutOk, Future};
 use store::Store;
 
 use store_query::StoreQuery;
@@ -83,15 +82,15 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&self, query_args: A) -> BoxedFuture<'b, T, String>
+    fn aggregate<'b, E, T, A>(&self, query_args: A) -> BoxedFuture<'b, Option<T>, String>
     where
         E: Events,
-        T: Aggregator<E, A, Q> + Send + Serialize + for<'de> Deserialize<'de> + PartialEq + 'b,
+        T: Aggregator<'b, E, A, Q>,
         A: Clone,
     {
-        let q = T::query(query_args.clone());
-        let result: BoxedFuture<OptionalCache<T>, String> = self.cache.get(String::from(""));
-        Box::new(FutErr("Not Implemented".into()))
+        let _q = T::query(query_args.clone());
+        let _result: BoxedFuture<OptionalCache<T>, String> = self.cache.get(String::from(""));
+        Box::new(FutOk(None))
         // Box::new(FutResult(
         //     self.store
         //         .aggregate(query_args, initial_state.clone())
@@ -116,13 +115,15 @@ where
         &self,
         event: Event<ED>,
     ) -> BoxedFuture<(), String> {
-        Box::new(self.store.save(&event).and_then(move |_| {
+        let tasks = self.store.save(event.clone()).and_then(move |_| {
             Box::new(
                 self.emitter
                     .emit(&event)
                     .map_err(|_| "It was not possible to emit the event".into()),
             )
-        }))
+        });
+
+        Box::new(tasks)
     }
 
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), String>
@@ -134,7 +135,7 @@ where
         Box::new(
             self.emitter
                 .subscribe(move |event: &Event<ED>| {
-                    let _ = handler_store.save(event).map(|_| {
+                    let _ = handler_store.save(event.clone()).map(|_| {
                         handler(event);
                     });
                     /**/

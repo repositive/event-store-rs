@@ -1,22 +1,18 @@
 //! Store adapter backed by Postgres
 
-use super::Connection;
-use adapters::pg::PgQuery;
-use adapters::{CacheResult, StoreAdapter};
+use adapters::StoreAdapter;
 use chrono::Utc;
-use futures::future::{ok as FutOk, AndThen, Future};
+use futures::future::{ok as FutOk, Future};
 use futures::stream::{empty, Stream};
 // use postgres::error::DUPLICATE_COLUMN;
 use bb8::Pool;
 use bb8_postgres::tokio_postgres::rows::Row as PgRow;
-use bb8_postgres::tokio_postgres::types::ToSql;
 use bb8_postgres::PostgresConnectionManager;
-use futures_state_stream::{IntoFuture, IntoStream, StateStream};
-use serde_json::{from_value, to_value, Value};
-use std::sync::{Arc, Mutex};
-use utils::{ArcFuture, ArcStream, BoxedFuture, BoxedStream};
+use futures_state_stream::StateStream;
+use serde_json::{from_value, to_value, Value as JsonValue};
+use utils::{BoxedFuture, BoxedStream};
+
 use uuid::Uuid;
-use Aggregator;
 
 use Event;
 // use EventContext;
@@ -37,91 +33,106 @@ impl<'a> PgStoreAdapter {
 }
 
 impl StoreAdapter for PgStoreAdapter {
-    fn read<'a, E: Events + Send + 'a, A: Clone>(
+    fn read<'a, E: Events + Sync + Send + 'a, A: Clone>(
         &self,
         args: A,
         since: Utc,
-    ) -> ArcStream<'a, E, String> {
+    ) -> BoxedStream<'a, E, String> {
         // Somehow this is meant to turn args: A -> A stream of events.
         //  Get a stream from the db
         //  map stream of records to stream of events
         //  return that mapped stream
         //  also handle errors
-        let task = self.pool.run(|connection| {
-            connection
-                .prepare("something")
-                .and_then(|(insert, connection)| connection.query(&insert, &[]).into())
-        });
-        Arc::new(empty())
+
+        let _result = self
+            .pool
+            .run(|connection| {
+                let result = connection
+                    .prepare("SELECT 1")
+                    .and_then(|(_, connection)| {
+                        FutOk(connection)
+                        //let stream = connection.query(&select, &[]).map(|row| {
+                        //    let id: Uuid = row.get("id");
+                        //    let data_json: JsonValue = row.get("data");
+                        //    let context_json: JsonValue = row.get("context");
+
+                        //    let thing = json!({
+                        //                "id": id,
+                        //                "data": data_json,
+                        //                "context": context_json,
+                        //            });
+
+                        //    let evt: E = from_value(thing).expect("Could not decode row");
+
+                        //    evt
+                        //});
+                    }).map(|connection| ((), connection));
+                result
+            }).wait()
+            .unwrap();
+
+        Box::new(empty())
     }
 
     //fn save<ED: EventData>(&self, event: &Event<ED>) -> Arc<Future<Item = (), Error = String>> {
-    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> ArcFuture<'a, (), String> {
+    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> BoxedFuture<'a, (), String> {
         // Logic for this fn
-        Arc::from(
-            self.pool
-                .run(|connection| {
-                    connection
-                        .prepare("INSERT INTO events (id, data, context) VALUES ($1, $2, $3)")
-                        .and_then(|(insert, connection)| {
-                            connection
-                                .query(
-                                    &insert,
-                                    &[
-                                        &event.id,
-                                        &to_value(&event.data).expect("Item to value"),
-                                        &to_value(&event.context).expect("Context to value"),
-                                    ],
-                                ).into()
-                        })
-                }).map_err(|_| String::from("Failed to insert event")),
-        )
+        let result = self
+            .pool
+            .run(move |connection| {
+                connection
+                    .prepare("INSERT INTO events (id, data, context) VALUES ($1, $2, $3)")
+                    .and_then(move |(insert, connection)| {
+                        connection
+                            .query(
+                                &insert,
+                                &[
+                                    &event.id,
+                                    &to_value(&event.data).expect("Item to value"),
+                                    &to_value(&event.context).expect("Context to value"),
+                                ],
+                            ).for_each(|_| ())
+                    }).map(|connection| ((), connection))
+            }).map(|_| ())
+            .map_err(|_| String::from("Failed to insert event"));
+        Box::new(result)
     }
 
-    fn last_event<'a, ED: EventData + 'a>(&self) -> ArcFuture<'a, Option<Event<ED>>, String> {
+    fn last_event<'a, ED: EventData + 'a>(&self) -> BoxedFuture<'a, Option<Event<ED>>, String> {
         // Utility functions for this fn
-        fn extract_one_event<'a, ED: EventData + 'a, E: 'a>(
-            rows: Vec<PgRow>,
-        ) -> impl Future<Item = Option<Event<ED>>, Error = E> + 'a {
-            if let Some(row) = rows.get(0) {
-                let id: Uuid = row.get("id");
-                let data_json = row.get("data");
-                let context_json = row.get("context");
+        fn extract_one_event<ED: EventData>(row: &PgRow) -> Event<ED> {
+            let id: Uuid = row.get("id");
+            let data_json = row.get("data");
+            let context_json = row.get("context");
 
-                let data: ED = from_value(data_json).unwrap();
-                let context: EventContext = from_value(context_json).unwrap();
+            let data: ED = from_value(data_json).unwrap();
+            let context: EventContext = from_value(context_json).unwrap();
 
-                FutOk(Some(Event { id, data, context }))
-            } else {
-                FutOk(None)
-            }
+            Event { id, data, context }
         }
 
-        Arc::from(self.pool
+        let result = self.pool
             // XXX: This fn is defined at https://github.com/khuey/bb8/blob/master/src/lib.rs#L706
             // approach with caution!
             .run(|connection| {
                 connection
                     .prepare("SELECT * FROM events WHERE data->>'event_namespace' = $1 AND data->>'event_type' = $2 ORDER BY data->>'time' desc limit 1")
-                    .map_err(|(e, _)| e)
                     .and_then(|(select, conn)| {
-                        conn
+                        let result = conn
                             .query(
                                 &select,
                                 &[
                                     &ED::event_namespace(),
                                     &ED::event_type(),
                                 ],
-                            // conn.query returns a "state stream" that doesn't have .collect so it
-                            // will be converted into a normal stream
-                            ).into_stream().collect().and_then(extract_one_event)
+                            )
+                            .collect().map(|(vec, connection)| (vec.first().map(extract_one_event), connection));
+                        result
                     })
-                    // Tuple weirdness because pool.run needs tuples of stuff
-                    .map(|ev| (ev, connection))
-                    .map_err(|e| (e, connection))
             // TODO: properly handle errors
-            }).map_err(|_| String::from("Error"))
-        )
+            })
+            .map_err(|_| String::from("Error"));
+        Box::new(result)
     }
 }
 
