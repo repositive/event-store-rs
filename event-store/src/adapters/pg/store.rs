@@ -1,8 +1,8 @@
 //! Store adapter backed by Postgres
 
-use super::Connection;
 use adapters::pg::PgQuery;
 use adapters::{CacheResult, StoreAdapter};
+use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
 use futures::future::{err as FutErr, lazy as NewFuture, ok as FutOk, Future, FutureResult};
 use postgres::error::DUPLICATE_COLUMN;
@@ -32,45 +32,42 @@ impl<'a> PgStoreAdapter {
         }
     }
 
-    fn generate_query<E, T, A>(
-        query_string: &PgQuery<'a>,
-        since: Option<CacheResult<T>>,
-    ) -> (T, String)
-    where
-        E: Events,
-        T: Aggregator<E, A, PgQuery<'a>> + Default,
-        A: Clone,
-    {
-        let (initial_state, query_string) = if let Some((existing, time)) = since {
-            (existing, format!(
-                "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
-                query_string.query, time
-            ))
-        } else {
-            (T::default(), String::from(query_string.query))
-        };
+    //    fn generate_query<E, T, A>(query_string: &PgQuery<'a>, since: Utc) -> (T, String)
+    //    where
+    //        E: Events,
+    //        T: Aggregator<E, A, PgQuery<'a>> + Default,
+    //        A: Clone,
+    //    {
+    //        let (initial_state, query_string) = if let Some((existing, time)) = since {
+    //            (existing, format!(
+    //                "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
+    //                query_string.query, time
+    //            ))
+    //        } else {
+    //            (T::default(), String::from(query_string.query))
+    //        };
+    //
+    //        (initial_state, query_string)
+    //    }
 
-        (initial_state, query_string)
+    fn generate_string_query(initial_query: &PgQuery<'a>, since: Utc) -> String {
+        String::from(format!(
+            "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
+            initial_query.query, since,
+        ))
     }
 }
 
 impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
-    fn aggregate<'b, E, T, A>(
-        &self,
-        query_args: A,
-        since: Option<CacheResult<T>>,
-    ) -> BoxedFuture<'b, T, String>
+    fn read<'b, E>(&self, query: PgQuery<'b>, since: Utc) -> BoxedFuture<'b, Vec<E>, String>
     where
-        E: Events,
-        T: Aggregator<E, A, PgQuery<'a>> + Default + Send + 'b,
-        A: Clone + Send + 'b,
+        E: Events + Send + 'b,
     {
         let conn = self.pool.get();
-        Box::from(FutOk(()).and_then(|_| {
+        Box::from(NewFuture(|| {
             let pool = conn.expect("Could not connect to the pool (aggregate)");
 
-            let q = T::query(query_args);
-            let (initial_state, query_string) = Self::generate_query(&q, since);
+            let query_string = Self::generate_string_query(&query, since);
             let trans = pool
                 .transaction()
                 .expect("Unable to initialise transaction");
@@ -79,8 +76,8 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                 .expect("Unable to prepare transaction");
             let mut params: Vec<&ToSql> = Vec::new();
 
-            for (i, _arg) in q.args.iter().enumerate() {
-                params.push(&*q.args[i]);
+            for (i, _arg) in query.args.iter().enumerate() {
+                params.push(&*query.args[i]);
             }
 
             let results = stmt
@@ -100,10 +97,11 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                     let evt: E = from_value(thing).expect("Could not decode row");
 
                     evt
-                }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
-                .expect("Fold");
+                }).collect()
+                .expect("ain't no collec");
 
             trans.finish().expect("Could not finish transaction");
+
             FutOk(results)
         }))
     }
@@ -113,7 +111,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         event: &'b Event<ED>,
     ) -> BoxedFuture<'b, (), String> {
         let conn = self.pool.clone();
-        Box::from(FutOk(()).and_then(move |_| {
+        Box::from(NewFuture(move || {
             let res = conn
                 .get()
                 .expect("Could not connect to the pool (save)")
@@ -142,10 +140,12 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         initial_future;
 
         let conn = self.pool.clone();
-        Box::from(FutOk(()).and_then(|_| {
-            let rows = conn
+        Box::from(
+            FutOk(()).and_then(
+                |_| {
+                    let rows = conn
                 .get()
-                .expect("Could not connect to the pooll (last_event)")
+                .expect("Could not connect to the pool (last_event)")
                 .query(
                     r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
                     "#,
@@ -154,19 +154,20 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                         &ED::event_type()
                     ],
                     ).expect("Responsen't");
-            if rows.len() == 1 {
-                let row = rows.get(0);
-                let id: Uuid = row.get("id");
-                let data_json: JsonValue = row.get("data");
-                let context_json: JsonValue = row.get("context");
+                    if rows.len() == 1 {
+                        let row = rows.get(0);
+                        let id: Uuid = row.get("id");
+                        let data_json: JsonValue = row.get("data");
+                        let context_json: JsonValue = row.get("context");
 
-                let data: ED = from_value(data_json).unwrap();
-                let context: EventContext = from_value(context_json).unwrap();
-                FutOk(Some(Event {id, data, context} ))
-            } else {
-                FutOk(None)
-            }
-        }))
+                        let data: ED = from_value(data_json).unwrap();
+                        let context: EventContext = from_value(context_json).unwrap();
+                        FutOk(Some(Event { id, data, context }))
+                    } else {
+                        FutOk(None)
+                    }
+                },
+        ))
     }
 }
 
