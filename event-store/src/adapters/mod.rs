@@ -24,18 +24,20 @@ use StoreQuery;
 /// Storage backend
 pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
     /// Read a list of events matching a query
-    fn aggregate<E, T, A>(
+    fn aggregate<'b, E, T, A>(
         &self,
         query_args: A,
         since: Option<(T, DateTime<Utc>)>,
-    ) -> Result<T, String>
+    ) -> BoxedFuture<'b, T, String>
     where
         E: Events,
-        T: Aggregator<E, A, Q> + Default,
-        A: Clone;
+        T: Aggregator<E, A, Q> + Default + Send + 'b,
+        A: Clone + Send + 'b;
 
     /// Save an event to the store
-    fn save<ED: EventData>(&self, event: &Event<ED>) -> Result<(), String>;
+    fn save<'b, ED>(&self, event: &'b Event<ED>) -> BoxedFuture<'b, (), String>
+    where
+        ED: EventData + Send + Sync + 'b;
 
     /// Returns the last event of the type ED
     fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
