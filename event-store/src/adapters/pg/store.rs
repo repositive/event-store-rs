@@ -7,7 +7,9 @@ use futures::stream::{empty, Stream};
 // use postgres::error::DUPLICATE_COLUMN;
 use bb8::Pool;
 use bb8_postgres::tokio_postgres::rows::Row as PgRow;
+use bb8_postgres::tokio_postgres::types::ToSql;
 use bb8_postgres::PostgresConnectionManager;
+
 use futures_state_stream::StateStream;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use utils::{BoxedFuture, BoxedStream};
@@ -16,6 +18,7 @@ use uuid::Uuid;
 
 use Event;
 // use EventContext;
+use super::PgQuery;
 use super::StoreQuery;
 use EventContext;
 use EventData;
@@ -33,19 +36,22 @@ impl<'a> PgStoreAdapter {
     }
 }
 
-impl StoreAdapter for PgStoreAdapter {
-    fn read<'a, E: Events + 'a, A, Q: StoreQuery<'a, A>, H: Fn(E) -> () + 'a>(
+impl<'pg> StoreAdapter<'pg, PgQuery<'pg>> for PgStoreAdapter {
+    fn read<'a, E, H>(
         &self,
-        query: Q,
+        query: PgQuery<'pg>,
         since: Utc,
         handler: H,
-    ) -> BoxedFuture<'a, (), String> {
+    ) -> BoxedFuture<'a, (), String>
+    where
+        E: Events,
+        H: Fn(E) -> () + 'a,
+    {
         // Somehow this is meant to turn args: A -> A stream of events.
         //  Get a stream from the db
         //  map stream of records to stream of events
         //  return that mapped stream
         //  also handle errors
-
         let task = self.pool.run(|connection| {
             connection
                 .prepare("SELECT 1")

@@ -21,12 +21,11 @@ use Event;
 use Events;
 
 /// Storage backend
-pub trait StoreAdapter {
+pub trait StoreAdapter<'sa, Q: StoreQuery<'sa>> {
     /// Reads a list of events from the db
-    fn read<'a, E, A, Q, H>(&self, query: Q, since: Utc, handler: H) -> BoxedFuture<'a, (), String>
+    fn read<'a, E, H>(&self, query: Q, since: Utc, handler: H) -> BoxedFuture<'a, (), String>
     where
         E: Events + 'a,
-        Q: StoreQuery<'a, A>,
         H: Fn(E) -> () + 'a;
     /// Save an event to the store
     fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> BoxedFuture<'a, (), String>;

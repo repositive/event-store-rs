@@ -51,8 +51,7 @@ impl Default for TestCounterEntity {
     }
 }
 
-type PgArguments = Vec<Box<ToSql + Send + Sync>>;
-impl<'a> Aggregator<'a, TestEvents, PgArguments, PgQuery<'a>> for TestCounterEntity {
+impl<'a> Aggregator<'a, TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     fn apply_event(acc: Self, event: &TestEvents) -> Self {
         let counter = match event {
             TestEvents::Inc(ref inc) => acc.counter + inc.data.by,
@@ -62,7 +61,10 @@ impl<'a> Aggregator<'a, TestEvents, PgArguments, PgQuery<'a>> for TestCounterEnt
         Self { counter, ..acc }
     }
 
-    fn query(args: PgArguments) -> PgQuery<'a> {
-        PgQuery::new("select * from events where data->>'ident' = $1", args)
+    fn query(field: String) -> PgQuery<'a> {
+        let mut params: Vec<Box<ToSql>> = Vec::new();
+
+        params.push(Box::new(field));
+        PgQuery::new("select * from events where data->>'ident' = $1", params)
     }
 }

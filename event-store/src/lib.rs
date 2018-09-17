@@ -69,7 +69,8 @@ type OptionalCache<T> = Option<CacheResult<T>>;
 
 impl<'a, SQ, S, C, EM> Store<'a, SQ, S, C, EM> for EventStore<S, C, EM>
 where
-    S: StoreAdapter + Send + Sync + Clone + 'static,
+    SQ: StoreQuery<'a> + 'a,
+    S: StoreAdapter<'a, SQ> + Send + Sync + Clone + 'static,
     C: CacheAdapter + Send + Sync + Clone + 'static,
     EM: EmitterAdapter + Send + Sync + Clone + 'static,
 {
@@ -83,12 +84,12 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, A, Q, T>(&self, query_args: A) -> BoxedFuture<'b, Option<T>, String>
+    fn aggregate<E, A, T>(&self, query_args: A) -> BoxedFuture<'a, Option<T>, String>
     where
         E: Events,
         A: Serialize,
-        Q: StoreQuery<'b, A>,
-        T: Aggregator<'b, E, A, Q>,
+        SQ: StoreQuery<'a> + 'a,
+        T: Aggregator<'a, E, A, SQ>,
     {
         let _q = T::query(query_args);
         let _result: BoxedFuture<OptionalCache<T>, String> = self.cache.get(String::from(""));

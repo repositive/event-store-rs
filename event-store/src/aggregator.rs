@@ -141,7 +141,7 @@ use store_query::StoreQuery;
 ///     }
 /// }
 /// ```
-pub trait Aggregator<'a, E: Events, A, Q: StoreQuery<'a, A>>:
+pub trait Aggregator<'a, E: Events, A, Q: StoreQuery<'a> + 'a>:
     Send + Sync + Clone + Debug + Default + Serialize + DeserializeOwned + PartialEq + 'a
 {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
