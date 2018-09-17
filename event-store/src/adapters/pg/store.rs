@@ -67,12 +67,16 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
     {
         let conn = self.pool.get();
         Box::from(FutOk(()).and_then(|_| {
-            let pool = conn.expect("pgpoop");
+            let pool = conn.expect("Could not connect to the pool (aggregate)");
 
             let q = T::query(query_args);
             let (initial_state, query_string) = Self::generate_query(&q, since);
-            let trans = pool.transaction().expect("t1");
-            let stmt = trans.prepare(&query_string).expect("tpep");
+            let trans = pool
+                .transaction()
+                .expect("Unable to initialise transaction");
+            let stmt = trans
+                .prepare(&query_string)
+                .expect("Unable to prepare transaction");
             let mut params: Vec<&ToSql> = Vec::new();
 
             for (i, _arg) in q.args.iter().enumerate() {
@@ -99,7 +103,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                 }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
                 .expect("Fold");
 
-            trans.finish().expect("Tranny finished");
+            trans.finish().expect("Could not finish transaction");
             FutOk(results)
         }))
     }
@@ -112,7 +116,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         Box::from(FutOk(()).and_then(move |_| {
             let res = conn
                 .get()
-                .expect("pool'nt")
+                .expect("Could not connect to the pool (save)")
                 .execute(
                     r#"INSERT INTO events (id, data, context)
                     VALUES ($1, $2, $3)"#,
@@ -141,7 +145,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         Box::from(FutOk(()).and_then(|_| {
             let rows = conn
                 .get()
-                .expect("other pool'nt")
+                .expect("Could not connect to the pooll (last_event)")
                 .query(
                     r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
                     "#,
