@@ -1,12 +1,12 @@
 //! Test helpers. Do not use in application code.
 
 use adapters::PgQuery;
+use bb8_postgres::tokio_postgres::types::ToSql;
 use prelude::*;
-use r2d2_postgres::postgres::types::ToSql;
 use Event;
 
 /// Test event
-#[derive(EventData, Debug)]
+#[derive(Debug, Clone, EventData)]
 #[event_store(namespace = "some_namespace")]
 pub struct TestIncrementEvent {
     /// Increment by this much
@@ -17,7 +17,7 @@ pub struct TestIncrementEvent {
 }
 
 /// Test event
-#[derive(EventData, Debug)]
+#[derive(Debug, Clone, EventData)]
 #[event_store(namespace = "some_namespace")]
 pub struct TestDecrementEvent {
     /// Decrement by this much
@@ -51,7 +51,7 @@ impl Default for TestCounterEntity {
     }
 }
 
-impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
+impl<'a> Aggregator<'a, TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     fn apply_event(acc: Self, event: &TestEvents) -> Self {
         let counter = match event {
             TestEvents::Inc(ref inc) => acc.counter + inc.data.by,
@@ -62,10 +62,9 @@ impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
     }
 
     fn query(field: String) -> PgQuery<'a> {
-        let mut params: Vec<Box<ToSql + Send + Sync>> = Vec::new();
+        let mut params: Vec<Box<ToSql>> = Vec::new();
 
         params.push(Box::new(field));
-
         PgQuery::new("select * from events where data->>'ident' = $1", params)
     }
 }

@@ -15,44 +15,42 @@ use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
+use store_query::StoreQuery;
 use utils::BoxedFuture;
-use Aggregator;
 use Event;
 use Events;
-use StoreQuery;
 
 /// Storage backend
-pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
-    /// Read a list of events matching a query
-    fn aggregate<E, T, A>(
-        &self,
-        query_args: A,
-        since: Option<(T, DateTime<Utc>)>,
-    ) -> Result<T, String>
+pub trait StoreAdapter<'sa, Q: StoreQuery<'sa>> {
+    /// Reads a list of events from the db
+    fn read<'a, E, H>(&self, query: Q, since: Utc, handler: H) -> BoxedFuture<'a, (), String>
     where
-        E: Events,
-        T: Aggregator<E, A, Q> + Default,
-        A: Clone;
-
+        E: Events + 'a,
+        H: Fn(E) -> () + 'a;
     /// Save an event to the store
-    fn save<ED: EventData>(&self, event: &Event<ED>) -> Result<(), String>;
+    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> BoxedFuture<'a, (), String>;
 
     /// Returns the last event of the type ED
-    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
+    fn last_event<'a, ED: EventData + Send + 'a>(
+        &self,
+    ) -> BoxedFuture<'a, Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter<K>: Send + Sync + Clone + 'static {
+pub trait CacheAdapter {
     /// Insert an item into the cache
-    fn insert<V>(&self, key: &K, value: V)
+    fn insert<V>(&self, key: String, value: V) -> BoxedFuture<(), String>
     where
         V: Serialize;
 
     /// Retrieve an item from the cache
-    fn get<T>(&self, key: &K) -> Option<CacheResult<T>>
+    fn get<'a, T: Sync + Send + DeserializeOwned + 'a>(
+        &self,
+        key: String,
+    ) -> BoxedFuture<'a, Option<CacheResult<T>>, String>
     where
         T: DeserializeOwned;
 }
@@ -60,9 +58,9 @@ pub trait CacheAdapter<K>: Send + Sync + Clone + 'static {
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter: Send + Sync + Clone + 'static {
+pub trait EmitterAdapter {
     /// Emit an event
-    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
+    fn emit<'a, E: EventData>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error>;
 
     /// Subscribe to an event
     fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>

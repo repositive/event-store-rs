@@ -146,7 +146,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
     fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>
     where
         ED: EventData + 'a,
-        H: Fn(&Event<ED>) -> () + Send + 'static,
+        H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
     {
         Box::new(prepare_subscription(
             self.exchange.clone(),

@@ -1,28 +1,30 @@
 use adapters::{EmitterAdapter, StoreAdapter};
 use aggregator::Aggregator;
-use event::Event;
-use event_store_derive_internals::{EventData, Events};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use store_query::StoreQuery;
 use utils::BoxedFuture;
+use Event;
+use EventData;
+use Events;
 
 /// Store trait
 pub trait Store<
     'a,
-    Q: StoreQuery + Send + Sync,
-    S: StoreAdapter<Q> + Send + Sync,
+    SQ: StoreQuery<'a> + 'a,
+    S: StoreAdapter<'a, SQ> + Send + Sync,
     C,
     EM: EmitterAdapter + Send + Sync,
->: Send + Sync + 'static
+>
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&self, query: A) -> BoxedFuture<'b, T, String>
+    fn aggregate<'b, E, A, T>(&self, query: A) -> BoxedFuture<'a, Option<T>, String>
     where
         E: Events,
-        T: Aggregator<E, A, Q> + Send + Serialize + for<'de> Deserialize<'de> + PartialEq + 'b,
+        A: Serialize,
+        T: Aggregator<'a, E, A, SQ>,
         A: Clone;
 
     /// Save an event to the store with optional context

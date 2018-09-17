@@ -1,145 +1,152 @@
 //! Store adapter backed by Postgres
 
-use super::Connection;
-use adapters::pg::PgQuery;
-use adapters::{CacheResult, StoreAdapter};
-use fallible_iterator::FallibleIterator;
-use futures::future::ok as FutOk;
-use postgres::error::DUPLICATE_COLUMN;
-use postgres::types::ToSql;
+use adapters::StoreAdapter;
+use chrono::Utc;
+use futures::future::{ok as FutOk, result as FutResult, Future};
+use futures::stream::{empty, Stream};
+// use postgres::error::DUPLICATE_COLUMN;
+use bb8::Pool;
+use bb8_postgres::tokio_postgres::rows::Row as PgRow;
+use bb8_postgres::tokio_postgres::types::ToSql;
+use bb8_postgres::PostgresConnectionManager;
+
+use futures_state_stream::StateStream;
 use serde_json::{from_value, to_value, Value as JsonValue};
-use utils::BoxedFuture;
+use utils::{BoxedFuture, BoxedStream};
+
 use uuid::Uuid;
-use Aggregator;
+
 use Event;
+// use EventContext;
+use super::PgQuery;
+use super::StoreQuery;
 use EventContext;
 use EventData;
 use Events;
 
 /// Postgres store adapter
-#[derive(Clone)]
 pub struct PgStoreAdapter {
-    conn: Connection,
+    pool: Pool<PostgresConnectionManager>,
 }
 
 impl<'a> PgStoreAdapter {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection) -> Self {
-        Self { conn }
-    }
-
-    fn generate_query<E, T, A>(
-        query_string: &PgQuery<'a>,
-        since: Option<CacheResult<T>>,
-    ) -> (T, String)
-    where
-        E: Events,
-        T: Aggregator<E, A, PgQuery<'a>> + Default,
-        A: Clone,
-    {
-        let (initial_state, query_string) = if let Some((existing, time)) = since {
-            (existing, format!(
-                "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
-                query_string.query, time
-            ))
-        } else {
-            (T::default(), String::from(query_string.query))
-        };
-
-        (initial_state, query_string)
+    pub fn new(pool: Pool<PostgresConnectionManager>) -> Self {
+        Self { pool }
     }
 }
 
-impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
-    fn aggregate<E, T, A>(&self, query_args: A, since: Option<CacheResult<T>>) -> Result<T, String>
+impl<'pg> StoreAdapter<'pg, PgQuery<'pg>> for PgStoreAdapter {
+    fn read<'a, E, H>(
+        &self,
+        query: PgQuery<'pg>,
+        since: Utc,
+        handler: H,
+    ) -> BoxedFuture<'a, (), String>
     where
         E: Events,
-        T: Aggregator<E, A, PgQuery<'a>> + Default,
-        A: Clone,
+        H: Fn(E) -> () + 'a,
     {
-        let q = T::query(query_args);
-        let (initial_state, query_string) = Self::generate_query(&q, since);
+        // Somehow this is meant to turn args: A -> A stream of events.
+        //  Get a stream from the db
+        //  map stream of records to stream of events
+        //  return that mapped stream
+        //  also handle errors
+        let task = self.pool.run(move |connection| {
+            // let select = format!(
+            //     r#"
+            //         SELECT * FROM {query} AS events
+            //         WHERE events.context ->>'time' > {since}
+            //         ORDER BY events.context->>'time' ASC
+            //     "#,
+            //     query = query.query,
+            //     since = since
+            // );
+            connection
+                .prepare("")
+                .and_then(|(select, connection)| {
+                    let stream = connection.query(&select, &[]).map(|row| {
+                        let id: Uuid = row.get("id");
+                        let data_json: JsonValue = row.get("data");
+                        let context_json: JsonValue = row.get("context");
 
-        let conn = self.conn.get().expect("Could not get PG connection");
+                        let thing = json!({
+                                    "id": id,
+                                    "data": data_json,
+                                    "context": context_json,
+                                });
 
-        let trans = conn.transaction().expect("Tranny");
-        let stmt = trans.prepare(&query_string).expect("Prep");
+                        let evt: E = from_value(thing).expect("Could not decode row");
 
-        let mut params: Vec<&ToSql> = Vec::new();
+                        evt
+                    });
 
-        for (i, _arg) in q.args.iter().enumerate() {
-            params.push(&*q.args[i]);
-        }
+                    stream.for_each(handler)
+                }).map(|connection| ((), connection))
+        });
 
-        let results = stmt
-            .lazy_query(&trans, &params, 1000)
-            .unwrap()
-            .map(|row| {
-                let id: Uuid = row.get("id");
-                let data_json: JsonValue = row.get("data");
-                let context_json: JsonValue = row.get("context");
-
-                let thing = json!({
-                    "id": id,
-                    "data": data_json,
-                    "context": context_json,
-                });
-
-                let evt: E = from_value(thing).expect("Could not decode row");
-
-                evt
-            }).fold(initial_state, |acc, event| T::apply_event(acc, &event))
-            .expect("Fold");
-
-        trans.finish().expect("Tranny finished");
-
-        Ok(results)
+        Box::new(task.map_err(|_| String::from("Internal tokio error")))
     }
 
-    fn save<ED: EventData>(&self, event: &Event<ED>) -> Result<(), String> {
-        self.conn
-            .get()
-            .expect("Could not get PG connection")
-            .execute(
-                r#"INSERT INTO events (id, data, context)
-                VALUES ($1, $2, $3)"#,
-                &[
-                    &event.id,
-                    &to_value(&event.data).expect("Item to value"),
-                    &to_value(&event.context).expect("Context to value"),
-                ],
-            ).map(|_| ())
-            .map_err(|err| match err.code() {
-                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
-                _ => "UNEXPECTED".into(),
-            })
+    //fn save<ED: EventData>(&self, event: &Event<ED>) -> Arc<Future<Item = (), Error = String>> {
+    fn save<'a, ED: EventData + 'a>(&self, event: Event<ED>) -> BoxedFuture<'a, (), String> {
+        // Logic for this fn
+        let result = self
+            .pool
+            .run(move |connection| {
+                connection
+                    .prepare("INSERT INTO events (id, data, context) VALUES ($1, $2, $3)")
+                    .and_then(move |(insert, connection)| {
+                        connection
+                            .query(
+                                &insert,
+                                &[
+                                    &event.id,
+                                    &to_value(&event.data).expect("Item to value"),
+                                    &to_value(&event.context).expect("Context to value"),
+                                ],
+                            ).for_each(|_| ())
+                    }).map(|connection| ((), connection))
+            }).map(|_| ())
+            .map_err(|_| String::from("Failed to insert event"));
+        Box::new(result)
     }
 
-    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
-        let rows = self.conn
-            .get()
-            .expect("Could not get PG connection")
-            .query(
-                r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
-                "#,
-                &[
-                    &ED::event_namespace(),
-                    &ED::event_type()
-                ],
-                ).expect("Response");
-        if rows.len() == 1 {
-            let row = rows.get(0);
+    fn last_event<'a, ED: EventData + 'a>(&self) -> BoxedFuture<'a, Option<Event<ED>>, String> {
+        // Utility functions for this fn
+        fn extract_one_event<ED: EventData>(row: &PgRow) -> Event<ED> {
             let id: Uuid = row.get("id");
-            let data_json: JsonValue = row.get("data");
-            let context_json: JsonValue = row.get("context");
+            let data_json = row.get("data");
+            let context_json = row.get("context");
 
             let data: ED = from_value(data_json).unwrap();
             let context: EventContext = from_value(context_json).unwrap();
 
-            Box::new(FutOk(Some(Event { id, data, context })))
-        } else {
-            Box::new(FutOk(None))
+            Event { id, data, context }
         }
+
+        let result = self.pool
+            // XXX: This fn is defined at https://github.com/khuey/bb8/blob/master/src/lib.rs#L706
+            // approach with caution!
+            .run(|connection| {
+                connection
+                    .prepare("SELECT * FROM events WHERE data->>'event_namespace' = $1 AND data->>'event_type' = $2 ORDER BY data->>'time' desc limit 1")
+                    .and_then(|(select, conn)| {
+                        let result = conn
+                            .query(
+                                &select,
+                                &[
+                                    &ED::event_namespace(),
+                                    &ED::event_type(),
+                                ],
+                            )
+                            .collect().map(|(vec, connection)| (vec.first().map(extract_one_event), connection));
+                        result
+                    })
+            // TODO: properly handle errors
+            })
+            .map_err(|_| String::from("Error"));
+        Box::new(result)
     }
 }
 
