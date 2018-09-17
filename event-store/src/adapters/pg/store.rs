@@ -52,9 +52,18 @@ impl<'pg> StoreAdapter<'pg, PgQuery<'pg>> for PgStoreAdapter {
         //  map stream of records to stream of events
         //  return that mapped stream
         //  also handle errors
-        let task = self.pool.run(|connection| {
+        let task = self.pool.run(move |connection| {
+            // let select = format!(
+            //     r#"
+            //         SELECT * FROM {query} AS events
+            //         WHERE events.context ->>'time' > {since}
+            //         ORDER BY events.context->>'time' ASC
+            //     "#,
+            //     query = query.query,
+            //     since = since
+            // );
             connection
-                .prepare("SELECT 1")
+                .prepare("")
                 .and_then(|(select, connection)| {
                     let stream = connection.query(&select, &[]).map(|row| {
                         let id: Uuid = row.get("id");
