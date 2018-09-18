@@ -74,9 +74,9 @@ use store_query::StoreQuery;
 /// }
 ///
 /// struct DummyQuery;
+/// // Read docs on the StoreQuery trait to understand the importance of generating a unique_id
 /// impl StoreQuery for DummyQuery {
 ///   fn unique_id(&self) -> String {
-///     // Please read docs about unique_id
 ///     String::new()
 ///   }
 /// }
