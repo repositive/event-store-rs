@@ -4,7 +4,7 @@ use adapters::pg::PgQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
-use futures::future::{err as FutErr, lazy as NewFuture, ok as FutOk, Future};
+use futures::future::{err as FutErr, lazy as FutLazy, ok as FutOk, Future};
 use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
 use r2d2::Pool;
@@ -55,7 +55,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         E: Events + Send + 'b,
     {
         let conn = self.pool.get();
-        Box::from(NewFuture(move || {
+        Box::from(FutLazy(move || {
             let pool = conn.expect("Could not connect to the pool (aggregate)");
 
             let query_string = Self::generate_query(&query, since);
@@ -102,7 +102,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         event: &'b Event<ED>,
     ) -> BoxedFuture<'b, (), String> {
         let conn = self.pool.clone();
-        Box::from(NewFuture(move || {
+        Box::from(FutLazy(move || {
             let res = conn
                 .get()
                 .expect("Could not connect to the pool (save)")
