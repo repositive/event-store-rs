@@ -78,9 +78,9 @@ struct DummyEvent {}
 
 impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
 where
-    Q: StoreQuery + Send + Sync + 'static,
-    S: StoreAdapter<Q> + Send + Sync + Clone + 'static,
-    C: CacheAdapter<Q> + Send + Sync + Clone + 'a,
+    Q: StoreQuery + Send + Sync + 'a,
+    S: StoreAdapter<Q> + Send + Sync + Clone + 'a,
+    C: CacheAdapter + Send + Sync + Clone + 'a,
     EM: EmitterAdapter + Send + Sync + Clone + 'a,
 {
     /// Create a new event store
@@ -96,36 +96,42 @@ where
     fn aggregate<'b, E, T, A>(&'b self, query_args: A) -> BoxedFuture<'b, T, String>
     where
         E: Events + Send + Sync + 'b,
-        T: Aggregator<E, A, Q> + Send + Serialize + for<'de> Deserialize<'de> + PartialEq + 'b,
+        Q: 'b,
+        T: Aggregator<E, A, Q>
+            + Send
+            + Sync
+            + Serialize
+            + for<'de> Deserialize<'de>
+            + PartialEq
+            + 'b,
         A: Clone + 'b,
     {
         let store_query = T::query(query_args.clone());
-        let cache_key = T::query(query_args.clone());
-        let initial_state: Option<CacheResult<T>> = self.cache.get(&cache_key);
-        let since: Option<DateTime<Utc>> = initial_state.clone().map(|(_, since)| since);
-        let aggreagte_root = initial_state.clone().map_or(T::default(), |(root, _)| root);
+        let cache_id = store_query.unique_id();
 
-        Box::from(
-            self.store
-                .read(store_query, since)
-                .map(|evlist| {
-                    evlist
-                        .iter()
-                        .fold(aggreagte_root, |acc, ev| T::apply_event(acc, &ev))
-                }).map(move |agg: T| {
-                    if let Some((last_cache, _)) = initial_state {
-                        // Only update cache if aggregation result has changed
-                        if agg != last_cache {
-                            self.cache.insert(&cache_key, agg.clone());
-                        }
-                    } else {
-                        // If there is no existing cache item, insert one
-                        self.cache.insert(&cache_key, agg.clone());
-                    }
-
-                    agg
-                }),
-        )
+        Box::new(self.cache.get(cache_id.clone()).and_then(
+            move |cache_result: Option<CacheResult<T>>| {
+                let initial_state = cache_result
+                    .clone()
+                    .map_or(T::default(), |(state, _)| state);
+                let since = cache_result.clone().map(|(_, since)| since);
+                self.store
+                    .read(store_query, since)
+                    .and_then(move |event_list| {
+                        let agg = event_list
+                            .iter()
+                            .fold(initial_state, |acc, event| T::apply_event(acc, &event));
+                        let save_cache_task = match cache_result {
+                            Some((ref cache_state, _)) if &agg != cache_state => {
+                                self.cache.set(cache_id, agg.clone())
+                            }
+                            None => self.cache.set(cache_id, agg.clone()),
+                            _ => Box::new(FutOk(())),
+                        };
+                        save_cache_task.and_then(|_| FutOk(agg))
+                    })
+            },
+        ))
     }
 
     /// Save an event to the store with optional context
