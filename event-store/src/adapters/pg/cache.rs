@@ -46,31 +46,33 @@ impl CacheAdapter for PgCacheAdapter {
     where
         T: DeserializeOwned + Send + 'a,
     {
-        let rows = self
-            .conn
-            .get()
-            .expect("Could not get PG connection")
-            .query(
-                "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
-                &[&key],
-            ).expect("Retrieve cache");
+        let conn = self.conn.clone();
+        Box::new(FutLazy(move || {
+            let rows = conn
+                .get()
+                .expect("Could not get PG connection")
+                .query(
+                    "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
+                    &[&key],
+                ).expect("Retrieve cache");
 
-        // `rows.get()` panics if index is out of bounds, hence this check
-        if rows.len() != 1 {
-            Box::new(FutOk(None))
-        } else {
-            let row = rows.get(0);
+            // `rows.get()` panics if index is out of bounds, hence this check
+            if rows.len() != 1 {
+                Box::new(FutOk(None))
+            } else {
+                let row = rows.get(0);
 
-            let time: NaiveDateTime = row.get(1);
+                let time: NaiveDateTime = row.get(1);
 
-            let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
+                let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
 
-            Box::new(FutOk(Some((
-                from_value(row.get(0))
-                    .map(|decoded: T| decoded)
-                    .expect("Cant decode the cached entity"),
-                utc,
-            ))))
-        }
+                Box::new(FutOk(Some((
+                    from_value(row.get(0))
+                        .map(|decoded: T| decoded)
+                        .expect("Cant decode the cached entity"),
+                    utc,
+                ))))
+            }
+        }))
     }
 }
