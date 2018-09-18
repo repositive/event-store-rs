@@ -27,11 +27,10 @@ pub struct PgQuery<'a> {
 impl<'a> StoreQuery for PgQuery<'a> {
     fn unique_id(&self) -> String {
         let hash = Sha256::digest(format!("{:?}:[{}]", self.args, self.query).as_bytes());
-        let result = hash.iter().fold(String::new(), |mut acc, hex| {
+        hash.iter().fold(String::new(), |mut acc, hex| {
             acc.push_str(&format!("{:X}", hex));
             acc
-        });
-        result
+        })
     }
 }
 
