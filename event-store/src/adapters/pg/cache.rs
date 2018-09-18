@@ -66,7 +66,9 @@ impl CacheAdapter for PgCacheAdapter {
             let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
 
             Box::new(FutOk(Some((
-                from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
+                from_value(row.get(0))
+                    .map(|decoded: T| decoded)
+                    .expect("Cant decode the cached entity"),
                 utc,
             ))))
         }
