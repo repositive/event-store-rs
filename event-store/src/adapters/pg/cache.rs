@@ -58,7 +58,7 @@ impl CacheAdapter for PgCacheAdapter {
 
             // `rows.get()` panics if index is out of bounds, hence this check
             if rows.len() != 1 {
-                Box::new(FutOk(None))
+                FutOk(None)
             } else {
                 let row = rows.get(0);
 
@@ -66,12 +66,12 @@ impl CacheAdapter for PgCacheAdapter {
 
                 let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
 
-                Box::new(FutOk(Some((
+                FutOk(Some((
                     from_value(row.get(0))
                         .map(|decoded: T| decoded)
                         .expect("Cant decode the cached entity"),
                     utc,
-                ))))
+                )))
             }
         }))
     }
