@@ -78,10 +78,10 @@ struct DummyEvent {}
 
 impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
 where
-    Q: StoreQuery + Send + Sync,
-    S: StoreAdapter<Q> + Send + Sync + Clone + 'static,
-    C: CacheAdapter<Q> + Send + Sync + Clone + 'static,
-    EM: EmitterAdapter + Send + Sync + Clone + 'static,
+    Q: StoreQuery + Send + Sync + 'a,
+    S: StoreAdapter<Q> + Send + Sync + Clone + 'a,
+    C: CacheAdapter + Send + Sync + Clone + 'a,
+    EM: EmitterAdapter + Send + Sync + Clone + 'a,
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self {
@@ -93,32 +93,36 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&self, query_args: A) -> BoxedFuture<'b, T, String>
+    fn aggregate<'b, E, T, A>(&'b self, query_args: A) -> BoxedFuture<'b, T, String>
     where
         E: Events,
         T: Aggregator<E, A, Q> + Send + Serialize + for<'de> Deserialize<'de> + PartialEq + 'b,
-        A: Clone,
+        A: Clone + Send + 'b,
     {
         let q = T::query(query_args.clone());
-        let initial_state: Option<CacheResult<T>> = self.cache.get(&q);
+        let id = q.unique_id();
+        let cache: BoxedFuture<'b, Option<CacheResult<T>>, String> = self.cache.get(id.clone());
 
-        Box::new(FutResult(
-            self.store
-                .aggregate(query_args, initial_state.clone())
-                .map(|agg| {
-                    if let Some((last_cache, _)) = initial_state {
-                        // Only update cache if aggregation result has changed
-                        if agg != last_cache {
-                            self.cache.insert(&q, agg.clone());
+        let task = cache.and_then(move |initial_state| {
+            FutResult(
+                self.store
+                    .aggregate(query_args, initial_state.clone())
+                    .map(|agg| {
+                        if let Some((last_cache, _)) = initial_state {
+                            // Only update cache if aggregation result has changed
+                            if agg != last_cache {
+                                self.cache.set(id, agg.clone());
+                            }
+                        } else {
+                            // If there is no existing cache item, insert one
+                            self.cache.set(id, agg.clone());
                         }
-                    } else {
-                        // If there is no existing cache item, insert one
-                        self.cache.insert(&q, agg.clone());
-                    }
 
-                    agg
-                }),
-        ))
+                        agg
+                    }),
+            )
+        });
+        Box::new(task)
     }
 
     /// Save an event to the store with optional context

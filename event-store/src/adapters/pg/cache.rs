@@ -1,11 +1,12 @@
 //! Cache adapter backed by postgres
 
 use super::Connection;
-use adapters::{pg::PgQuery, CacheAdapter, CacheResult};
+use adapters::{CacheAdapter, CacheResult};
 use chrono::prelude::*;
-use serde::{Deserialize, Serialize};
+use futures::future::{lazy as FutLazy, ok as FutOk};
+use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{from_value, to_value};
-use sha2::{Digest, Sha256};
+use utils::BoxedFuture;
 
 /// Postgres cache adapter
 #[derive(Clone)]
@@ -20,43 +21,43 @@ impl PgCacheAdapter {
     }
 }
 
-impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
-    fn insert<V>(&self, key: &PgQuery, value: V)
-    where
-        V: Serialize,
-    {
-        let args_hash = Sha256::digest(format!("{:?}:[{}]", key.args, key.query).as_bytes());
-
-        self.conn
-            .get()
-            .expect("Could not get PG connection")
-            .execute(
-                r#"INSERT INTO aggregate_cache (id, data, time)
+impl CacheAdapter for PgCacheAdapter {
+    fn set<'a, V: Serialize + Send + 'a>(
+        &self,
+        key: String,
+        value: V,
+    ) -> BoxedFuture<'a, (), String> {
+        let conn = self.conn.clone();
+        Box::new(FutLazy(move || {
+            conn.get()
+                .expect("Could not get PG connection")
+                .execute(
+                    r#"INSERT INTO aggregate_cache (id, data, time)
                 VALUES ($1, $2, NOW())
                 ON CONFLICT (id)
                 DO UPDATE SET data = EXCLUDED.data, time = now() RETURNING data"#,
-                &[&args_hash.as_slice(), &to_value(value).expect("To value")],
-            ).expect("Cache");
+                    &[&key, &to_value(value).expect("To value")],
+                ).expect("Cache");
+            FutOk(())
+        }))
     }
 
-    fn get<T>(&self, key: &PgQuery) -> Option<CacheResult<T>>
+    fn get<'a, T>(&self, key: String) -> BoxedFuture<'a, Option<CacheResult<T>>, String>
     where
-        T: for<'de> Deserialize<'de>,
+        T: DeserializeOwned + Send + 'a,
     {
-        let args_hash = Sha256::digest(format!("{:?}:[{}]", key.args, key.query).as_bytes());
-
         let rows = self
             .conn
             .get()
             .expect("Could not get PG connection")
             .query(
                 "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
-                &[&args_hash.as_slice()],
+                &[&key],
             ).expect("Ret");
 
         // `rows.get()` panics if index is out of bounds, hence this check
         if rows.len() != 1 {
-            None
+            Box::new(FutOk(None))
         } else {
             let row = rows.get(0);
 
@@ -64,10 +65,10 @@ impl<'a> CacheAdapter<PgQuery<'a>> for PgCacheAdapter {
 
             let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
 
-            Some((
+            Box::new(FutOk(Some((
                 from_value(row.get(0)).map(|decoded: T| decoded).unwrap(),
                 utc,
-            ))
+            ))))
         }
     }
 }

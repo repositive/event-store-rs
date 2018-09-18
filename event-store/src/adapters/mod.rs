@@ -45,16 +45,16 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter<K>: Send + Sync + Clone + 'static {
+pub trait CacheAdapter {
     /// Insert an item into the cache
-    fn insert<V>(&self, key: &K, value: V)
+    fn set<'a, V>(&self, key: String, value: V) -> BoxedFuture<'a, (), String>
     where
-        V: Serialize;
+        V: Serialize + Send + 'a;
 
     /// Retrieve an item from the cache
-    fn get<T>(&self, key: &K) -> Option<CacheResult<T>>
+    fn get<'a, T>(&self, key: String) -> BoxedFuture<'a, Option<CacheResult<T>>, String>
     where
-        T: DeserializeOwned;
+        T: DeserializeOwned + Send + 'a;
 }
 
 /// Closure called when an incoming event must be handled

@@ -13,17 +13,17 @@ pub trait Store<
     S: StoreAdapter<Q> + Send + Sync,
     C,
     EM: EmitterAdapter + Send + Sync,
->: Send + Sync + 'static
+>: Send + Sync + 'a
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&self, query: A) -> BoxedFuture<'b, T, String>
+    fn aggregate<'b, E, T, A>(&'b self, query: A) -> BoxedFuture<'b, T, String>
     where
         E: Events,
         T: Aggregator<E, A, Q> + Send + Serialize + for<'de> Deserialize<'de> + PartialEq + 'b,
-        A: Clone;
+        A: Clone + Send + 'b;
 
     /// Save an event to the store with optional context
     fn save<ED: EventData + Send + Sync + 'static>(
