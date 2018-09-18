@@ -16,7 +16,6 @@ use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
 use utils::BoxedFuture;
-use Aggregator;
 use Event;
 use Events;
 use StoreQuery;

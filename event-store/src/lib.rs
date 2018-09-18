@@ -38,7 +38,7 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use futures::future::{ok as FutOk, result as FutResult, Future};
+use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;

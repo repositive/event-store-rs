@@ -1,19 +1,18 @@
 //! Store adapter backed by Postgres
 
 use adapters::pg::PgQuery;
-use adapters::{CacheResult, StoreAdapter};
+use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
-use futures::future::{err as FutErr, lazy as NewFuture, ok as FutOk, Future, FutureResult};
+use futures::future::{err as FutErr, lazy as NewFuture, ok as FutOk, Future};
 use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
-use r2d2;
 use r2d2::Pool;
-use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use r2d2_postgres::PostgresConnectionManager;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use utils::BoxedFuture;
 use uuid::Uuid;
-use Aggregator;
+
 use Event;
 use EventContext;
 use EventData;
@@ -22,7 +21,7 @@ use Events;
 /// Postgres store adapter
 #[derive(Clone)]
 pub struct PgStoreAdapter {
-    pool: r2d2::Pool<PostgresConnectionManager>,
+    pool: Pool<PostgresConnectionManager>,
 }
 
 impl<'a> PgStoreAdapter {
@@ -165,6 +164,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aggregator::Aggregator;
     use chrono::prelude::*;
     use testhelpers::*;
 
