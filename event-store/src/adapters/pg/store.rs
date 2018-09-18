@@ -50,24 +50,35 @@ impl<'a> PgStoreAdapter {
     //        (initial_state, query_string)
     //    }
 
-    fn generate_string_query(initial_query: &PgQuery<'a>, since: Utc) -> String {
-        String::from(format!(
+    fn generate_query(initial_query: &PgQuery<'a>, since: Option<DateTime<Utc>>) -> String {
+        if let Some(timestamp) = since {
+            String::from(format!(
             "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
-            initial_query.query, since,
+            initial_query.query, timestamp,
         ))
+        } else {
+            String::from(format!(
+                "SELECT * FROM ({}) AS events ORDER BY events.context->>'time' ASC",
+                initial_query.query
+            ))
+        }
     }
 }
 
 impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
-    fn read<'b, E>(&self, query: PgQuery<'b>, since: Utc) -> BoxedFuture<'b, Vec<E>, String>
+    fn read<'b, E>(
+        &self,
+        query: PgQuery<'b>,
+        since: Option<DateTime<Utc>>,
+    ) -> BoxedFuture<'b, Vec<E>, String>
     where
         E: Events + Send + 'b,
     {
         let conn = self.pool.get();
-        Box::from(NewFuture(|| {
+        Box::from(NewFuture(move || {
             let pool = conn.expect("Could not connect to the pool (aggregate)");
 
-            let query_string = Self::generate_string_query(&query, since);
+            let query_string = Self::generate_query(&query, since);
             let trans = pool
                 .transaction()
                 .expect("Unable to initialise transaction");
@@ -135,14 +146,13 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         }))
     }
 
-    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String> {
-        let initial_future = FutOk(());
-        initial_future;
-
+    fn last_event<'b, ED: EventData + Send + 'b>(
+        &self,
+    ) -> BoxedFuture<'b, Option<Event<ED>>, String> {
         let conn = self.pool.clone();
         Box::from(
             FutOk(()).and_then(
-                |_| {
+                move |_| {
                     let rows = conn
                 .get()
                 .expect("Could not connect to the pool (last_event)")

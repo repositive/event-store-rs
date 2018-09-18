@@ -25,7 +25,11 @@ use StoreQuery;
 pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
     /// Read a list of events matching a query
 
-    fn read<'b, E>(&self, query: Q, since: Utc) -> BoxedFuture<'b, Vec<E>, String>
+    fn read<'b, E>(
+        &self,
+        query: Q,
+        since: Option<DateTime<Utc>>,
+    ) -> BoxedFuture<'b, Vec<E>, String>
     where
         E: Events + Send + 'b,
         Q: 'b;
@@ -35,7 +39,9 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
         ED: EventData + Send + Sync + 'b;
 
     /// Returns the last event of the type ED
-    fn last_event<ED: EventData + Send + 'static>(&self) -> BoxedFuture<Option<Event<ED>>, String>;
+    fn last_event<'b, ED: EventData + Send + 'b>(
+        &self,
+    ) -> BoxedFuture<'b, Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search
