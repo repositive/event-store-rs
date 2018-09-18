@@ -9,7 +9,6 @@ use r2d2::Pool;
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::PostgresConnectionManager;
 use sha2::{Digest, Sha256};
-use std::str::from_utf8;
 
 use StoreQuery;
 
@@ -28,7 +27,11 @@ pub struct PgQuery<'a> {
 impl<'a> StoreQuery for PgQuery<'a> {
     fn unique_id(&self) -> String {
         let hash = Sha256::digest(format!("{:?}:[{}]", self.args, self.query).as_bytes());
-        String::from(from_utf8(hash.as_slice()).unwrap())
+        let result = hash.iter().fold(String::new(), |mut acc, hex| {
+            acc.push_str(&format!("{:X}", hex));
+            acc
+        });
+        result
     }
 }
 
@@ -36,5 +39,20 @@ impl<'a> PgQuery<'a> {
     /// Create a new query from a query string and arguments
     pub fn new(query: &'a str, args: Vec<Box<ToSql + Send + Sync>>) -> Self {
         Self { query, args }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn gets_unique_id() {
+        let pg = PgQuery::new("whatever", vec![]);
+        assert_eq!(
+            pg.unique_id(),
+            "5C91F3755337FAF226A3D3BB2C3B0EF1D1699C3B5CA6272D0858C78FFB244FB"
+        );
     }
 }
