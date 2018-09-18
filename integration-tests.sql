@@ -15,7 +15,7 @@ CREATE TABLE events (
 DROP TABLE aggregate_cache;
 
 CREATE TABLE aggregate_cache (
-    id bytea PRIMARY KEY,
+    id VARCHAR(63) PRIMARY KEY,
     -- id character varying(64) PRIMARY KEY,
     data jsonb NOT NULL,
     time timestamp without time zone DEFAULT now()
@@ -29,5 +29,3 @@ VALUES
 -- (E'{"type": "some_namespace.Other", "ident": "other", "foo": "bar"}',E'{"time": "2018-03-02T04:00:00+00"}'),
 -- (E'{"type": "some_namespace.Unknown"}',E'{"time": "2018-03-02T05:00:00+00"}')
 ;
-
-INSERT INTO "aggregate_cache"(id, data, time) VALUES (E'\\xDEADBEEF', E'{ "hello": "world" }', NOW());

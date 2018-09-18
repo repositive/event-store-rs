@@ -72,9 +72,14 @@ use store_query::StoreQuery;
 ///         }
 ///     }
 /// }
-/// #
-/// # struct DummyQuery;
-/// # impl StoreQuery for DummyQuery {}
+///
+/// struct DummyQuery;
+/// // Read docs on the StoreQuery trait to understand the importance of generating a unique_id
+/// impl StoreQuery for DummyQuery {
+///   fn unique_id(&self) -> String {
+///     String::new()
+///   }
+/// }
 ///
 /// impl Aggregator<UsersEvents, String, DummyQuery> for UserDetails {
 ///     fn apply_event(acc: Self, event: &UsersEvents) -> Self {
