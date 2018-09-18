@@ -8,6 +8,7 @@ use futures::future::{err as FutErr, lazy as NewFuture, ok as FutOk, Future, Fut
 use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
 use r2d2;
+use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use serde_json::{from_value, to_value, Value as JsonValue};
 use utils::BoxedFuture;
@@ -26,29 +27,9 @@ pub struct PgStoreAdapter {
 
 impl<'a> PgStoreAdapter {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: PostgresConnectionManager) -> Self {
-        Self {
-            pool: r2d2::Pool::new(conn).unwrap(),
-        }
+    pub fn new(conn: Pool<PostgresConnectionManager>) -> Self {
+        Self { pool: conn }
     }
-
-    //    fn generate_query<E, T, A>(query_string: &PgQuery<'a>, since: Utc) -> (T, String)
-    //    where
-    //        E: Events,
-    //        T: Aggregator<E, A, PgQuery<'a>> + Default,
-    //        A: Clone,
-    //    {
-    //        let (initial_state, query_string) = if let Some((existing, time)) = since {
-    //            (existing, format!(
-    //                "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
-    //                query_string.query, time
-    //            ))
-    //        } else {
-    //            (T::default(), String::from(query_string.query))
-    //        };
-    //
-    //        (initial_state, query_string)
-    //    }
 
     fn generate_query(initial_query: &PgQuery<'a>, since: Option<DateTime<Utc>>) -> String {
         if let Some(timestamp) = since {
@@ -192,12 +173,13 @@ mod tests {
         let q = TestCounterEntity::query("something".into());
         let since = None;
 
-        let (state, query_string): (TestCounterEntity, String) =
-            PgStoreAdapter::generate_query(&q, since);
+        let query_string: String = PgStoreAdapter::generate_query(&q, since);
 
-        let expected_query = "select * from events where data->>'ident' = $1";
-
-        assert_eq!(state, TestCounterEntity::default());
+        let base_query = "select * from events where data->>'ident' = $1";
+        let expected_query = format!(
+            "SELECT * FROM ({}) AS events ORDER BY events.context->>'time' ASC",
+            base_query
+        );
 
         assert_eq!(query_string, expected_query);
     }
@@ -205,18 +187,15 @@ mod tests {
     #[test]
     fn it_generates_a_different_query_when_there_is_a_cache() {
         let q = TestCounterEntity::query("something".into());
-        let since: Option<CacheResult<TestCounterEntity>> = Some((
-            TestCounterEntity::default(),
-            Utc.ymd(2018, 8, 27).and_hms(12, 43, 52),
-        ));
 
-        let (state, query_string) = PgStoreAdapter::generate_query(&q, since);
+        let since = Some(Utc.ymd(2018, 8, 27).and_hms(12, 43, 52));
+
+        let query_string = PgStoreAdapter::generate_query(&q, since);
 
         let base_query = "select * from events where data->>'ident' = $1";
         let generated_query = format!(
             "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
             base_query, "2018-08-27 12:43:52 UTC");
-        assert_eq!(state, TestCounterEntity::default()); // What does this end up being?
 
         assert_eq!(query_string, generated_query);
     }
