@@ -59,7 +59,7 @@ fn it_saves_events() {
     let event = Event::from_data(TestIncrementEvent {
         by: 123123,
         ident: ident.clone(),
-    };
+    });
 
     assert!(block_on_all(store.save(&event)).is_ok());
 }
@@ -75,12 +75,12 @@ fn it_uses_the_aggregate_cache() {
 
     let test_ev_1 = Event::from_data(TestIncrementEvent {
         by: 1,
-        ident: ident.into(),
+        ident: ident.clone(),
     });
 
     let test_ev_2 = Event::from_data(TestIncrementEvent {
         by: 2,
-        ident: ident.into(),
+        ident: ident.clone(),
     });
 
     assert!(block_on_all(store.save(&test_ev_1)).is_ok());
