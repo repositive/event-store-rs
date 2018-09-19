@@ -3,6 +3,7 @@
 use adapters::stub::StubQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
+use futures::future::ok as FutOk;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
 use utils::BoxedFuture;
@@ -26,22 +27,25 @@ impl<'a> StubStoreAdapter {
 impl<'a> StoreAdapter<StubQuery> for StubStoreAdapter {
     fn read<'b, E>(
         &self,
-        query: StubQuery,
-        since: Option<DateTime<Utc>>,
+        _query: StubQuery,
+        _since: Option<DateTime<Utc>>,
     ) -> BoxedFuture<'b, Vec<E>, String>
     where
         E: Events + Send + 'b,
     {
+        Box::new(FutOk(Vec::new()))
     }
 
     fn save<'b, ED: EventData + Sync + Send + 'b>(
         &self,
-        event: &'b Event<ED>,
+        _event: &'b Event<ED>,
     ) -> BoxedFuture<'b, (), String> {
+        Box::new(FutOk(()))
     }
 
     fn last_event<'b, ED: EventData + Send + 'b>(
         &self,
     ) -> BoxedFuture<'b, Option<Event<ED>>, String> {
+        Box::new(FutOk(None))
     }
 }

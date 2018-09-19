@@ -1,6 +1,7 @@
 //! Cache adapter backed by postgres
 
 use adapters::{CacheAdapter, CacheResult};
+use futures::future::ok as FutOk;
 use serde::{de::DeserializeOwned, Serialize};
 use utils::BoxedFuture;
 
@@ -18,16 +19,16 @@ impl StubCacheAdapter {
 impl CacheAdapter for StubCacheAdapter {
     fn set<'a, V: Serialize + Send + 'a>(
         &self,
-        key: String,
-        value: V,
+        _key: String,
+        _value: V,
     ) -> BoxedFuture<'a, (), String> {
-
+        Box::new(FutOk(()))
     }
 
-    fn get<'a, T>(&self, key: String) -> BoxedFuture<'a, Option<CacheResult<T>>, String>
+    fn get<'a, T>(&self, _key: String) -> BoxedFuture<'a, Option<CacheResult<T>>, String>
     where
         T: DeserializeOwned + Send + 'a,
     {
-
+        Box::new(FutOk(None))
     }
 }
