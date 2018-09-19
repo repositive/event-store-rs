@@ -4,7 +4,7 @@ use adapters::pg::PgQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
-use futures::future::{err as FutErr, lazy as FutLazy, ok as FutOk, Future};
+use futures::future::{err as FutErr, lazy as FutLazy, ok as FutOk};
 use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
 use r2d2::Pool;
@@ -54,9 +54,11 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
     where
         E: Events + Send + 'b,
     {
-        let conn = self.pool.get();
+        let conn = self.pool.clone();
         Box::from(FutLazy(move || {
-            let pool = conn.expect("Could not connect to the pool (aggregate)");
+            let pool = conn
+                .get()
+                .expect("Could not connect to the pool (aggregate)");
 
             let query_string = Self::generate_query(&query, since);
             let trans = pool
@@ -130,10 +132,8 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         &self,
     ) -> BoxedFuture<'b, Option<Event<ED>>, String> {
         let conn = self.pool.clone();
-        Box::from(
-            FutOk(()).and_then(
-                move |_| {
-                    let rows = conn
+        Box::from(FutLazy(move || {
+            let rows = conn
                 .get()
                 .expect("Could not connect to the pool (last_event)")
                 .query(
@@ -143,21 +143,20 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                         &ED::event_namespace(),
                         &ED::event_type()
                     ],
-                    ).expect("Responsen't");
-                    if rows.len() == 1 {
-                        let row = rows.get(0);
-                        let id: Uuid = row.get("id");
-                        let data_json: JsonValue = row.get("data");
-                        let context_json: JsonValue = row.get("context");
+                    ).expect("Unable to query database (last_event)");
+            if rows.len() == 1 {
+                let row = rows.get(0);
+                let id: Uuid = row.get("id");
+                let data_json: JsonValue = row.get("data");
+                let context_json: JsonValue = row.get("context");
 
-                        let data: ED = from_value(data_json).unwrap();
-                        let context: EventContext = from_value(context_json).unwrap();
-                        FutOk(Some(Event { id, data, context }))
-                    } else {
-                        FutOk(None)
-                    }
-                },
-        ))
+                let data: ED = from_value(data_json).unwrap();
+                let context: EventContext = from_value(context_json).unwrap();
+                FutOk(Some(Event { id, data, context }))
+            } else {
+                FutOk(None)
+            }
+        }))
     }
 }
 
