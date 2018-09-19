@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate event_store;
 extern crate r2d2;
 extern crate r2d2_postgres;
@@ -29,14 +30,10 @@ fn connect() -> Pool<PostgresConnectionManager> {
 #[test]
 fn it_queries_the_database() {
     let conn = connect();
+    let store = pg_store!(conn);
+    let ident = String::from("it_queries_the_database");
 
-    let store_adapter = PgStoreAdapter::new(conn.clone());
-    let cache_adapter = PgCacheAdapter::new(conn.clone());
-    let emitter_adapter = StubEmitterAdapter::new();
-
-    let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
-
-    let ident = String::from("dbquery");
+    pg_delete_events!(conn, ident);
 
     assert!(
         block_on_all(store.save(Event::from_data(TestIncrementEvent {
@@ -53,16 +50,14 @@ fn it_queries_the_database() {
 #[test]
 fn it_saves_events() {
     let conn = connect();
+    let store = pg_store!(conn);
+    let ident = String::from("it_saves_events");
 
-    let store_adapter = PgStoreAdapter::new(conn.clone());
-    let cache_adapter = PgCacheAdapter::new(conn.clone());
-    let emitter_adapter = StubEmitterAdapter::new();
-
-    let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
+    pg_delete_events!(conn, ident);
 
     let event = TestIncrementEvent {
         by: 123123,
-        ident: "it_saves_events".into(),
+        ident: ident.clone(),
     };
 
     assert!(block_on_all(store.save(Event::from_data(event))).is_ok());
@@ -71,42 +66,30 @@ fn it_saves_events() {
 #[test]
 fn it_uses_the_aggregate_cache() {
     let conn = connect();
+    let store = pg_store!(conn);
+    let ident = String::from("it_uses_the_aggregate_cache");
 
-    let ident = "aggregatecache";
-
-    conn.get()
-        .unwrap()
-        .execute("DELETE FROM events WHERE data->>'ident' = $1", &[&ident])
-        .expect("Truncate");
-    conn.get()
-        .unwrap()
-        .execute("TRUNCATE aggregate_cache", &[])
-        .expect("Truncate");
-
-    let store_adapter = PgStoreAdapter::new(conn.clone());
-    let cache_adapter = PgCacheAdapter::new(conn.clone());
-    let emitter_adapter = StubEmitterAdapter::new();
-
-    let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
+    pg_delete_events!(conn, ident);
+    pg_empty_cache!(conn);
 
     assert!(
         block_on_all(store.save(Event::from_data(TestIncrementEvent {
             by: 1,
-            ident: ident.into()
+            ident: ident.clone()
         }))).is_ok()
     );
 
     assert!(
         block_on_all(store.save(Event::from_data(TestIncrementEvent {
             by: 2,
-            ident: ident.into()
+            ident: ident.clone()
         }))).is_ok()
     );
 
     // Wait for DB to process
     thread::sleep(Duration::from_millis(10));
 
-    let entity: TestCounterEntity = block_on_all(store.aggregate(ident.into())).unwrap();
+    let entity: TestCounterEntity = block_on_all(store.aggregate(ident)).unwrap();
 
     assert_eq!(entity.counter, 3);
 }
