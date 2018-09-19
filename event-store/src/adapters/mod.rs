@@ -10,7 +10,7 @@ mod stub;
 
 pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
-pub use self::stub::StubEmitterAdapter;
+pub use self::stub::{StubCacheAdapter, StubEmitterAdapter, StubQuery, StubStoreAdapter};
 use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
