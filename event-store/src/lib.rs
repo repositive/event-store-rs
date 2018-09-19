@@ -38,7 +38,7 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use futures::future::{ok as FutOk, result as FutResult, Future};
+use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
@@ -95,42 +95,51 @@ where
     /// Query the backing store and return an entity `T`, reduced from queried events
     fn aggregate<'b, E, T, A>(&'b self, query_args: A) -> BoxedFuture<'b, T, String>
     where
-        E: Events,
-        T: Aggregator<E, A, Q> + Send + Serialize + for<'de> Deserialize<'de> + PartialEq + 'b,
-        A: Clone + Send + 'b,
+        E: Events + Send + Sync + 'b,
+        Q: 'b,
+        T: Aggregator<E, A, Q>
+            + Send
+            + Sync
+            + Serialize
+            + for<'de> Deserialize<'de>
+            + PartialEq
+            + 'b,
+        A: Clone + 'b,
     {
-        let q = T::query(query_args.clone());
-        let id = q.unique_id();
-        let cache: BoxedFuture<'b, Option<CacheResult<T>>, String> = self.cache.get(id.clone());
+        let store_query = T::query(query_args.clone());
+        let cache_id = store_query.unique_id();
 
-        let task = cache.and_then(move |initial_state| {
-            FutResult(
+        Box::new(self.cache.get(cache_id.clone()).and_then(
+            move |cache_result: Option<CacheResult<T>>| {
+                let initial_state = cache_result
+                    .clone()
+                    .map_or(T::default(), |(state, _)| state);
+                let since = cache_result.clone().map(|(_, since)| since);
                 self.store
-                    .aggregate(query_args, initial_state.clone())
-                    .map(|agg| {
-                        if let Some((last_cache, _)) = initial_state {
-                            // Only update cache if aggregation result has changed
-                            if agg != last_cache {
-                                self.cache.set(id, agg.clone());
+                    .read(store_query, since)
+                    .and_then(move |event_list| {
+                        let agg = event_list
+                            .iter()
+                            .fold(initial_state, |acc, event| T::apply_event(acc, &event));
+                        let save_cache_task = match cache_result {
+                            Some((ref cache_state, _)) if &agg != cache_state => {
+                                self.cache.set(cache_id, agg.clone())
                             }
-                        } else {
-                            // If there is no existing cache item, insert one
-                            self.cache.set(id, agg.clone());
-                        }
-
-                        agg
-                    }),
-            )
-        });
-        Box::new(task)
+                            None => self.cache.set(cache_id, agg.clone()),
+                            _ => Box::new(FutOk(())),
+                        };
+                        save_cache_task.and_then(|_| FutOk(agg))
+                    })
+            },
+        ))
     }
 
     /// Save an event to the store with optional context
-    fn save<ED: EventData + Send + Sync + 'static>(
-        &self,
-        event: Event<ED>,
-    ) -> BoxedFuture<(), String> {
-        Box::new(FutResult(self.store.save(&event)).and_then(move |_| {
+    fn save<'b, ED: EventData + Send + Sync + 'b>(
+        &'b self,
+        event: &'b Event<ED>,
+    ) -> BoxedFuture<'b, (), String> {
+        Box::from(self.store.save(event).and_then(move |_| {
             Box::new(
                 self.emitter
                     .emit(&event)
@@ -139,9 +148,9 @@ where
         }))
     }
 
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), String>
+    fn subscribe<'b, ED, H>(&'b self, handler: H) -> BoxedFuture<'b, (), String>
     where
-        ED: EventData + Send + 'static,
+        ED: EventData + Send + Sync + 'b,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
     {
         let handler_store = self.store.clone();

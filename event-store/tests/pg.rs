@@ -9,6 +9,7 @@ use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Event, EventStore,
 };
+
 use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::thread;
@@ -38,12 +39,12 @@ fn it_queries_the_database() {
 
     let ident = String::from("dbquery");
 
-    assert!(
-        block_on_all(store.save(Event::from_data(TestIncrementEvent {
-            by: 99,
-            ident: ident.clone()
-        }))).is_ok()
-    );
+    let test_event = Event::from_data(TestIncrementEvent {
+        by: 99,
+        ident: ident.clone(),
+    });
+
+    assert!(block_on_all(store.save(&test_event)).is_ok());
 
     let entity: TestCounterEntity = block_on_all(store.aggregate(ident)).unwrap();
 
@@ -60,12 +61,12 @@ fn it_saves_events() {
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
-    let event = TestIncrementEvent {
+    let event = Event::from_data(TestIncrementEvent {
         by: 123123,
         ident: "it_saves_events".into(),
-    };
+    });
 
-    assert!(block_on_all(store.save(Event::from_data(event))).is_ok());
+    assert!(block_on_all(store.save(&event)).is_ok());
 }
 
 #[test]
@@ -89,19 +90,18 @@ fn it_uses_the_aggregate_cache() {
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
-    assert!(
-        block_on_all(store.save(Event::from_data(TestIncrementEvent {
-            by: 1,
-            ident: ident.into()
-        }))).is_ok()
-    );
+    let test_ev_1 = Event::from_data(TestIncrementEvent {
+        by: 1,
+        ident: ident.into(),
+    });
 
-    assert!(
-        block_on_all(store.save(Event::from_data(TestIncrementEvent {
-            by: 2,
-            ident: ident.into()
-        }))).is_ok()
-    );
+    let test_ev_2 = Event::from_data(TestIncrementEvent {
+        by: 2,
+        ident: ident.into(),
+    });
+
+    assert!(block_on_all(store.save(&test_ev_1)).is_ok());
+    assert!(block_on_all(store.save(&test_ev_2)).is_ok());
 
     // Wait for DB to process
     thread::sleep(Duration::from_millis(10));
