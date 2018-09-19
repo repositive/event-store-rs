@@ -6,6 +6,7 @@ mod store;
 
 use store_query::StoreQuery;
 
+/// Stub query that doesn't do anything
 pub struct StubQuery {}
 
 impl StoreQuery for StubQuery {

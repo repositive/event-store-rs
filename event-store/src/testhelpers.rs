@@ -1,14 +1,9 @@
 //! Test helpers. Do not use in application code.
 
-use adapters::PgQuery;
-use adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter};
+use adapters::{PgQuery, StubQuery};
 use prelude::*;
-use r2d2;
-use r2d2::Pool;
 use r2d2_postgres::postgres::types::ToSql;
-use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use Event;
-use EventStore;
 
 /// Test event
 #[derive(EventData, Debug)]
@@ -72,6 +67,21 @@ impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
         params.push(Box::new(field));
 
         PgQuery::new("select * from events where data->>'ident' = $1", params)
+    }
+}
+
+impl Aggregator<TestEvents, String, StubQuery> for TestCounterEntity {
+    fn apply_event(acc: Self, event: &TestEvents) -> Self {
+        let counter = match event {
+            TestEvents::Inc(ref inc) => acc.counter + inc.data.by,
+            TestEvents::Dec(ref dec) => acc.counter - dec.data.by,
+        };
+
+        Self { counter, ..acc }
+    }
+
+    fn query(_field: String) -> StubQuery {
+        StubQuery {}
     }
 }
 

@@ -4,8 +4,6 @@ use adapters::stub::StubQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use futures::future::ok as FutOk;
-use r2d2::Pool;
-use r2d2_postgres::PostgresConnectionManager;
 use utils::BoxedFuture;
 
 use Event;
@@ -14,14 +12,12 @@ use Events;
 
 /// Postgres store adapter
 #[derive(Clone)]
-pub struct StubStoreAdapter {
-    pool: Pool<PostgresConnectionManager>,
-}
+pub struct StubStoreAdapter {}
 
 impl<'a> StubStoreAdapter {
     /// Create a new StubStore from a Postgres DB connection
-    pub fn new(conn: Pool<PostgresConnectionManager>) -> Self {
-        Self { pool: conn }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 impl<'a> StoreAdapter<StubQuery> for StubStoreAdapter {
