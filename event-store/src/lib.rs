@@ -43,6 +43,7 @@ use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
+use tokio::executor::current_thread::block_on_all;
 use utils::BoxedFuture;
 use uuid::Uuid;
 
@@ -141,11 +142,9 @@ where
         event: &'b Event<ED>,
     ) -> BoxedFuture<'b, (), String> {
         Box::from(self.store.save(event).and_then(move |_| {
-            Box::new(
-                self.emitter
-                    .emit(&event)
-                    .map_err(|_| "It was not possible to emit the event".into()),
-            )
+            self.emitter
+                .emit(&event)
+                .map_err(|_| "It was not possible to emit the event".into())
         }))
     }
 
@@ -158,10 +157,13 @@ where
         Box::new(
             self.emitter
                 .subscribe(move |event: &Event<ED>| {
-                    let _ = handler_store.save(event).map(|_| {
-                        handler(event);
-                    });
-                    /**/
+                    let handler_fut = handler_store
+                        .save(event)
+                        .map(move |_| {
+                            handler(event);
+                        }).map_err(|_| ());
+
+                    block_on_all(handler_fut);
                 }).and_then(move |_| {
                     self.store
                         .last_event::<ED>()
