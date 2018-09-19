@@ -29,6 +29,7 @@ mod event_context;
 pub mod prelude;
 mod store;
 mod store_query;
+#[macro_use]
 pub mod testhelpers;
 mod utils;
 

@@ -15,7 +15,7 @@ CREATE TABLE events (
 DROP TABLE aggregate_cache;
 
 CREATE TABLE aggregate_cache (
-    id VARCHAR(63) PRIMARY KEY,
+    id VARCHAR(64) PRIMARY KEY,
     -- id character varying(64) PRIMARY KEY,
     data jsonb NOT NULL,
     time timestamp without time zone DEFAULT now()
