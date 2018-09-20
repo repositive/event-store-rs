@@ -15,11 +15,13 @@ fn create_store() {
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
 
-    store.subscribe(|_e: &Event<TestIncrementEvent>, st| {
+    let sub = store.subscribe(|_e: &Event<TestIncrementEvent>, st| {
         let some_aggregate: TestCounterEntity =
             block_on_all(st.aggregate(String::from("some_query_param")))
                 .expect("Could not aggregate example event");
 
         println!("SOME AGG {:?}", some_aggregate);
     });
+
+    block_on_all(sub).expect("Sth");
 }
