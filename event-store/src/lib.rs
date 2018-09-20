@@ -119,7 +119,7 @@ where
                     .map_or(T::default(), |(state, _)| state);
                 let since = cache_result.clone().map(|(_, since)| since);
                 self.store
-                    .read(store_query, since)
+                    .read(*store_query, since)
                     .and_then(move |event_list| {
                         let agg = event_list
                             .iter()

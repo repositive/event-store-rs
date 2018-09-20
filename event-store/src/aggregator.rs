@@ -81,7 +81,7 @@ use store_query::StoreQuery;
 ///   }
 /// }
 ///
-/// impl Aggregator<UsersEvents, String, DummyQuery> for UserDetails {
+/// impl <SQ: StoreQuery> Aggregator<UsersEvents, String, SQ> for UserDetails {
 ///     fn apply_event(acc: Self, event: &UsersEvents) -> Self {
 ///         match event {
 ///             UsersEvents::NameChanged(e) => Self {
@@ -98,8 +98,8 @@ use store_query::StoreQuery;
 ///
 ///     // ...
 /// #
-/// #     fn query(_: String) -> DummyQuery {
-/// #         DummyQuery
+/// #     fn query(_: String) -> Box<StoreQuery> {
+/// #         Box::new(DummyQuery)
 /// #     }
 /// }
 ///
@@ -151,5 +151,5 @@ pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>: Clone + Debug + Defaul
     fn apply_event(acc: Self, event: &E) -> Self;
 
     /// Produce a query object from some query arguments
-    fn query(field: A) -> Q;
+    fn query(field: A) -> Box<Q>;
 }

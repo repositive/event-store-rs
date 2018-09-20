@@ -61,12 +61,15 @@ impl<'a> Aggregator<TestEvents, String, PgQuery<'a>> for TestCounterEntity {
         Self { counter, ..acc }
     }
 
-    fn query(field: String) -> PgQuery<'a> {
+    fn query(field: String) -> Box<PgQuery<'a>> {
         let mut params: Vec<Box<ToSql + Send + Sync>> = Vec::new();
 
         params.push(Box::new(field));
 
-        PgQuery::new("select * from events where data->>'ident' = $1", params)
+        Box::new(PgQuery::new(
+            "select * from events where data->>'ident' = $1",
+            params,
+        ))
     }
 }
 
@@ -80,8 +83,8 @@ impl Aggregator<TestEvents, String, StubQuery> for TestCounterEntity {
         Self { counter, ..acc }
     }
 
-    fn query(_field: String) -> StubQuery {
-        StubQuery {}
+    fn query(_field: String) -> Box<StubQuery> {
+        Box::new(StubQuery {})
     }
 }
 
