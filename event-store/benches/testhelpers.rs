@@ -1,14 +1,14 @@
 #[macro_use]
 extern crate criterion;
 extern crate event_store;
-#[macro_use]
 extern crate serde_json;
 
 use criterion::Criterion;
+use event_store::prelude::*;
 use event_store::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
 };
-use event_store::{Aggregator, Event};
+use event_store::Event;
 use serde_json::{from_str, to_string, to_value, Value};
 use std::time::Duration;
 
@@ -16,27 +16,27 @@ fn aggregate_from_default(c: &mut Criterion) {
     c.bench_function("aggregate from default", move |b| {
         b.iter(|| {
             let events = vec![
-                Event::from_data(TestEvents::Inc(TestIncrementEvent {
+                TestEvents::Inc(Event::from_data(TestIncrementEvent {
                     by: 1,
                     ident: "it_aggregates_events".into(),
                 })),
-                Event::from_data(TestEvents::Inc(TestIncrementEvent {
+                TestEvents::Inc(Event::from_data(TestIncrementEvent {
                     by: 1,
                     ident: "it_aggregates_events".into(),
                 })),
-                Event::from_data(TestEvents::Dec(TestDecrementEvent {
+                TestEvents::Dec(Event::from_data(TestDecrementEvent {
                     by: 2,
                     ident: "it_aggregates_events".into(),
                 })),
-                Event::from_data(TestEvents::Inc(TestIncrementEvent {
+                TestEvents::Inc(Event::from_data(TestIncrementEvent {
                     by: 2,
                     ident: "it_aggregates_events".into(),
                 })),
-                Event::from_data(TestEvents::Dec(TestDecrementEvent {
+                TestEvents::Dec(Event::from_data(TestDecrementEvent {
                     by: 3,
                     ident: "it_aggregates_events".into(),
                 })),
-                Event::from_data(TestEvents::Dec(TestDecrementEvent {
+                TestEvents::Dec(Event::from_data(TestDecrementEvent {
                     by: 3,
                     ident: "it_aggregates_events".into(),
                 })),
@@ -52,7 +52,7 @@ fn aggregate_from_default(c: &mut Criterion) {
 fn serialize_event(c: &mut Criterion) {
     c.bench_function("serialize event", move |b| {
         b.iter(|| {
-            let event = Event::from_data(TestEvents::Inc(TestIncrementEvent {
+            let event = TestEvents::Inc(Event::from_data(TestIncrementEvent {
                 by: 1,
                 ident: "serialize_event".into(),
             }));
@@ -63,12 +63,10 @@ fn serialize_event(c: &mut Criterion) {
 }
 
 fn deserialize_event(c: &mut Criterion) {
-    let incoming_str = to_string(&json!({
-        "event_namespace": "some_namespace",
-        "event_type": "Inc",
-        "by": 1,
-        "ident": "deserialize_event"
-    })).expect("Could not create test event JSON");
+    let incoming_str = to_string(&TestEvents::Inc(Event::from_data(TestIncrementEvent {
+        by: 1,
+        ident: "serialize_event".into(),
+    }))).expect("Could not create test event JSON");
 
     c.bench_function("deserialize event", move |b| {
         b.iter(|| {
@@ -80,10 +78,10 @@ fn deserialize_event(c: &mut Criterion) {
 fn roundtrip(c: &mut Criterion) {
     c.bench_function("serialize deserialize roundtrip", move |b| {
         b.iter(|| {
-            let event = TestEvents::Inc(TestIncrementEvent {
+            let event = TestEvents::Inc(Event::from_data(TestIncrementEvent {
                 by: 1,
                 ident: "serialize_event".into(),
-            });
+            }));
 
             let json = to_string(&event).unwrap();
 
