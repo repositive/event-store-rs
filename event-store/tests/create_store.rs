@@ -15,13 +15,13 @@ fn create_store() {
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
-    let arc_store = Arc::from(&store);
+    let foo = store.clone();
 
     store.subscribe(move |e: &Event<TestIncrementEvent>| {
         println!("ASS {:?}", e);
 
         let _some_aggregate: TestCounterEntity =
-            block_on_all(arc_store.aggregate(String::from("some_query_param")))
+            block_on_all(foo.aggregate(String::from("some_query_param")))
                 .expect("Could not aggregate example event");
     });
 }
