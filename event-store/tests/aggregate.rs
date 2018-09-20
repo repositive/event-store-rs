@@ -2,6 +2,7 @@ extern crate event_store;
 extern crate r2d2;
 extern crate r2d2_postgres;
 
+use event_store::adapters::StubQuery;
 use event_store::prelude::*;
 use event_store::testhelpers::{
     TestCounterEntity, TestDecrementEvent, TestEvents, TestIncrementEvent,
@@ -37,9 +38,14 @@ fn it_aggregates_events() {
         })),
     ];
 
-    let result: TestCounterEntity = events
-        .iter()
-        .fold(TestCounterEntity::default(), TestCounterEntity::apply_event);
+    fn agg<T>(events: Vec<TestEvents>) -> T
+    where
+        T: Default + Aggregator<TestEvents, String, StubQuery>,
+    {
+        events.iter().fold(T::default(), T::apply_event)
+    }
+
+    let result = agg::<TestCounterEntity>(events);
 
     assert_eq!(result, TestCounterEntity { counter: -4 });
 }
