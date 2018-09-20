@@ -39,8 +39,8 @@ pub trait Store<
     ) -> BoxedFuture<'b, (), String>;
 
     /// Subscribe to an event
-    fn subscribe<'b, ED, H>(&'b self, handler: H) -> BoxedFuture<'b, (), String>
+    fn subscribe<'b, ED, H>(&self, handler: H) -> BoxedFuture<'b, (), String>
     where
         ED: EventData + Send + Sync + 'b,
-        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
+        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static;
 }

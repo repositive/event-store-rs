@@ -79,12 +79,12 @@ impl EventData for EventReplayRequested {
 #[derive(Serialize, Deserialize)]
 struct DummyEvent {}
 
-impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
+impl<Q, S, C, EM> Store<'static, Q, S, C, EM> for EventStore<S, C, EM>
 where
-    Q: StoreQuery + Send + Sync + 'a,
-    S: StoreAdapter<Q> + Send + Sync + Clone + 'a,
-    C: CacheAdapter + Send + Sync + Clone + 'a,
-    EM: EmitterAdapter + Send + Sync + Clone + 'a,
+    Q: StoreQuery + Send + Sync + 'static,
+    S: StoreAdapter<Q> + Send + Sync + Clone + 'static,
+    C: CacheAdapter + Send + Sync + Clone + 'static,
+    EM: EmitterAdapter + Send + Sync + Clone + 'static,
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self {
@@ -149,12 +149,16 @@ where
         }))
     }
 
-    fn subscribe<'b, ED, H>(&'b self, handler: H) -> BoxedFuture<'b, (), String>
+    fn subscribe<'b, ED, H>(&self, handler: H) -> BoxedFuture<'b, (), String>
     where
         ED: EventData + Send + Sync + 'b,
-        H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
+        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static,
     {
         let handler_store = self.store.clone();
+        let self_clone = self.clone();
+        let store = self.store.clone();
+        let emitter = self.emitter.clone();
+
         Box::new(
             self.emitter
                 .subscribe(move |event: &Event<ED>| {
@@ -162,13 +166,14 @@ where
                         .save(event)
                         .map(|ev| {
                             if let Some(e) = ev {
-                                handler(e);
+                                handler(e, &self_clone);
                             }
                         }).map_err(|_| ());
 
-                    block_on_all(handler_fut);
+                    // FIXME: Might not need to block
+                    block_on_all(handler_fut).expect("FUck this");
                 }).and_then(move |_| {
-                    self.store
+                    store
                         .last_event::<ED>()
                         .map(|o_event| {
                             o_event
@@ -188,7 +193,7 @@ where
                         time: Utc::now(),
                     };
                     let event = Event { data, id, context };
-                    self.emitter.emit(&event)
+                    emitter.emit(&event)
                 }).map_err(|_| "It was not possible to subscribe".into()),
         )
     }
