@@ -35,8 +35,8 @@ impl<'a> StoreAdapter<StubQuery> for StubStoreAdapter {
     fn save<'b, ED: EventData + Sync + Send + 'b>(
         &self,
         _event: &'b Event<ED>,
-    ) -> BoxedFuture<'b, (), String> {
-        Box::new(FutOk(()))
+    ) -> BoxedFuture<'b, Option<&'b Event<ED>>, String> {
+        Box::new(FutOk(None))
     }
 
     fn last_event<'b, ED: EventData + Send + 'b>(

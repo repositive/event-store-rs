@@ -5,6 +5,7 @@ use event_store::adapters::{StubCacheAdapter, StubEmitterAdapter, StubStoreAdapt
 use event_store::prelude::*;
 use event_store::testhelpers::*;
 use event_store::{Event, EventStore};
+use std::sync::Arc;
 use tokio::executor::current_thread::block_on_all;
 
 #[test]
@@ -14,12 +15,13 @@ fn create_store() {
     let emitter_adapter = StubEmitterAdapter::new();
 
     let store = EventStore::new(store_adapter, cache_adapter, emitter_adapter);
+    let arc_store = Arc::from(&store);
 
-    store.subscribe(|e: &Event<TestIncrementEvent>| {
+    store.subscribe(move |e: &Event<TestIncrementEvent>| {
         println!("ASS {:?}", e);
 
         let _some_aggregate: TestCounterEntity =
-            block_on_all(store.aggregate(String::from("some_query_param")))
+            block_on_all(arc_store.aggregate(String::from("some_query_param")))
                 .expect("Could not aggregate example event");
     });
 }

@@ -159,8 +159,10 @@ where
                 .subscribe(move |event: &Event<ED>| {
                     let handler_fut = handler_store
                         .save(event)
-                        .map(move |_| {
-                            handler(event);
+                        .map(|ev| {
+                            if let Some(e) = ev {
+                                handler(e);
+                            }
                         }).map_err(|_| ());
 
                     block_on_all(handler_fut);

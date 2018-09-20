@@ -102,7 +102,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
     fn save<'b, ED: EventData + Sync + Send + 'b>(
         &self,
         event: &'b Event<ED>,
-    ) -> BoxedFuture<'b, (), String> {
+    ) -> BoxedFuture<'b, Option<&'b Event<ED>>, String> {
         let conn = self.pool.clone();
         Box::from(FutLazy(move || {
             let res = conn
@@ -122,7 +122,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                     _ => "UNEXPECTED".into(),
                 });
             match res {
-                Ok(_) => FutOk(()),
+                Ok(_) => FutOk(Some(event)),
                 Err(s) => FutErr(s),
             }
         }))

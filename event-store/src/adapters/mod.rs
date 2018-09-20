@@ -33,7 +33,7 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
         E: Events + Send + 'b,
         Q: 'b;
     /// Save an event to the store
-    fn save<'b, ED>(&self, event: &'b Event<ED>) -> BoxedFuture<'b, (), String>
+    fn save<'b, ED>(&self, event: &'b Event<ED>) -> BoxedFuture<'b, Option<&'b Event<ED>>, String>
     where
         ED: EventData + Send + Sync + 'b;
 
