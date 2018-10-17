@@ -90,7 +90,8 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                     let evt: E = from_value(thing).expect("Could not decode row");
 
                     evt
-                }).collect()
+                })
+                .collect()
                 .expect("ain't no collec");
 
             trans.finish().expect("Could not finish transaction");
@@ -116,7 +117,8 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                         &to_value(&event.data).expect("Unable to convert event data to value"),
                         &to_value(&event.context).expect("Cannot convert event context"),
                     ],
-                ).map(|_| ())
+                )
+                .map(|_| ())
                 .map_err(|err| match err.code() {
                     Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
                     _ => "UNEXPECTED".into(),

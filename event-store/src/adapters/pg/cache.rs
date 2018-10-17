@@ -37,7 +37,8 @@ impl CacheAdapter for PgCacheAdapter {
                 ON CONFLICT (id)
                 DO UPDATE SET data = EXCLUDED.data, time = now() RETURNING data"#,
                     &[&key, &to_value(value).expect("To value")],
-                ).expect("Update cache");
+                )
+                .expect("Update cache");
             FutOk(())
         }))
     }
@@ -54,7 +55,8 @@ impl CacheAdapter for PgCacheAdapter {
                 .query(
                     "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
                     &[&key],
-                ).expect("Retrieve cache");
+                )
+                .expect("Retrieve cache");
 
             // `rows.get()` panics if index is out of bounds, hence this check
             if rows.len() != 1 {

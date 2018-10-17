@@ -31,7 +31,8 @@ impl EnumInfo {
                 let name_override = get_attribute_ident(&v.attrs, "rename");
 
                 name_override.unwrap_or(v.ident.clone())
-            }).collect::<Vec<Ident>>();
+            })
+            .collect::<Vec<Ident>>();
 
         Self {
             item_ident,
@@ -117,7 +118,8 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                         Group(_) => true,
                         _ => false,
                     })
-                }).and_then(|tt| match tt {
+                })
+                .and_then(|tt| match tt {
                     Group(g) => {
                         let mut it = g.stream().into_iter();
 
@@ -138,7 +140,8 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                     }
                     _ => None,
                 })
-        }).next()
+        })
+        .next()
 }
 
 pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
@@ -152,7 +155,8 @@ pub fn get_enum_struct_names(enum_body: &DataEnum) -> Vec<TokenStream> {
                 .next()
                 .map(|field| field.ty.clone().into_token_stream())
                 .expect("Expected struct type")
-        }).collect::<Vec<TokenStream>>()
+        })
+        .collect::<Vec<TokenStream>>()
 }
 
 pub fn expand_derive_namespace(parsed: &DeriveInput) -> TokenStream {
