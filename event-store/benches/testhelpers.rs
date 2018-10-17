@@ -66,7 +66,8 @@ fn deserialize_event(c: &mut Criterion) {
     let incoming_str = to_string(&TestEvents::Inc(Event::from_data(TestIncrementEvent {
         by: 1,
         ident: "serialize_event".into(),
-    }))).expect("Could not create test event JSON");
+    })))
+    .expect("Could not create test event JSON");
 
     c.bench_function("deserialize event", move |b| {
         b.iter(|| {

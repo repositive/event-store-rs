@@ -21,7 +21,8 @@ fn connect() -> Pool<PostgresConnectionManager> {
     let manager = PostgresConnectionManager::new(
         "postgres://postgres@localhost:5430/eventstorerust",
         TlsMode::None,
-    ).unwrap();
+    )
+    .unwrap();
 
     let pool = r2d2::Pool::new(manager).unwrap();
 

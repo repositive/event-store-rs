@@ -57,7 +57,8 @@ fn it_deserializes_combined_type_fields() {
         from_value::<TestStruct>(json!({
             "type": "some_namespace.TestStruct",
             "thing": 100,
-        })).unwrap(),
+        }))
+        .unwrap(),
         TestStruct { thing: 100 }
     );
 }
@@ -105,7 +106,8 @@ fn deserialize_renamed_structs() {
         from_value::<TestEvent>(json!({
             "type": "test_thing.A",
             "thing": 100,
-        })).unwrap(),
+        }))
+        .unwrap(),
         TestEvent { thing: 100 }
     );
 }

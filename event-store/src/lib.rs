@@ -162,15 +162,18 @@ where
                         handler(event);
                     });
                     /**/
-                }).and_then(move |_| {
+                })
+                .and_then(move |_| {
                     self.store
                         .last_event::<ED>()
                         .map(|o_event| {
                             o_event
                                 .map(|event| event.context.time)
                                 .unwrap_or_else(|| Utc::now())
-                        }).or_else(|_| FutOk(Utc::now()))
-                }).and_then(move |since| {
+                        })
+                        .or_else(|_| FutOk(Utc::now()))
+                })
+                .and_then(move |since| {
                     let data = EventReplayRequested {
                         requested_event_type: ED::event_type().into(),
                         requested_event_namespace: ED::event_namespace().into(),
@@ -184,7 +187,8 @@ where
                     };
                     let event = Event { data, id, context };
                     self.emitter.emit(&event)
-                }).map_err(|_| "It was not possible to subscribe".into()),
+                })
+                .map_err(|_| "It was not possible to subscribe".into()),
         )
     }
 }

@@ -27,7 +27,8 @@ fn it_deserializes_combined_type_fields() {
         from_value::<TestEnum>(json!({
             "type": "some_namespace.TestStruct",
             "thing": 100,
-        })).unwrap(),
+        }))
+        .unwrap(),
         TestEnum::TestStruct(TestStruct { thing: 100 })
     );
 }
@@ -58,7 +59,8 @@ fn it_overrides_combined_fields() {
             "event_type": "OtherStruct",
             "event_namespace": "some_namespace",
             "thing": 100,
-        })).unwrap(),
+        }))
+        .unwrap(),
         TestEnum::OtherStruct(OtherStruct { thing: 100 })
     );
 }
@@ -81,7 +83,8 @@ fn it_deserializes_enums() {
             "event_namespace": "some_namespace",
             "event_type": "TestStruct",
             "thing": 100,
-        })).unwrap(),
+        }))
+        .unwrap(),
         TestEnum::TestStruct(TestStruct { thing: 100 })
     );
 }
@@ -197,7 +200,8 @@ fn it_differentiates_structs_with_same_shape() {
         "event_type": "ThingB",
         "event_namespace": "some_namespace",
         "foo": 100
-    })).unwrap();
+    }))
+    .unwrap();
 
     assert_eq!(v, TestEnum::B(ThingB { foo: 100 }));
 }

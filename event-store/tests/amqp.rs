@@ -32,13 +32,15 @@ fn emitter_emits_and_subscribes() {
                 // Message received, let the main thread know about it.
                 &sh.lock().unwrap().send(()).unwrap();
             })
-        }).and_then(move |_| AMQPEmitterAdapter::new(addr, "iris".into()))
+        })
+        .and_then(move |_| AMQPEmitterAdapter::new(addr, "iris".into()))
         .and_then(|adapter| {
             adapter.emit(&Event::from_data(TestIncrementEvent {
                 by: 1,
                 ident: "".into(),
             }))
-        }).map_err(|_| ());
+        })
+        .map_err(|_| ());
 
     runtime.spawn(task);
 
