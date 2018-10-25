@@ -39,10 +39,12 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
+use futures::future::lazy;
 use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
+use tokio::executor::current_thread;
 use tokio::runtime::current_thread::{block_on_all, Runtime};
 use utils::BoxedFuture;
 use uuid::Uuid;
@@ -157,19 +159,21 @@ where
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
     {
         let handler_store = self.store.clone();
+        let handler_store_2 = self.store.clone();
+        let em = self.emitter.clone();
 
-        let mut rt = Runtime::new().unwrap();
-
-        rt.block_on(
-            self.emitter
-                .subscribe(move |event: &Event<ED>| {
+        let res = current_thread::block_on_all(lazy(|| {
+            current_thread::spawn(lazy(move || {
+                em.subscribe(move |event: &Event<ED>| {
+                    info!("IDK");
                     let _ = handler_store.save(event).map(|_| {
                         handler(event);
                     });
                     /**/
                 })
                 .and_then(move |_| {
-                    self.store
+                    info!("GOT HERE");
+                    handler_store_2
                         .last_event::<ED>()
                         .map(|o_event| {
                             o_event
@@ -191,9 +195,13 @@ where
                         time: Utc::now(),
                     };
                     let event = Event { data, id, context };
-                    self.emitter.emit(&event)
-                }),
-        )
-        .expect("Could not subscribe");
+                    em.emit(&event)
+                });
+
+                Ok(())
+            }));
+            Ok::<_, ()>(())
+        }))
+        .unwrap();
     }
 }
