@@ -13,7 +13,7 @@ pub trait Store<
     S: StoreAdapter<Q> + Send + Sync,
     C: CacheAdapter + 'a,
     EM: EmitterAdapter + Send + Sync,
->: Send + Sync + 'a
+>: Send + Sync + Clone + 'a
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;

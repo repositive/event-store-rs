@@ -48,6 +48,7 @@ use utils::BoxedFuture;
 use uuid::Uuid;
 
 /// Main event store
+#[derive(Clone)]
 pub struct EventStore<S, C, EM> {
     store: S,
     cache: C,
