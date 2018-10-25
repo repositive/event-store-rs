@@ -43,7 +43,7 @@ use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
-use tokio::runtime::current_thread::block_on_all;
+use tokio::runtime::current_thread::{block_on_all, Runtime};
 use utils::BoxedFuture;
 use uuid::Uuid;
 
@@ -158,7 +158,9 @@ where
     {
         let handler_store = self.store.clone();
 
-        block_on_all(
+        let mut rt = Runtime::new().unwrap();
+
+        rt.block_on(
             self.emitter
                 .subscribe(move |event: &Event<ED>| {
                     let _ = handler_store.save(event).map(|_| {
