@@ -43,6 +43,7 @@ use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
 use store::Store;
 use store_query::StoreQuery;
+use tokio::runtime::current_thread::block_on_all;
 use utils::BoxedFuture;
 use uuid::Uuid;
 
@@ -156,37 +157,40 @@ where
     {
         let handler_store = self.store.clone();
 
-        self.emitter
-            .subscribe(move |event: &Event<ED>| {
-                let _ = handler_store.save(event).map(|_| {
-                    handler(event);
-                });
-                /**/
-            })
-            .and_then(move |_| {
-                self.store
-                    .last_event::<ED>()
-                    .map(|o_event| {
-                        o_event
-                            .map(|event| event.context.time)
-                            .unwrap_or_else(|| Utc::now())
-                    })
-                    .or_else(|_| FutOk(Utc::now()))
-            })
-            .and_then(move |since| {
-                let data = EventReplayRequested {
-                    requested_event_type: ED::event_type().into(),
-                    requested_event_namespace: ED::event_namespace().into(),
-                    since,
-                };
-                let id = Uuid::new_v4();
-                let context = EventContext {
-                    action: None,
-                    subject: None,
-                    time: Utc::now(),
-                };
-                let event = Event { data, id, context };
-                self.emitter.emit(&event)
-            });
+        block_on_all(
+            self.emitter
+                .subscribe(move |event: &Event<ED>| {
+                    let _ = handler_store.save(event).map(|_| {
+                        handler(event);
+                    });
+                    /**/
+                })
+                .and_then(move |_| {
+                    self.store
+                        .last_event::<ED>()
+                        .map(|o_event| {
+                            o_event
+                                .map(|event| event.context.time)
+                                .unwrap_or_else(|| Utc::now())
+                        })
+                        .or_else(|_| FutOk(Utc::now()))
+                })
+                .and_then(move |since| {
+                    let data = EventReplayRequested {
+                        requested_event_type: ED::event_type().into(),
+                        requested_event_namespace: ED::event_namespace().into(),
+                        since,
+                    };
+                    let id = Uuid::new_v4();
+                    let context = EventContext {
+                        action: None,
+                        subject: None,
+                        time: Utc::now(),
+                    };
+                    let event = Event { data, id, context };
+                    self.emitter.emit(&event)
+                }),
+        )
+        .expect("Could not subscribe");
     }
 }
