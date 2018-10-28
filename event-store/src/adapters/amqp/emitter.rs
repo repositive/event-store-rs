@@ -55,7 +55,11 @@ impl AMQPEmitterAdapter {
                         )
                         .and_then(move |_| FutOk(ch))
                 })
-                .and_then(|channel| FutOk(Self { channel, exchange })),
+                .and_then(|channel| {
+                    trace!("Channel created");
+
+                    FutOk(Self { channel, exchange })
+                }),
         )
     }
 }

@@ -158,50 +158,63 @@ where
         ED: EventData + Send + Sync,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
     {
+        info!("Register");
         let handler_store = self.store.clone();
         let handler_store_2 = self.store.clone();
         let em = self.emitter.clone();
 
-        let res = current_thread::block_on_all(lazy(|| {
-            current_thread::spawn(lazy(move || {
+        // let res = lazy(move || {
+        // let sub = ;
+
+        tokio::run(lazy(move || {
+            info!("STUPH");
+            tokio::spawn(lazy(move || {
+                info!("UGH");
+
                 em.subscribe(move |event: &Event<ED>| {
                     info!("IDK");
                     let _ = handler_store.save(event).map(|_| {
                         handler(event);
                     });
                     /**/
-                })
-                .and_then(move |_| {
-                    info!("GOT HERE");
-                    handler_store_2
-                        .last_event::<ED>()
-                        .map(|o_event| {
-                            o_event
-                                .map(|event| event.context.time)
-                                .unwrap_or_else(|| Utc::now())
-                        })
-                        .or_else(|_| FutOk(Utc::now()))
-                })
-                .and_then(move |since| {
-                    let data = EventReplayRequested {
-                        requested_event_type: ED::event_type().into(),
-                        requested_event_namespace: ED::event_namespace().into(),
-                        since,
-                    };
-                    let id = Uuid::new_v4();
-                    let context = EventContext {
-                        action: None,
-                        subject: None,
-                        time: Utc::now(),
-                    };
-                    let event = Event { data, id, context };
-                    em.emit(&event)
                 });
 
                 Ok(())
             }));
-            Ok::<_, ()>(())
-        }))
-        .unwrap();
+            Ok(())
+        }));
+
+        // .and_then(move |_| {
+        // info!("GOT HERE");
+        // let last_event = handler_store_2
+        //     .last_event::<ED>()
+        //     .map(|o_event| {
+        //         o_event
+        //             .map(|event| event.context.time)
+        //             .unwrap_or_else(|| Utc::now())
+        //     })
+        //     .or_else(|_| FutOk(Utc::now()))
+        //     // })
+        //     .and_then(move |since| {
+        //         let data = EventReplayRequested {
+        //             requested_event_type: ED::event_type().into(),
+        //             requested_event_namespace: ED::event_namespace().into(),
+        //             since,
+        //         };
+        //         let id = Uuid::new_v4();
+        //         let context = EventContext {
+        //             action: None,
+        //             subject: None,
+        //             time: Utc::now(),
+        //         };
+        //         let event = Event { data, id, context };
+        //         em.emit(&event)
+        //     });
+
+        // Ok(res)
+        // });
+        //     Ok::<_, ()>(())
+        // }))
+        // .unwrap();
     }
 }
