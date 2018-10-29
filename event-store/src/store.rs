@@ -5,7 +5,6 @@ use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
 use std::thread::JoinHandle;
 use store_query::StoreQuery;
-use utils::BoxedFuture;
 
 /// Store trait
 pub trait Store<

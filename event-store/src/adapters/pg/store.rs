@@ -4,14 +4,11 @@ use adapters::pg::PgQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
-use futures::future::{err as FutErr, lazy as FutLazy, ok as FutOk};
 use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
 use serde_json::{from_value, to_value, Value as JsonValue};
-use tokio::executor::current_thread::block_on_all;
-use utils::BoxedFuture;
 use uuid::Uuid;
 
 use Event;

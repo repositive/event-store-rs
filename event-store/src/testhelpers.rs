@@ -1,14 +1,9 @@
 //! Test helpers. Do not use in application code.
 
 use adapters::PgQuery;
-use adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter};
 use prelude::*;
-use r2d2;
-use r2d2::Pool;
 use r2d2_postgres::postgres::types::ToSql;
-use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use Event;
-use EventStore;
 
 /// Test event
 #[derive(EventData, Debug)]

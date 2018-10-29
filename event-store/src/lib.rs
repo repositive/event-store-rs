@@ -39,16 +39,11 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use futures::future::lazy;
-use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
 use std::thread::{self, JoinHandle};
 use store::Store;
 use store_query::StoreQuery;
-use tokio::executor::current_thread;
-use tokio::runtime::current_thread::{block_on_all, Runtime};
-use utils::BoxedFuture;
-use uuid::Uuid;
+use tokio::runtime::current_thread::Runtime;
 
 /// Main event store
 #[derive(Clone)]
@@ -133,7 +128,7 @@ where
             }
             None => self.cache.set(cache_id, agg.clone()),
             _ => Ok(()),
-        };
+        }?;
 
         Ok(agg)
     }
@@ -155,83 +150,25 @@ where
         ED: EventData + Send + Sync + 'static,
         H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static,
     {
-        info!("Register");
         let _self = self.clone();
         let handler_store = self.store.clone();
-        let handler_store_2 = self.store.clone();
-        let em = self.emitter.clone();
 
-        // let res = lazy(move || {
-        // let sub = ;
-
-        let sub = em.subscribe(move |event: &Event<ED>| {
-            info!("IDK");
+        let sub = self.emitter.subscribe(move |event: &Event<ED>| {
             let _ = handler_store.save(event).map(|_| {
                 handler(event, &_self);
             });
-            /**/
         });
 
         let handle = thread::spawn(|| {
-            let mut rt = Runtime::new().expect("Runtime could not be created");
+            let mut rt = Runtime::new().expect("Subscriber runtime could not be created");
 
-            trace!("Spawn thread");
+            trace!("Spawn subscriber thread");
+
             rt.spawn(sub);
-            trace!("RUN 1");
-            // rt.spawn(listen2);
-            // trace!("RUN 2");
 
-            rt.run().expect("Runtime failed");
-
-            trace!("Runtime RUNNING");
+            rt.run().expect("Subscriber runtime failed");
         });
 
         Ok(handle)
-
-        // block_on_all(
-        //     em.subscribe(move |event: &Event<ED>| {
-        //         info!("IDK");
-        //         let _ = handler_store.save(event).map(|_| {
-        //             handler(event);
-        //         });
-        //         /**/
-        //     })
-        //     .map(|_| ())
-        //     .map_err(|_| ()),
-        // )
-        // .expect("Block failed");
-
-        // .and_then(move |_| {
-        // info!("GOT HERE");
-        // let last_event = handler_store_2
-        //     .last_event::<ED>()
-        //     .map(|o_event| {
-        //         o_event
-        //             .map(|event| event.context.time)
-        //             .unwrap_or_else(|| Utc::now())
-        //     })
-        //     .or_else(|_| FutOk(Utc::now()))
-        //     // })
-        //     .and_then(move |since| {
-        //         let data = EventReplayRequested {
-        //             requested_event_type: ED::event_type().into(),
-        //             requested_event_namespace: ED::event_namespace().into(),
-        //             since,
-        //         };
-        //         let id = Uuid::new_v4();
-        //         let context = EventContext {
-        //             action: None,
-        //             subject: None,
-        //             time: Utc::now(),
-        //         };
-        //         let event = Event { data, id, context };
-        //         em.emit(&event)
-        //     });
-
-        // Ok(res)
-        // });
-        //     Ok::<_, ()>(())
-        // }))
-        // .unwrap();
     }
 }

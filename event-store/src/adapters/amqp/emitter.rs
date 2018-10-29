@@ -66,13 +66,6 @@ impl AMQPEmitterAdapter {
                         .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
                         .map(|_| (client, channel))
                 })
-                // .and_then(|(client, channel)| {
-                //     let _client = client.clone();
-                //     trace!("Create consumer");
-                //     create_consumer(&_client)
-                //         .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
-                //         .map(|_| (client, channel))
-                // })
                 .and_then(move |(client, channel)| {
                     trace!("Channel created");
 
@@ -87,8 +80,7 @@ impl AMQPEmitterAdapter {
     }
 }
 
-/// TODO: Docs
-pub fn create_consumer<H, E>(
+fn create_consumer<H, E>(
     client: &Client<TcpStream>,
     queue: String,
     handler: H,
@@ -121,15 +113,11 @@ where
         .and_then(move |(channel, stream)| {
             info!("got stream for consumer {}", 0);
             stream.for_each(move |message| {
-                println!(
-                    "consumer '{}' got '{}'",
-                    0,
-                    str::from_utf8(&message.data).unwrap()
-                );
-
                 let data: Event<E> =
                     serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
-                info!("Receiving message with id {}", data.id);
+
+                trace!("Received message with ID {}", data.id);
+
                 handler(&data);
 
                 channel.basic_ack(message.delivery_tag, false)
@@ -139,17 +127,14 @@ where
         .map_err(move |err| eprintln!("got error in consumer '{}': {:?}", 0, err))
 }
 
-/// TODO: Docs
-pub fn connect(
-    uri: SocketAddr,
-    exchange: String,
-) -> impl Future<Item = Client<TcpStream>, Error = ()> {
+fn connect(uri: SocketAddr, exchange: String) -> impl Future<Item = Client<TcpStream>, Error = ()> {
     let exchange1 = exchange.clone();
 
     TcpStream::connect(&uri)
         .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
         .and_then(|(client, heartbeat)| {
-            trace!("heartbeat");
+            trace!("Start heartbeat");
+
             tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
                 .into_future()
                 .map(|_| client)
@@ -157,12 +142,14 @@ pub fn connect(
         })
         .and_then(move |client| {
             trace!("Set up channel");
+
             client
                 .create_channel()
                 .map(move |channel| (client, channel))
         })
         .and_then(move |(client, channel)| {
             trace!("Exchange declare");
+
             channel
                 .exchange_declare(
                     &exchange1,
@@ -176,15 +163,6 @@ pub fn connect(
                 .map(|_| client)
         })
         .map_err(|_| ())
-    // .and_then(|(client, channel)| {
-    //     let _client = client.clone();
-    //     trace!("Create consumer");
-    //     create_consumer(&_client)
-    //         .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
-    // })
-    // .map(|_| ())
-    // // .map_err(|e| e.into())
-    // .map_err(|_| ())
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
@@ -194,7 +172,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
             .into();
         let event_type = E::event_type();
         let id = event.id;
-        info!("Emitting event {} with id {}", event_type, id);
+        info!("Emitting event {} with ID {}", event_type, id);
 
         let _channel = self.channel.clone();
         let _exchange = self.exchange.clone();
@@ -210,7 +188,8 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                         BasicProperties::default(),
                     )
                     .and_then(move |_| {
-                        info!("Event with id {} delivered", id);
+                        info!("Event with ID {} delivered", id);
+
                         FutOk(())
                     }),
             )
@@ -228,8 +207,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         let event_name = ED::event_type();
         let event_namespace = ED::event_namespace();
         let queue_name = format!("{}.{}", event_namespace, event_name);
-        // let c_channel = channel.clone();
-        // let queue_name1 = queue_name.clone();
+
         trace!("Creating queue {}", queue_name);
 
         Box::new(

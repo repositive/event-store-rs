@@ -3,11 +3,8 @@
 use super::Connection;
 use adapters::{CacheAdapter, CacheResult};
 use chrono::prelude::*;
-use futures::future::{lazy as FutLazy, ok as FutOk};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{from_value, to_value};
-use tokio::runtime::current_thread::block_on_all;
-use utils::BoxedFuture;
 
 /// Postgres cache adapter
 #[derive(Clone)]

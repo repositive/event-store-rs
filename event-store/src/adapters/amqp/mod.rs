@@ -1,6 +1,5 @@
 //! AQMP backed emitter adapter.
 
-// TODO: No pub
-pub mod emitter;
+mod emitter;
 
 pub use self::emitter::AMQPEmitterAdapter;
