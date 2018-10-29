@@ -42,6 +42,7 @@ use event_store_derive_internals::{EventData, Events};
 use futures::future::lazy;
 use futures::future::{ok as FutOk, Future};
 use serde::{Deserialize, Serialize};
+use std::thread::{self, JoinHandle};
 use store::Store;
 use store_query::StoreQuery;
 use tokio::executor::current_thread;
@@ -149,7 +150,7 @@ where
             .map_err(|_| "It was not possible to emit the event".into())
     }
 
-    fn subscribe<ED, H>(&self, handler: H)
+    fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
         ED: EventData + Send + Sync + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
@@ -162,15 +163,29 @@ where
         // let res = lazy(move || {
         // let sub = ;
 
-        em.subscribe(move |event: &Event<ED>| {
+        let sub = em.subscribe(move |event: &Event<ED>| {
             info!("IDK");
             let _ = handler_store.save(event).map(|_| {
                 handler(event);
             });
             /**/
-        })
-        .map(|_| ())
-        .map_err(|_| ());
+        });
+
+        let handle = thread::spawn(|| {
+            let mut rt = Runtime::new().expect("Runtime could not be created");
+
+            trace!("Spawn thread");
+            rt.spawn(sub);
+            trace!("RUN 1");
+            // rt.spawn(listen2);
+            // trace!("RUN 2");
+
+            rt.run().expect("Runtime failed");
+
+            trace!("Runtime RUNNING");
+        });
+
+        Ok(handle)
 
         // block_on_all(
         //     em.subscribe(move |event: &Event<ED>| {
@@ -184,8 +199,6 @@ where
         //     .map_err(|_| ()),
         // )
         // .expect("Block failed");
-
-        trace!("After subscribe");
 
         // .and_then(move |_| {
         // info!("GOT HERE");

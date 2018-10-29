@@ -220,14 +220,21 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Emit error"))
     }
 
-    fn subscribe<'a, ED, H>(&self, handler: H) -> Result<(), ()>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
-        block_on_all(connect(self.uri, self.exchange.clone()).and_then(|client| {
-            create_consumer(&client, "organisations.MembershipEdited".into(), handler).map(|_| ())
-        }))
-        .map(|_| ())
+        let event_name = ED::event_type();
+        let event_namespace = ED::event_namespace();
+        let queue_name = format!("{}.{}", event_namespace, event_name);
+        // let c_channel = channel.clone();
+        // let queue_name1 = queue_name.clone();
+        trace!("Creating queue {}", queue_name);
+
+        Box::new(
+            connect(self.uri, self.exchange.clone())
+                .and_then(|client| create_consumer(&client, queue_name, handler).map(|_| ())),
+        )
     }
 }

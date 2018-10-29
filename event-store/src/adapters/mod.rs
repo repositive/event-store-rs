@@ -62,7 +62,7 @@ pub trait EmitterAdapter: Send + Sync + Clone + 'static {
     fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error>;
 
     /// Subscribe to an event
-    fn subscribe<'a, ED, H>(&self, handler: H) -> Result<(), ()>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;

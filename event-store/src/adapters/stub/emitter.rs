@@ -2,7 +2,7 @@
 
 use adapters::EmitterAdapter;
 use event_store_derive_internals::EventData;
-use futures::future::ok;
+use futures::future::ok as FutOk;
 use std::io::Error;
 use utils::BoxedFuture;
 use Event;
@@ -23,11 +23,11 @@ impl EmitterAdapter for StubEmitterAdapter {
         Ok(())
     }
 
-    fn subscribe<'a, ED, H>(&self, _handler: H) -> Result<(), ()>
+    fn subscribe<'a, ED, H>(&self, _handler: H) -> BoxedFuture<'a, (), ()>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> (),
     {
-        Ok(())
+        Box::new(FutOk(()))
     }
 }

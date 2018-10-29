@@ -3,6 +3,7 @@ use aggregator::Aggregator;
 use event::Event;
 use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
+use std::thread::JoinHandle;
 use store_query::StoreQuery;
 use utils::BoxedFuture;
 
@@ -39,7 +40,7 @@ pub trait Store<
     ) -> Result<(), String>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H)
+    fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
         ED: EventData + Send + Sync + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
