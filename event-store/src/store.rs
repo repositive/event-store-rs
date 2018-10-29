@@ -19,7 +19,7 @@ pub trait Store<
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&'b self, query: A) -> BoxedFuture<'b, T, String>
+    fn aggregate<'b, E, T, A>(&'b self, query: A) -> Result<T, String>
     where
         E: Events + Send + Sync + 'b,
         Q: 'b,
@@ -36,7 +36,7 @@ pub trait Store<
     fn save<'b, ED: EventData + Send + Sync + 'b>(
         &'b self,
         event: &'b Event<ED>,
-    ) -> BoxedFuture<'b, (), String>;
+    ) -> Result<(), String>;
 
     /// Subscribe to an event
     fn subscribe<ED, H>(&self, handler: H)

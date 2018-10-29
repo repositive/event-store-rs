@@ -98,7 +98,7 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&'b self, query_args: A) -> BoxedFuture<'b, T, String>
+    fn aggregate<'b, E, T, A>(&'b self, query_args: A) -> Result<T, String>
     where
         E: Events + Send + Sync + 'b,
         Q: 'b,
@@ -114,43 +114,39 @@ where
         let store_query = T::query(query_args.clone());
         let cache_id = store_query.unique_id();
 
-        Box::new(self.cache.get(cache_id.clone()).and_then(
-            move |cache_result: Option<CacheResult<T>>| {
-                let initial_state = cache_result
-                    .clone()
-                    .map_or(T::default(), |(state, _)| state);
-                let since = cache_result.clone().map(|(_, since)| since);
-                self.store
-                    .read(store_query, since)
-                    .and_then(move |event_list| {
-                        let agg = event_list
-                            .iter()
-                            .fold(initial_state, |acc, event| T::apply_event(acc, &event));
-                        let save_cache_task = match cache_result {
-                            Some((ref cache_state, _)) if &agg != cache_state => {
-                                self.cache.set(cache_id, agg.clone())
-                            }
-                            None => self.cache.set(cache_id, agg.clone()),
-                            _ => Box::new(FutOk(())),
-                        };
-                        save_cache_task.and_then(|_| FutOk(agg))
-                    })
-            },
-        ))
+        let cache_result: Option<CacheResult<T>> = self.cache.get(cache_id.clone())?;
+
+        let initial_state = cache_result
+            .clone()
+            .map_or(T::default(), |(state, _)| state);
+        let since = cache_result.clone().map(|(_, since)| since);
+        let event_list = self.store.read(store_query, since)?;
+
+        let agg = event_list
+            .iter()
+            .fold(initial_state, |acc, event| T::apply_event(acc, &event));
+
+        match cache_result {
+            Some((ref cache_state, _)) if &agg != cache_state => {
+                self.cache.set(cache_id, agg.clone())
+            }
+            None => self.cache.set(cache_id, agg.clone()),
+            _ => Ok(()),
+        };
+
+        Ok(agg)
     }
 
     /// Save an event to the store with optional context
     fn save<'b, ED: EventData + Send + Sync + 'b>(
         &'b self,
         event: &'b Event<ED>,
-    ) -> BoxedFuture<'b, (), String> {
-        Box::from(self.store.save(event).and_then(move |_| {
-            Box::new(
-                self.emitter
-                    .emit(&event)
-                    .map_err(|_| "It was not possible to emit the event".into()),
-            )
-        }))
+    ) -> Result<(), String> {
+        self.store.save(event)?;
+
+        self.emitter
+            .emit(&event)
+            .map_err(|_| "It was not possible to emit the event".into())
     }
 
     fn subscribe<ED, H>(&self, handler: H)
@@ -166,21 +162,15 @@ where
         // let res = lazy(move || {
         // let sub = ;
 
-        tokio::run(lazy(move || {
-            info!("STUPH");
-            tokio::spawn(
-                em.subscribe(move |event: &Event<ED>| {
-                    info!("IDK");
-                    let _ = handler_store.save(event).map(|_| {
-                        handler(event);
-                    });
-                    /**/
-                })
-                .map(|_| ())
-                .map_err(|_| ()),
-            );
-            Ok(())
-        }));
+        em.subscribe(move |event: &Event<ED>| {
+            info!("IDK");
+            let _ = handler_store.save(event).map(|_| {
+                handler(event);
+            });
+            /**/
+        })
+        .map(|_| ())
+        .map_err(|_| ());
 
         // block_on_all(
         //     em.subscribe(move |event: &Event<ED>| {

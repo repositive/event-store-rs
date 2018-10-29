@@ -14,6 +14,7 @@ use serde_json;
 use std::io;
 use std::net::SocketAddr;
 use std::str;
+use std::thread;
 use tokio;
 use tokio::net::TcpStream;
 use tokio::runtime::current_thread::block_on_all;
@@ -159,12 +160,17 @@ where
         .map_err(|_| ())
 }
 
-fn create_consumer(
+/// TODO: Docs
+pub fn create_consumer<H, E>(
     client: &Client<TcpStream>,
-) -> impl Future<Item = (), Error = ()> + Send + 'static {
+    queue: String,
+    handler: H,
+) -> impl Future<Item = (), Error = ()> + Send + 'static
+where
+    E: EventData + 'static,
+    H: Fn(&Event<E>) -> () + Send + 'static,
+{
     info!("will create consumer {}", 0);
-
-    let queue = format!("organisations.MembershipEdited");
 
     client
         .create_channel()
@@ -193,6 +199,12 @@ fn create_consumer(
                     0,
                     str::from_utf8(&message.data).unwrap()
                 );
+
+                let data: Event<E> =
+                    serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
+                info!("Receiving message with id {}", data.id);
+                handler(&data);
+
                 channel.basic_ack(message.delivery_tag, false)
             })
         })
@@ -200,7 +212,11 @@ fn create_consumer(
         .map_err(move |err| eprintln!("got error in consumer '{}': {:?}", 0, err))
 }
 
-fn connect(uri: SocketAddr, exchange: String) -> impl Future<Item = Client<TcpStream>, Error = ()> {
+/// TODO: Docs
+pub fn connect(
+    uri: SocketAddr,
+    exchange: String,
+) -> impl Future<Item = Client<TcpStream>, Error = ()> {
     let exchange1 = exchange.clone();
 
     TcpStream::connect(&uri)
@@ -245,7 +261,7 @@ fn connect(uri: SocketAddr, exchange: String) -> impl Future<Item = Client<TcpSt
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> BoxedFuture<'a, (), io::Error> {
+    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
@@ -253,25 +269,32 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         let id = event.id;
         info!("Emitting event {} with id {}", event_type, id);
 
-        Box::new(
-            self.channel
-                .basic_publish(
-                    &self.exchange,
-                    &event_type,
-                    payload,
-                    BasicPublishOptions::default(),
-                    BasicProperties::default(),
-                )
-                .and_then(move |_| {
-                    info!("Event with id {} delivered", id);
-                    FutOk(())
-                }),
-        )
+        let _channel = self.channel.clone();
+        let _exchange = self.exchange.clone();
+
+        thread::spawn(move || {
+            block_on_all(
+                _channel
+                    .basic_publish(
+                        &_exchange,
+                        &event_type,
+                        payload,
+                        BasicPublishOptions::default(),
+                        BasicProperties::default(),
+                    )
+                    .and_then(move |_| {
+                        info!("Event with id {} delivered", id);
+                        FutOk(())
+                    }),
+            );
+        })
+        .join()
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Emit error"))
     }
 
-    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> Result<(), ()>
     where
-        ED: EventData + 'a + 'static,
+        ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
         // Box::new(prepare_subscription(
@@ -284,14 +307,16 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         // block_on_all(create_consumer(&self.client));
         // trace!("AFT");
 
-        Box::new(
+        block_on_all(
             // prepare_subscription(self.exchange.clone(), handler, self.client.clone())
             //     .into_future()
             //     .map_err(|_| ()),
-            connect(self.uri, self.exchange.clone())
-                .and_then(|client| create_consumer(&client))
-                .map(|_| ())
-                .map_err(|_| ()),
-        )
+            connect(self.uri, self.exchange.clone()).and_then(|client| {
+                create_consumer(&client, "organisations.MembershipEdited".into(), handler)
+                    .map(|_| ())
+            }),
+        );
+
+        Ok(())
     }
 }
