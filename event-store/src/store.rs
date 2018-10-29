@@ -12,7 +12,7 @@ pub trait Store<
     'a,
     Q: StoreQuery + Send + Sync + 'a,
     S: StoreAdapter<Q> + Send + Sync,
-    C: CacheAdapter + 'a,
+    C: CacheAdapter + 'static,
     EM: EmitterAdapter + Send + Sync,
 >: Send + Sync + Clone + 'a
 {
@@ -43,5 +43,5 @@ pub trait Store<
     fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
         ED: EventData + Send + Sync + 'static,
-        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
+        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static;
 }

@@ -86,7 +86,7 @@ impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
 where
     Q: StoreQuery + Send + Sync + 'a,
     S: StoreAdapter<Q> + Send + Sync + Clone + 'a,
-    C: CacheAdapter + Send + Sync + Clone + 'a,
+    C: CacheAdapter + Send + Sync + Clone + 'static,
     EM: EmitterAdapter + Send + Sync + Clone + 'a,
 {
     /// Create a new event store
@@ -153,9 +153,10 @@ where
     fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
         ED: EventData + Send + Sync + 'static,
-        H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
+        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static,
     {
         info!("Register");
+        let _self = self.clone();
         let handler_store = self.store.clone();
         let handler_store_2 = self.store.clone();
         let em = self.emitter.clone();
@@ -166,7 +167,7 @@ where
         let sub = em.subscribe(move |event: &Event<ED>| {
             info!("IDK");
             let _ = handler_store.save(event).map(|_| {
-                handler(event);
+                handler(event, &_self);
             });
             /**/
         });
