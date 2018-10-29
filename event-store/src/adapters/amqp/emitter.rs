@@ -6,7 +6,7 @@ use futures::future::{ok as FutOk, Future};
 use futures::{IntoFuture, Stream};
 use lapin::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
-    QueueBindOptions, QueueDeclareOptions,
+    QueueDeclareOptions,
 };
 use lapin::client::{Client, ConnectionOptions};
 use lapin::types::FieldTable;
@@ -85,79 +85,6 @@ impl AMQPEmitterAdapter {
                 }),
         )
     }
-}
-
-fn prepare_subscription<'a, E, H>(
-    exchange: String,
-    handler: H,
-    client: Client<TcpStream>,
-) -> impl Future<Item = (), Error = ()>
-where
-    E: EventData + 'a,
-    H: Fn(&Event<E>) -> () + Send + 'static,
-{
-    let event_name = E::event_type();
-    let event_namespace = E::event_namespace();
-    // let queue_name = format!("{}-{}", event_namespace, event_name);
-    let queue_name = "organisations.MembershipEdited";
-    // let c_channel = channel.clone();
-    let queue_name1 = queue_name.clone();
-    trace!("prepare_subscription {}", queue_name);
-
-    client
-        .create_channel()
-        .and_then(move |channel| {
-            info!("creating channel {}", queue_name);
-            channel
-                .queue_declare(
-                    &queue_name,
-                    QueueDeclareOptions::default(),
-                    FieldTable::new(),
-                )
-                .map(move |queue| (channel, queue))
-        })
-        // .and_then(move |(channel, queue)| {
-        //     info!("Binding queue {} to exchange {}", queue_name, exchange);
-        //     channel
-        //         .queue_bind(
-        //             &queue_name,
-        //             &exchange,
-        //             &event_name,
-        //             QueueBindOptions::default(),
-        //             FieldTable::new(),
-        //         )
-        .and_then(move |(channel, queue)| {
-            trace!("Basic_consume");
-
-            channel
-                .basic_consume(
-                    &queue,
-                    &queue_name,
-                    BasicConsumeOptions::default(),
-                    FieldTable::new(),
-                )
-                .map(move |stream| (channel, stream))
-        })
-        .and_then(move |(channel, stream)| {
-            info!("Starting to consume from queue {}", queue_name1);
-
-            stream
-                .for_each(move |message| {
-                    trace!("MESSAGE {}", str::from_utf8(&message.data).unwrap());
-
-                    let data: Event<E> =
-                        serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
-                    info!("Receiving message with id {}", data.id);
-                    handler(&data);
-                    channel.basic_ack(message.delivery_tag, false)
-                })
-                .map_err(|e| {
-                    panic!(e);
-                })
-        })
-        .map(|_| ())
-        // .map_err(|e| e.into())
-        .map_err(|_| ())
 }
 
 /// TODO: Docs
@@ -286,7 +213,8 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                         info!("Event with id {} delivered", id);
                         FutOk(())
                     }),
-            );
+            )
+            .expect("Publish failed")
         })
         .join()
         .map_err(|_| io::Error::new(io::ErrorKind::Other, "Emit error"))
@@ -297,26 +225,9 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
-        // Box::new(prepare_subscription(
-        //     self.exchange.clone(),
-        //     handler,
-        //     self.client.clone(),
-        // ))
-
-        // trace!("BEF");
-        // block_on_all(create_consumer(&self.client));
-        // trace!("AFT");
-
-        block_on_all(
-            // prepare_subscription(self.exchange.clone(), handler, self.client.clone())
-            //     .into_future()
-            //     .map_err(|_| ()),
-            connect(self.uri, self.exchange.clone()).and_then(|client| {
-                create_consumer(&client, "organisations.MembershipEdited".into(), handler)
-                    .map(|_| ())
-            }),
-        );
-
-        Ok(())
+        block_on_all(connect(self.uri, self.exchange.clone()).and_then(|client| {
+            create_consumer(&client, "organisations.MembershipEdited".into(), handler).map(|_| ())
+        }))
+        .map(|_| ())
     }
 }
