@@ -166,34 +166,34 @@ where
         // let res = lazy(move || {
         // let sub = ;
 
-        // tokio::run(lazy(move || {
-        //     info!("STUPH");
-        //     tokio::spawn(
-        //         em.subscribe(move |event: &Event<ED>| {
-        //             info!("IDK");
-        //             let _ = handler_store.save(event).map(|_| {
-        //                 handler(event);
-        //             });
-        //             /**/
-        //         })
-        //         .map(|_| ())
-        //         .map_err(|_| ()),
-        //     );
-        //     Ok(())
-        // }));
+        tokio::run(lazy(move || {
+            info!("STUPH");
+            tokio::spawn(
+                em.subscribe(move |event: &Event<ED>| {
+                    info!("IDK");
+                    let _ = handler_store.save(event).map(|_| {
+                        handler(event);
+                    });
+                    /**/
+                })
+                .map(|_| ())
+                .map_err(|_| ()),
+            );
+            Ok(())
+        }));
 
-        block_on_all(
-            em.subscribe(move |event: &Event<ED>| {
-                info!("IDK");
-                let _ = handler_store.save(event).map(|_| {
-                    handler(event);
-                });
-                /**/
-            })
-            .map(|_| ())
-            .map_err(|_| ()),
-        )
-        .expect("Block failed");
+        // block_on_all(
+        //     em.subscribe(move |event: &Event<ED>| {
+        //         info!("IDK");
+        //         let _ = handler_store.save(event).map(|_| {
+        //             handler(event);
+        //         });
+        //         /**/
+        //     })
+        //     .map(|_| ())
+        //     .map_err(|_| ()),
+        // )
+        // .expect("Block failed");
 
         trace!("After subscribe");
 
