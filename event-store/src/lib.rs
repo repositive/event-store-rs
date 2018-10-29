@@ -155,7 +155,7 @@ where
 
     fn subscribe<ED, H>(&self, handler: H)
     where
-        ED: EventData + Send + Sync,
+        ED: EventData + Send + Sync + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static,
     {
         info!("Register");
@@ -166,23 +166,36 @@ where
         // let res = lazy(move || {
         // let sub = ;
 
-        tokio::run(lazy(move || {
-            info!("STUPH");
-            tokio::spawn(lazy(move || {
-                info!("UGH");
+        // tokio::run(lazy(move || {
+        //     info!("STUPH");
+        //     tokio::spawn(
+        //         em.subscribe(move |event: &Event<ED>| {
+        //             info!("IDK");
+        //             let _ = handler_store.save(event).map(|_| {
+        //                 handler(event);
+        //             });
+        //             /**/
+        //         })
+        //         .map(|_| ())
+        //         .map_err(|_| ()),
+        //     );
+        //     Ok(())
+        // }));
 
-                em.subscribe(move |event: &Event<ED>| {
-                    info!("IDK");
-                    let _ = handler_store.save(event).map(|_| {
-                        handler(event);
-                    });
-                    /**/
+        block_on_all(
+            em.subscribe(move |event: &Event<ED>| {
+                info!("IDK");
+                let _ = handler_store.save(event).map(|_| {
+                    handler(event);
                 });
+                /**/
+            })
+            .map(|_| ())
+            .map_err(|_| ()),
+        )
+        .expect("Block failed");
 
-                Ok(())
-            }));
-            Ok(())
-        }));
+        trace!("After subscribe");
 
         // .and_then(move |_| {
         // info!("GOT HERE");

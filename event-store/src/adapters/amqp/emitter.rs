@@ -3,7 +3,7 @@
 use adapters::EmitterAdapter;
 use event_store_derive_internals::EventData;
 use futures::future::{ok as FutOk, Future};
-use futures::Stream;
+use futures::{IntoFuture, Stream};
 use lapin::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
     QueueBindOptions, QueueDeclareOptions,
@@ -16,6 +16,7 @@ use std::net::SocketAddr;
 use std::str;
 use tokio;
 use tokio::net::TcpStream;
+use tokio::runtime::current_thread::block_on_all;
 use utils::BoxedFuture;
 use Event;
 
@@ -23,7 +24,9 @@ use Event;
 #[derive(Clone)]
 pub struct AMQPEmitterAdapter {
     channel: Channel<TcpStream>,
+    client: Client<TcpStream>,
     exchange: String,
+    uri: SocketAddr,
 }
 
 impl AMQPEmitterAdapter {
@@ -35,14 +38,20 @@ impl AMQPEmitterAdapter {
             TcpStream::connect(&uri)
                 .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
                 .and_then(|(client, heartbeat)| {
-                    info!("Connection stablished");
-                    info!("Starting heartbeat task");
-                    tokio::spawn(heartbeat.map_err(|_| ()));
-                    info!("Creating amqp channel");
-                    client.create_channel()
+                    trace!("heartbeat");
+                    tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
+                        .into_future()
+                        .map(|_| client)
+                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
                 })
-                .and_then(move |channel: Channel<TcpStream>| {
-                    let ch = channel.clone();
+                .and_then(move |client| {
+                    trace!("Set up channel");
+                    client
+                        .create_channel()
+                        .map(move |channel| (client, channel))
+                })
+                .and_then(move |(client, channel)| {
+                    trace!("Exchange declare");
                     channel
                         .exchange_declare(
                             &exchange1,
@@ -53,12 +62,25 @@ impl AMQPEmitterAdapter {
                             },
                             FieldTable::new(),
                         )
-                        .and_then(move |_| FutOk(ch))
+                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+                        .map(|_| (client, channel))
                 })
-                .and_then(|channel| {
+                // .and_then(|(client, channel)| {
+                //     let _client = client.clone();
+                //     trace!("Create consumer");
+                //     create_consumer(&_client)
+                //         .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+                //         .map(|_| (client, channel))
+                // })
+                .and_then(move |(client, channel)| {
                     trace!("Channel created");
 
-                    FutOk(Self { channel, exchange })
+                    FutOk(Self {
+                        client,
+                        channel,
+                        exchange,
+                        uri,
+                    })
                 }),
         )
     }
@@ -67,68 +89,159 @@ impl AMQPEmitterAdapter {
 fn prepare_subscription<'a, E, H>(
     exchange: String,
     handler: H,
-    channel: Channel<TcpStream>,
-) -> impl Future<Item = (), Error = io::Error>
+    client: Client<TcpStream>,
+) -> impl Future<Item = (), Error = ()>
 where
     E: EventData + 'a,
     H: Fn(&Event<E>) -> () + Send + 'static,
 {
     let event_name = E::event_type();
     let event_namespace = E::event_namespace();
-    let queue_name = format!("{}-{}", event_namespace, event_name);
-    let c_channel = channel.clone();
+    // let queue_name = format!("{}-{}", event_namespace, event_name);
+    let queue_name = "organisations.MembershipEdited";
+    // let c_channel = channel.clone();
     let queue_name1 = queue_name.clone();
-    info!("Creating queue {}", queue_name);
-    channel
-        .queue_declare(
-            &queue_name,
-            QueueDeclareOptions {
-                durable: true,
-                exclusive: false,
-                auto_delete: false,
-                ..QueueDeclareOptions::default()
-            },
-            FieldTable::new(),
-        )
-        .and_then(move |queue| {
-            info!("Binding queue {} to exchange {}", queue_name, exchange);
+    trace!("prepare_subscription {}", queue_name);
+
+    client
+        .create_channel()
+        .and_then(move |channel| {
+            info!("creating channel {}", queue_name);
             channel
-                .queue_bind(
+                .queue_declare(
                     &queue_name,
-                    &exchange,
-                    &event_name,
-                    QueueBindOptions::default(),
+                    QueueDeclareOptions::default(),
                     FieldTable::new(),
                 )
-                .and_then(move |_| {
-                    channel.basic_consume(
-                        &queue,
-                        &queue_name,
-                        BasicConsumeOptions::default(),
-                        FieldTable::new(),
-                    )
-                })
-                .and_then(move |stream| {
-                    let handle_events = stream
-                        .for_each(move |message| {
-                            let data: Event<E> =
-                                serde_json::from_str(str::from_utf8(&message.data).unwrap())
-                                    .unwrap();
-                            info!("Receiving message with id {}", data.id);
-                            handler(&data);
-                            c_channel.basic_ack(message.delivery_tag, false)
-                        })
-                        .map_err(|e| {
-                            panic!(e);
-                        });
+                .map(move |queue| (channel, queue))
+        })
+        // .and_then(move |(channel, queue)| {
+        //     info!("Binding queue {} to exchange {}", queue_name, exchange);
+        //     channel
+        //         .queue_bind(
+        //             &queue_name,
+        //             &exchange,
+        //             &event_name,
+        //             QueueBindOptions::default(),
+        //             FieldTable::new(),
+        //         )
+        .and_then(move |(channel, queue)| {
+            trace!("Basic_consume");
 
-                    info!("Starting to consume from queue {}", queue_name1);
-                    tokio::spawn(handle_events);
-                    FutOk(())
+            channel
+                .basic_consume(
+                    &queue,
+                    &queue_name,
+                    BasicConsumeOptions::default(),
+                    FieldTable::new(),
+                )
+                .map(move |stream| (channel, stream))
+        })
+        .and_then(move |(channel, stream)| {
+            info!("Starting to consume from queue {}", queue_name1);
+
+            stream
+                .for_each(move |message| {
+                    trace!("MESSAGE {}", str::from_utf8(&message.data).unwrap());
+
+                    let data: Event<E> =
+                        serde_json::from_str(str::from_utf8(&message.data).unwrap()).unwrap();
+                    info!("Receiving message with id {}", data.id);
+                    handler(&data);
+                    channel.basic_ack(message.delivery_tag, false)
+                })
+                .map_err(|e| {
+                    panic!(e);
                 })
         })
-        .and_then(|_| FutOk(()))
-        .map_err(|e| e.into())
+        .map(|_| ())
+        // .map_err(|e| e.into())
+        .map_err(|_| ())
+}
+
+fn create_consumer(
+    client: &Client<TcpStream>,
+) -> impl Future<Item = (), Error = ()> + Send + 'static {
+    info!("will create consumer {}", 0);
+
+    let queue = format!("organisations.MembershipEdited");
+
+    client
+        .create_channel()
+        .and_then(move |channel| {
+            info!("creating queue {}", queue);
+            channel
+                .queue_declare(&queue, QueueDeclareOptions::default(), FieldTable::new())
+                .map(move |queue| (channel, queue))
+        })
+        .and_then(move |(channel, queue)| {
+            info!("creating consumer {}", 0);
+            channel
+                .basic_consume(
+                    &queue,
+                    "",
+                    BasicConsumeOptions::default(),
+                    FieldTable::new(),
+                )
+                .map(move |stream| (channel, stream))
+        })
+        .and_then(move |(channel, stream)| {
+            info!("got stream for consumer {}", 0);
+            stream.for_each(move |message| {
+                println!(
+                    "consumer '{}' got '{}'",
+                    0,
+                    str::from_utf8(&message.data).unwrap()
+                );
+                channel.basic_ack(message.delivery_tag, false)
+            })
+        })
+        .map(|_| ())
+        .map_err(move |err| eprintln!("got error in consumer '{}': {:?}", 0, err))
+}
+
+fn connect(uri: SocketAddr, exchange: String) -> impl Future<Item = Client<TcpStream>, Error = ()> {
+    let exchange1 = exchange.clone();
+
+    TcpStream::connect(&uri)
+        .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
+        .and_then(|(client, heartbeat)| {
+            trace!("heartbeat");
+            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
+                .into_future()
+                .map(|_| client)
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+        })
+        .and_then(move |client| {
+            trace!("Set up channel");
+            client
+                .create_channel()
+                .map(move |channel| (client, channel))
+        })
+        .and_then(move |(client, channel)| {
+            trace!("Exchange declare");
+            channel
+                .exchange_declare(
+                    &exchange1,
+                    &"topic",
+                    ExchangeDeclareOptions {
+                        durable: true,
+                        ..ExchangeDeclareOptions::default()
+                    },
+                    FieldTable::new(),
+                )
+                .map(|_| client)
+        })
+        .map_err(|_| ())
+    // .and_then(|(client, channel)| {
+    //     let _client = client.clone();
+    //     trace!("Create consumer");
+    //     create_consumer(&_client)
+    //         .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+    // })
+    // .map(|_| ())
+    // // .map_err(|e| e.into())
+    // .map_err(|_| ())
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
@@ -156,15 +269,29 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         )
     }
 
-    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), io::Error>
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
     where
-        ED: EventData + 'a,
+        ED: EventData + 'a + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
     {
-        Box::new(prepare_subscription(
-            self.exchange.clone(),
-            handler,
-            self.channel.clone(),
-        ))
+        // Box::new(prepare_subscription(
+        //     self.exchange.clone(),
+        //     handler,
+        //     self.client.clone(),
+        // ))
+
+        // trace!("BEF");
+        // block_on_all(create_consumer(&self.client));
+        // trace!("AFT");
+
+        Box::new(
+            // prepare_subscription(self.exchange.clone(), handler, self.client.clone())
+            //     .into_future()
+            //     .map_err(|_| ()),
+            connect(self.uri, self.exchange.clone())
+                .and_then(|client| create_consumer(&client))
+                .map(|_| ())
+                .map_err(|_| ()),
+        )
     }
 }

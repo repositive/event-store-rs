@@ -41,6 +41,6 @@ pub trait Store<
     /// Subscribe to an event
     fn subscribe<ED, H>(&self, handler: H)
     where
-        ED: EventData + Send + Sync,
+        ED: EventData + Send + Sync + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
 }
