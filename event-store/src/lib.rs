@@ -39,11 +39,14 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
+use futures::lazy;
 use serde::{Deserialize, Serialize};
-use std::thread::{self, JoinHandle};
+use std::thread;
+use std::thread::JoinHandle;
 use store::Store;
 use store_query::StoreQuery;
-use tokio::runtime::current_thread::Runtime;
+use tokio::runtime::current_thread::block_on_all;
+use tokio::runtime::Runtime;
 
 /// Main event store
 #[derive(Clone)]
@@ -145,7 +148,7 @@ where
             .map_err(|_| "It was not possible to emit the event".into())
     }
 
-    fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
+    fn subscribe<ED, H>(&self, handler: H) -> Result<Runtime, ()>
     where
         ED: EventData + Send + Sync + 'static,
         H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static,
@@ -154,21 +157,19 @@ where
         let handler_store = self.store.clone();
 
         let sub = self.emitter.subscribe(move |event: &Event<ED>| {
+            trace!("Subscription received event ID {}", event.id);
+
             let _ = handler_store.save(event).map(|_| {
                 handler(event, &_self);
             });
         });
 
-        let handle = thread::spawn(|| {
-            let mut rt = Runtime::new().expect("Subscriber runtime could not be created");
+        tokio::run(futures::lazy(|| {
+            tokio::spawn(sub);
 
-            trace!("Spawn subscriber thread");
+            Ok(())
+        }));
 
-            rt.spawn(sub);
-
-            rt.run().expect("Subscriber runtime failed");
-        });
-
-        Ok(handle)
+        Ok(Runtime::new().unwrap())
     }
 }
