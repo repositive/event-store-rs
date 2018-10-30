@@ -16,7 +16,7 @@ chrono = { version = "0.4.6", features = ["serde"] }
 uuid = { version = "0.5.1", features = ["serde", "v4"] }
 event-store-derive = { path = "../event-store-derive" }
 event-store-derive-internals = { path = "../event-store-derive-internals" }
-log = "0.4.5"
+log = "0.4.6"
 lapin-futures = "0.14.0"
 futures = "0.1.25"
 tokio = "0.1.11"
