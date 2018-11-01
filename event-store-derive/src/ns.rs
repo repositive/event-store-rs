@@ -127,14 +127,10 @@ pub fn get_attribute_ident(input: &Vec<Attribute>, attribute_name: &'static str)
                             (
                                 Some(TokenTree::Ident(ref ident)),
                                 Some(TokenTree::Literal(ref attribute_value)),
-                            )
-                                if *ident == ident_match =>
-                            {
-                                Some(Ident::new(
-                                    attribute_value.to_string().trim_matches('"').into(),
-                                    Span::call_site(),
-                                ))
-                            }
+                            ) if *ident == ident_match => Some(Ident::new(
+                                attribute_value.to_string().trim_matches('"').into(),
+                                Span::call_site(),
+                            )),
                             _ => None,
                         }
                     }

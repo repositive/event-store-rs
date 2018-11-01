@@ -22,8 +22,7 @@ use tokio::runtime::Runtime;
 fn emitter_emits_and_subscribes() {
     env_logger::init();
 
-    let addr: SocketAddr = "127.0.0.1:5672".parse().unwrap();
-    // let mut runtime = Runtime::new().expect("Create runtime");
+    let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
     let (tx, rx) = mpsc::channel();
     let original_sh = Arc::new(Mutex::new(tx));
     let sh = original_sh.clone();
@@ -40,15 +39,11 @@ fn emitter_emits_and_subscribes() {
         &sh.lock().unwrap().send(()).unwrap();
     });
 
-    // let receiver_handle = thread::spawn(|| {
     let mut rt = Runtime::new().expect("Subscriber runtime could not be created");
 
     println!("Spawn subscriber thread");
 
     rt.spawn(sub);
-
-    // rt.run().expect("Subscriber runtime failed");
-    // });
 
     thread::sleep(time::Duration::from_millis(100));
 
@@ -57,8 +52,6 @@ fn emitter_emits_and_subscribes() {
         ident: "some_ident".into(),
     }))
     .expect("Could not send event");
-
-    println!("Done");
 
     assert!(rx.recv_timeout(Duration::from_secs(5)).is_ok());
 }

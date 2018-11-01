@@ -5,7 +5,6 @@ use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
 use std::thread::JoinHandle;
 use store_query::StoreQuery;
-use tokio::runtime::Runtime;
 
 /// Store trait
 pub trait Store<
@@ -40,7 +39,7 @@ pub trait Store<
     ) -> Result<(), String>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H) -> Result<Runtime, ()>
+    fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
         ED: EventData + Send + Sync + 'static,
         H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static;
