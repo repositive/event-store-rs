@@ -250,7 +250,7 @@ impl AMQPSender {
                 trace!("Got to end");
             });
 
-        block_on_all(fut)
+        Runtime::new().unwrap().block_on(fut)
     }
 }
 
@@ -282,13 +282,7 @@ impl AMQPReceiver {
         let consumer = connect(self.uri, self.exchange.clone())
             .and_then(|(_, channel)| create_consumer(channel, queue_name, handler));
 
-        tokio::run(futures::lazy(|| {
-            trace!("Subscribe");
-
-            tokio::spawn(consumer);
-
-            Ok(())
-        }));
+        thread::spawn(|| block_on_all(consumer));
     }
 }
 
@@ -339,7 +333,7 @@ impl AMQPEmitterAdapter {
                         .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
                         .map(|_| (client, channel))
                 })
-                .and_then(move |(client, channel)| {
+                .and_then(move |(_client, channel)| {
                     trace!("Channel created");
 
                     FutOk(Self {
