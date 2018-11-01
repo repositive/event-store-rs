@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["James Waples <jamwaffles@gmail.com>"]
 
 [dependencies]
-serde = "1.0.79"
+serde = "1.0.80"

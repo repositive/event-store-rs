@@ -3,23 +3,23 @@ use aggregator::Aggregator;
 use event::Event;
 use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
+use std::thread::JoinHandle;
 use store_query::StoreQuery;
-use utils::BoxedFuture;
 
 /// Store trait
 pub trait Store<
     'a,
     Q: StoreQuery + Send + Sync + 'a,
     S: StoreAdapter<Q> + Send + Sync,
-    C: CacheAdapter + 'a,
+    C: CacheAdapter + 'static,
     EM: EmitterAdapter + Send + Sync,
->: Send + Sync + 'a
+>: Send + Sync + Clone + 'a
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&'b self, query: A) -> BoxedFuture<'b, T, String>
+    fn aggregate<'b, E, T, A>(&'b self, query: A) -> Result<T, String>
     where
         E: Events + Send + Sync + 'b,
         Q: 'b,
@@ -36,11 +36,11 @@ pub trait Store<
     fn save<'b, ED: EventData + Send + Sync + 'b>(
         &'b self,
         event: &'b Event<ED>,
-    ) -> BoxedFuture<'b, (), String>;
+    ) -> Result<(), String>;
 
     /// Subscribe to an event
-    fn subscribe<'b, ED, H>(&'b self, handler: H) -> BoxedFuture<'b, (), String>
+    fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
-        ED: EventData + Send + Sync + 'b,
-        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
+        ED: EventData + Send + Sync + 'static,
+        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static;
 }

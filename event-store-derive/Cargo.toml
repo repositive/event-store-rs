@@ -4,11 +4,11 @@ version = "0.1.0"
 authors = ["James Waples <jamwaffles@gmail.com>"]
 
 [dependencies]
-syn = { version = "0.15.4", features = [ "extra-traits" ] }
-quote = "0.6.8"
-proc-macro2 = "0.4.19"
-serde = "1.0.79"
-serde_derive = "1.0.79"
+syn = { version = "0.15.16", features = [ "extra-traits" ] }
+quote = "0.6.9"
+proc-macro2 = "0.4.20"
+serde = "1.0.80"
+serde_derive = "1.0.80"
 event-store-derive-internals = { path = "../event-store-derive-internals" }
 
 [lib]

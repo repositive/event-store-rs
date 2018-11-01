@@ -42,9 +42,9 @@ fn it_queries_the_database() {
         ident: ident.clone(),
     });
 
-    assert!(block_on_all(store.save(&test_event)).is_ok());
+    assert!(store.save(&test_event).is_ok());
 
-    let entity: TestCounterEntity = block_on_all(store.aggregate(ident)).unwrap();
+    let entity: TestCounterEntity = store.aggregate(ident).unwrap();
 
     assert_eq!(entity.counter, 99);
 }
@@ -62,7 +62,7 @@ fn it_saves_events() {
         ident: ident.clone(),
     });
 
-    assert!(block_on_all(store.save(&event)).is_ok());
+    assert!(store.save(&event).is_ok());
 }
 
 #[test]
@@ -84,13 +84,13 @@ fn it_uses_the_aggregate_cache() {
         ident: ident.clone(),
     });
 
-    assert!(block_on_all(store.save(&test_ev_1)).is_ok());
-    assert!(block_on_all(store.save(&test_ev_2)).is_ok());
+    assert!(store.save(&test_ev_1).is_ok());
+    assert!(store.save(&test_ev_2).is_ok());
 
     // Wait for DB to process
     thread::sleep(Duration::from_millis(10));
 
-    let entity: TestCounterEntity = block_on_all(store.aggregate(ident)).unwrap();
+    let entity: TestCounterEntity = store.aggregate(ident).unwrap();
 
     assert_eq!(entity.counter, 3);
 }
