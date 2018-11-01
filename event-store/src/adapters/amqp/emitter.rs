@@ -24,65 +24,6 @@ use tokio::runtime::Runtime;
 use utils::BoxedFuture;
 use Event;
 
-/// AMQP emitter
-#[derive(Clone)]
-pub struct AMQPEmitterAdapter {
-    channel: Channel<TcpStream>,
-    client: Client<TcpStream>,
-    exchange: String,
-    uri: SocketAddr,
-}
-
-impl AMQPEmitterAdapter {
-    /// Create a new AMQPEmiterAdapter
-    pub fn new<'a>(uri: SocketAddr, exchange: String) -> BoxedFuture<'a, Self, io::Error> {
-        let exchange1 = exchange.clone();
-        info!("Connecting to AMQP using {}", uri);
-        Box::new(
-            TcpStream::connect(&uri)
-                .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
-                .and_then(|(client, heartbeat)| {
-                    trace!("heartbeat");
-                    tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
-                        .into_future()
-                        .map(|_| client)
-                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
-                })
-                .and_then(move |client| {
-                    trace!("Set up channel");
-                    client
-                        .create_channel()
-                        .map(move |channel| (client, channel))
-                })
-                .and_then(move |(client, channel)| {
-                    trace!("Exchange declare");
-                    channel
-                        .exchange_declare(
-                            &exchange1,
-                            &"topic",
-                            ExchangeDeclareOptions {
-                                durable: true,
-                                ..ExchangeDeclareOptions::default()
-                            },
-                            FieldTable::new(),
-                        )
-                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
-                        .map(|_| (client, channel))
-                })
-                .and_then(move |(client, channel)| {
-                    trace!("Channel created");
-
-                    FutOk(Self {
-                        client,
-                        channel,
-                        exchange,
-                        uri,
-                    })
-                }),
-        )
-    }
-}
-
 fn create_consumer<H, E>(
     channel: Channel<TcpStream>,
     queue_name: String,
@@ -265,8 +206,21 @@ fn connect(
         .map_err(|e| panic!("Shiet {:?}", e))
 }
 
-impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error> {
+/// TODO: DOcument this biatch
+#[derive(Clone)]
+pub struct AMQPSender {
+    exchange: String,
+    channel: Channel<TcpStream>,
+}
+
+impl AMQPSender {
+    /// TODO: DOcument this biatch
+    pub fn new(exchange: String, channel: Channel<TcpStream>) -> Self {
+        Self { exchange, channel }
+    }
+
+    /// TODO: DOcument this biatch
+    pub fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
@@ -298,8 +252,23 @@ impl EmitterAdapter for AMQPEmitterAdapter {
 
         block_on_all(fut)
     }
+}
 
-    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
+/// TODO: DOcument this biatch
+#[derive(Clone)]
+pub struct AMQPReceiver {
+    exchange: String,
+    uri: SocketAddr,
+}
+
+impl AMQPReceiver {
+    /// TODO: DOcument this biatch
+    pub fn new(exchange: String, uri: SocketAddr) -> Self {
+        Self { exchange, uri }
+    }
+
+    /// TODO: DOcument this biatch
+    pub fn subscribe<'a, ED, H>(&self, handler: H)
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
@@ -313,6 +282,96 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         let consumer = connect(self.uri, self.exchange.clone())
             .and_then(|(_, channel)| create_consumer(channel, queue_name, handler));
 
-        Box::new(consumer)
+        tokio::run(futures::lazy(|| {
+            trace!("Subscribe");
+
+            tokio::spawn(consumer);
+
+            Ok(())
+        }));
+    }
+}
+
+/// AMQP emitter
+#[derive(Clone)]
+pub struct AMQPEmitterAdapter {
+    // channel: Channel<TcpStream>,
+    // client: Client<TcpStream>,
+    // exchange: String,
+    // uri: SocketAddr,
+    sender: AMQPSender,
+    receiver: AMQPReceiver,
+}
+
+impl AMQPEmitterAdapter {
+    /// Create a new AMQPEmiterAdapter
+    pub fn new<'a>(uri: SocketAddr, exchange: String) -> BoxedFuture<'a, Self, io::Error> {
+        let exchange1 = exchange.clone();
+        info!("Connecting to AMQP using {}", uri);
+        Box::new(
+            TcpStream::connect(&uri)
+                .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
+                .and_then(|(client, heartbeat)| {
+                    trace!("heartbeat");
+                    tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
+                        .into_future()
+                        .map(|_| client)
+                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+                })
+                .and_then(move |client| {
+                    trace!("Set up channel");
+                    client
+                        .create_channel()
+                        .map(move |channel| (client, channel))
+                })
+                .and_then(move |(client, channel)| {
+                    trace!("Exchange declare");
+                    channel
+                        .exchange_declare(
+                            &exchange1,
+                            &"topic",
+                            ExchangeDeclareOptions {
+                                durable: true,
+                                ..ExchangeDeclareOptions::default()
+                            },
+                            FieldTable::new(),
+                        )
+                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+                        .map(|_| (client, channel))
+                })
+                .and_then(move |(client, channel)| {
+                    trace!("Channel created");
+
+                    FutOk(Self {
+                        // TODO: This should be a str and just copied or something
+                        sender: AMQPSender::new(exchange.clone(), channel),
+                        // TODO: This should be a str and just copied or something
+                        receiver: AMQPReceiver::new(exchange.clone(), uri),
+                        // client,
+                        // channel,
+                        // exchange,
+                        // uri,
+                    })
+                }),
+        )
+    }
+}
+
+impl EmitterAdapter for AMQPEmitterAdapter {
+    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error> {
+        self.sender.emit(event)
+    }
+
+    fn subscribe<'a, ED, H>(&self, handler: H)
+    where
+        ED: EventData + 'static,
+        H: Fn(&Event<ED>) -> () + Send + 'static,
+    {
+        self.receiver.subscribe(handler)
+    }
+
+    /// Split into sender and receiver
+    fn split(self) -> (AMQPReceiver, AMQPSender) {
+        (self.receiver, self.sender)
     }
 }
