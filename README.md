@@ -1,9 +1,4 @@
-              _____                _     _____ _                 
-             |  ___|              | |   /  ___| |                
-             | |____   _____ _ __ | |_  \ `--.| |_ ___  _ __ ___ 
-             |  __\ \ / / _ \ '_ \| __|  `--. \ __/ _ \| '__/ _ \
-             | |___\ V /  __/ | | | |_  /\__/ / || (_) | | |  __/
-             \____/ \_/ \___|_| |_|\__| \____/ \__\___/|_|  \___|
+# Event Store
 
 [![Build Status](https://travis-ci.org/repositive/event-store-rs.svg?branch=master)](https://travis-ci.org/repositive/event-store-rs)
 
@@ -49,12 +44,6 @@ cargo doc --open
 * Improving Analytics
   - Data collection is a default.
   - More oportunities for data driven approaches.
-
-# API Docs
-
-```bash
-cargo doc --open
-```
 
 # Architecture
 
