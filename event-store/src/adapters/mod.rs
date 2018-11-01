@@ -7,13 +7,11 @@
 // TODO: No pub
 pub mod amqp;
 mod pg;
-// mod stub;
+mod stub;
 
 pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
-// pub use self::stub::StubEmitterAdapter;
-use adapters::amqp::AMQPReceiver;
-use adapters::amqp::AMQPSender;
+pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
@@ -24,16 +22,13 @@ use Events;
 use StoreQuery;
 
 /// Storage backend
-pub trait StoreAdapter<Q>: Send + Sync + Clone + 'static
-where
-    Q: StoreQuery,
-{
+pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
     /// Read a list of events matching a query
+
     fn read<'b, E>(&self, query: Q, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String>
     where
         E: Events + Send + 'b,
         Q: 'b;
-
     /// Save an event to the store
     fn save<'b, ED>(&self, event: &'b Event<ED>) -> Result<(), String>
     where
@@ -67,11 +62,8 @@ pub trait EmitterAdapter: Send + Sync + Clone + 'static {
     fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error>;
 
     /// Subscribe to an event
-    fn subscribe<'a, ED, H>(&self, handler: H)
+    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
-
-    /// Split the emitter into a subscriber and emitter object
-    fn split(self) -> (AMQPReceiver, AMQPSender);
 }

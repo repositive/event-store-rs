@@ -33,7 +33,6 @@ mod store_query;
 pub mod testhelpers;
 mod utils;
 
-use adapters::amqp::{AMQPReceiver, AMQPSender};
 use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
 use aggregator::Aggregator;
 use chrono::prelude::*;
@@ -51,11 +50,10 @@ use tokio::runtime::Runtime;
 
 /// Main event store
 #[derive(Clone)]
-pub struct EventStore<S, C> {
+pub struct EventStore<S, C, EM> {
     store: S,
     cache: C,
-    // emitter: EM,
-    sender: AMQPSender,
+    emitter: EM,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -82,22 +80,19 @@ impl EventData for EventReplayRequested {
 #[derive(Serialize, Deserialize)]
 struct DummyEvent {}
 
-impl<'a, Q, S, C> Store<'a, Q, S, C> for EventStore<S, C>
+impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
 where
     Q: StoreQuery + Send + Sync + 'a,
     S: StoreAdapter<Q> + Send + Sync + Clone + 'a,
     C: CacheAdapter + Send + Sync + Clone + 'static,
-    // EM: EmitterAdapter + Send + Sync + Clone + 'a,
+    EM: EmitterAdapter + Send + Sync + Clone + 'a,
 {
     /// Create a new event store
-    fn new(store: S, cache: C, sender: AMQPSender) -> Self {
-        // let (sender, _) = emitter.split();
-
+    fn new(store: S, cache: C, emitter: EM) -> Self {
         Self {
             store,
             cache,
-            // emitter,
-            sender,
+            emitter,
         }
     }
 
@@ -148,68 +143,32 @@ where
     ) -> Result<(), String> {
         self.store.save(event)?;
 
-        self.sender
+        self.emitter
             .emit(&event)
             .map_err(|_| "It was not possible to emit the event".into())
     }
-}
 
-/// TODO: Document
-#[derive(Clone)]
-pub struct SubscribableEventStore<S, C> {
-    subscriber: AMQPReceiver,
-    inner_store: EventStore<S, C>,
-}
-
-/// TODO: Docs
-impl<S, C> SubscribableEventStore<S, C>
-// where
-//     S: Clone,
-//     C: Clone,
-{
-    /// TODO: Docs
-    pub fn new<Q, EM>(store: S, cache: C, emitter: EM) -> Self
-    where
-        Q: StoreQuery + Send + Sync,
-        S: StoreAdapter<Q> + Send + Sync + Clone,
-        C: CacheAdapter + Send + Sync + Clone + 'static,
-        EM: EmitterAdapter + Send + Sync + Clone,
-    {
-        let (subscriber, sender) = emitter.split();
-
-        let inner_store = EventStore::new(store, cache, sender);
-
-        Self {
-            subscriber,
-            inner_store,
-        }
-    }
-
-    /// TODO: Docs
-    pub fn subscribe<Q, ED, H>(&self, handler: H) -> Result<Runtime, ()>
+    fn subscribe<ED, H>(&self, handler: H) -> Result<Runtime, ()>
     where
         ED: EventData + Send + Sync + 'static,
-        Q: StoreQuery + Send + Sync,
-        S: StoreAdapter<Q> + Send + Sync + Clone,
-        C: CacheAdapter + Send + Sync + Clone + 'static,
-        H: Fn(&Event<ED>, &EventStore<S, C>) -> () + Send + Sync + 'static,
+        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static,
     {
-        // let _self = self.clone();
-        let handler_store = self.inner_store.clone();
+        let _self = self.clone();
+        let handler_store = self.store.clone();
 
-        self.subscriber.subscribe(move |event: &Event<ED>| {
+        let sub = self.emitter.subscribe(move |event: &Event<ED>| {
             trace!("Subscription received event ID {}", event.id);
 
             let _ = handler_store.save(event).map(|_| {
-                handler(event, &handler_store);
+                handler(event, &_self);
             });
         });
 
-        // tokio::run(futures::lazy(|| {
-        //     tokio::spawn(sub);
+        tokio::run(futures::lazy(|| {
+            tokio::spawn(sub);
 
-        //     Ok(())
-        // }));
+            Ok(())
+        }));
 
         Ok(Runtime::new().unwrap())
     }

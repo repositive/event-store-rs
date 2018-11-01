@@ -1,4 +1,3 @@
-use adapters::amqp::AMQPSender;
 use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter};
 use aggregator::Aggregator;
 use event::Event;
@@ -14,11 +13,11 @@ pub trait Store<
     Q: StoreQuery + Send + Sync + 'a,
     S: StoreAdapter<Q> + Send + Sync,
     C: CacheAdapter + 'static,
-    // EM: EmitterAdapter + Send + Sync,
+    EM: EmitterAdapter + Send + Sync,
 >: Send + Sync + Clone + 'a
 {
     /// Create a new event store
-    fn new(store: S, cache: C, sender: AMQPSender) -> Self;
+    fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
     fn aggregate<'b, E, T, A>(&'b self, query: A) -> Result<T, String>
@@ -40,9 +39,9 @@ pub trait Store<
         event: &'b Event<ED>,
     ) -> Result<(), String>;
 
-    // /// Subscribe to an event
-    // fn subscribe<ED, H>(&self, handler: H) -> Result<Runtime, ()>
-    // where
-    //     ED: EventData + Send + Sync + 'static,
-    //     H: Fn(&Event<ED>, &InnerStore<S, C>) -> () + Send + Sync + 'static;
+    /// Subscribe to an event
+    fn subscribe<ED, H>(&self, handler: H) -> Result<Runtime, ()>
+    where
+        ED: EventData + Send + Sync + 'static,
+        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static;
 }
