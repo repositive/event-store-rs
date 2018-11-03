@@ -110,6 +110,18 @@ macro_rules! pg_delete_events {
     }};
 }
 
+/// Remove all events from the database
+#[macro_export]
+macro_rules! pg_empty_events {
+    ($conn:ident) => {{
+        $conn
+            .get()
+            .unwrap()
+            .execute("TRUNCATE events", &[])
+            .expect("Failed to delete events");
+    }};
+}
+
 /// Remove EVERY entry from the `aggregate_cache` table
 #[macro_export]
 macro_rules! pg_empty_cache {
