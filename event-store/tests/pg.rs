@@ -5,7 +5,7 @@ extern crate r2d2_postgres;
 extern crate tokio;
 
 use event_store::prelude::*;
-use event_store::testhelpers::{TestCounterEntity, TestIncrementEvent};
+use event_store::testhelpers::{pg_connect, TestCounterEntity, TestIncrementEvent};
 use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Event, EventStore,
@@ -17,21 +17,9 @@ use std::thread;
 use std::time::Duration;
 use tokio::runtime::current_thread::block_on_all;
 
-fn connect() -> Pool<PostgresConnectionManager> {
-    let manager = PostgresConnectionManager::new(
-        "postgres://postgres@localhost:5430/eventstorerust",
-        TlsMode::None,
-    )
-    .unwrap();
-
-    let pool = r2d2::Pool::new(manager).unwrap();
-
-    pool
-}
-
 #[test]
 fn it_queries_the_database() {
-    let conn = connect();
+    let conn = pg_connect();
     let store = pg_store!(conn);
     let ident = String::from("it_queries_the_database");
 
@@ -51,7 +39,7 @@ fn it_queries_the_database() {
 
 #[test]
 fn it_saves_events() {
-    let conn = connect();
+    let conn = pg_connect();
     let store = pg_store!(conn);
     let ident = String::from("it_saves_events");
 
@@ -67,7 +55,7 @@ fn it_saves_events() {
 
 #[test]
 fn it_uses_the_aggregate_cache() {
-    let conn = connect();
+    let conn = pg_connect();
     let store = pg_store!(conn);
     let ident = String::from("it_uses_the_aggregate_cache");
 
