@@ -1,4 +1,5 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread::{self, JoinHandle};
 
 #[derive(Clone, Debug)]
 struct EventSender {
@@ -38,8 +39,25 @@ impl AMQPEmitterAdapter {
         }
     }
 
-    pub fn split(self) -> (EventSender, EventReceiver) {
-        (self.tx, self.rx)
+    pub fn emitter_cloned(&self) -> EventSender {
+        self.tx.clone()
+    }
+
+    // pub fn split(self) -> (EventSender, EventReceiver) {
+    //     (self.tx, self.rx)
+    // }
+
+    pub fn subscribe<H>(store: Store, handler: H) -> JoinHandle<()>
+    where
+        H: Fn(u32, &Store) -> () + Send + 'static,
+    {
+        thread::spawn(move || {
+            println!("Subscribe");
+
+            store.some_func();
+
+            handler(123, &store);
+        })
     }
 }
 
@@ -52,6 +70,14 @@ impl Store {
     pub fn new(emitter: EventSender) -> Self {
         Self { emitter }
     }
+
+    pub fn some_func(&self) {
+        println!("Call store func");
+    }
+
+    pub fn some_other_func(&self) {
+        println!("Store func in handler");
+    }
 }
 
 #[derive(Debug)]
@@ -59,24 +85,38 @@ struct SubscribableStore {
     // Only this is clonable
     _store: Store,
 
-    // This is not clonable because it keeps a receiver which can only be owned by one thread
-    receiver: EventReceiver,
+    emitter: AMQPEmitterAdapter,
 }
 
 impl SubscribableStore {
     pub fn new(emitter: AMQPEmitterAdapter) -> Self {
-        let (emitter, receiver) = emitter.split();
+        // let (emitter, receiver) = emitter.split();
+        let _emitter = emitter.emitter_cloned();
 
         Self {
-            _store: Store::new(emitter),
-            receiver,
+            _store: Store::new(_emitter),
+            emitter,
         }
     }
 
     pub fn subscribe<H>(&self, handler: H)
     where
-        H: Fn(u32) -> (),
+        H: Fn(u32, &Store) -> () + Send + 'static,
     {
-        let receiver_store = self._store.clone();
+        let handler_store = self._store.clone();
+
+        let _handle = AMQPEmitterAdapter::subscribe(handler_store, handler);
     }
+}
+
+#[test]
+fn it_works() {
+    let emitter = AMQPEmitterAdapter::new();
+    let store = SubscribableStore::new(emitter);
+
+    store.subscribe(|num, st| {
+        println!("I'm in a handler. Num: {}", num);
+
+        st.some_other_func();
+    })
 }
