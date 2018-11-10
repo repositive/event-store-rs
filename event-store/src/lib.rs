@@ -1,9 +1,15 @@
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate serde_json;
 
+mod cache;
 mod emitter;
+mod store;
 
+use crate::cache::pg::PgCacheAdapter;
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
+use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
 
@@ -70,6 +76,20 @@ fn it_works() {
     trace!("Start...");
 
     let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
+
+    let manager = PostgresConnectionManager::new(
+        "postgres://repositive:repositive@localhost:5430/notifications",
+        TlsMode::None,
+    )
+    .unwrap();
+
+    let pool = r2d2::Pool::new(manager).unwrap();
+
+    let cache_conn = pool.get().unwrap();
+
+    let (set_stmt, get_stmt) = PgCacheAdapter::prepare_statements(&cache_conn);
+
+    let cache = PgCacheAdapter::new(&set_stmt, &get_stmt);
 
     let emitter = AMQPEmitterAdapter::new(addr, "iris".into());
 
