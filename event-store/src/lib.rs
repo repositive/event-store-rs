@@ -1,67 +1,11 @@
-use std::thread::{self, JoinHandle};
+mod emitter;
+
+use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
 
 type Event = u32;
 
-#[derive(Debug)]
-struct AMQPEmitterAdapter {
-    sender: AMQPSender,
-    receiver: AMQPReceiver,
-}
-
-impl AMQPEmitterAdapter {
-    pub fn new() -> Self {
-        Self {
-            sender: AMQPSender::new(),
-            receiver: AMQPReceiver {},
-        }
-    }
-
-    pub fn split(self) -> (AMQPSender, AMQPReceiver) {
-        (self.sender, self.receiver)
-    }
-
-    // pub fn sender_cloned(&self) -> AMQPSender {
-    //     self.sender.clone()
-    // }
-}
-
-#[derive(Debug, Clone)]
-// TODO: Custom impl clone to open new TCP connection
-struct AMQPSender {}
-
-impl AMQPSender {
-    pub fn new() -> Self {
-        // TODO: Open TCP connection, keep handle on self. Connection cannot be cloned. Custom clone
-        // impl must open a new connection.
-
-        Self {}
-    }
-}
-
-#[derive(Debug)]
-struct AMQPReceiver {}
-
-impl AMQPReceiver {
-    pub fn subscribe<H>(&self, store: Store, handler: H) -> JoinHandle<()>
-    where
-        H: Fn(Event, &Store) -> () + Send + 'static,
-    {
-        thread::spawn(move || {
-            println!("Subscribe");
-
-            // TODO: Open Rabbit connection
-
-            // TODO: Subscribe to Rabbit queue
-
-            store.some_func();
-
-            handler(123, &store);
-        })
-    }
-}
-
 #[derive(Clone, Debug)]
-struct Store {
+pub struct Store {
     emitter: AMQPSender,
 }
 
@@ -84,7 +28,7 @@ impl Store {
 }
 
 #[derive(Debug)]
-struct SubscribableStore {
+pub struct SubscribableStore {
     // Only this is clonable
     _store: Store,
 
