@@ -11,9 +11,10 @@ services:
       POSTGRES_DB: eventstorerust
 
   rabbit:
-    image: rabbitmq:3-alpine
+    image: rabbitmq:3-management-alpine
     ports:
       - "5673:5672"
+      - "15673:15672"
 
 
   integration_setup:
