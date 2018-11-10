@@ -4,6 +4,8 @@ extern crate log;
 mod emitter;
 
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
+use std::net::SocketAddr;
+use std::thread::JoinHandle;
 
 type Event = u32;
 
@@ -49,13 +51,15 @@ impl SubscribableStore {
         }
     }
 
-    pub fn subscribe<H>(&self, handler: H)
+    pub fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
         H: Fn(Event, &Store) -> () + Send + 'static,
     {
+        trace!("Store subscribe called");
+
         let handler_store = self._store.clone();
 
-        let _handle = self.receiver.subscribe(handler_store, handler);
+        self.receiver.subscribe(handler_store, handler)
     }
 }
 
@@ -63,12 +67,25 @@ impl SubscribableStore {
 fn it_works() {
     pretty_env_logger::init();
 
-    let emitter = AMQPEmitterAdapter::new();
+    trace!("Start...");
+
+    let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
+
+    let emitter = AMQPEmitterAdapter::new(addr, "iris".into());
+
+    trace!("Emitter all done");
+
     let store = SubscribableStore::new(emitter);
 
-    store.subscribe(|num, st| {
+    trace!("All done");
+
+    let _handle = store.subscribe(|num, st| {
         println!("I'm in a handler. Num: {}", num);
 
         st.some_other_func();
-    })
+    });
+
+    trace!("SUBBED");
+
+    loop {}
 }
