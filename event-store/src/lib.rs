@@ -78,7 +78,7 @@ fn it_works() {
     let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
     let manager = PostgresConnectionManager::new(
-        "postgres://repositive:repositive@localhost:5430/notifications",
+        "postgres://postgres:postgres@localhost:5430/eventstorerust",
         TlsMode::None,
     )
     .unwrap();
