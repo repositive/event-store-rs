@@ -1,55 +1,28 @@
-use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
 type Event = u32;
 
-#[derive(Clone, Debug)]
-struct EventSender {
-    tx: Sender<Event>,
-}
-
-// impl EventSender {
-//     pub fn new(tx: Sender<Event>) -> Self {
-//         Self { tx }
-//     }
-
-//     pub fn emit(&self, _evt: Event) {}
-// }
-
-// #[derive(Debug)]
-// struct EventReceiver {
-//     tx: Sender<Event>,
-//     rx: Receiver<Event>,
-// }
-
-// impl EventReceiver {
-//     pub fn new() -> Self {
-//         let (tx, rx) = channel();
-
-//         // TODO: Move tx into AMQP future thread crap,
-
-//         Self { tx, rx }
-//     }
-// }
-
 #[derive(Debug)]
 struct AMQPEmitterAdapter {
     sender: AMQPSender,
-    // TODO: Use PhantomData to constrain type so that static method can be used
-    _receiver: AMQPReceiver,
+    receiver: AMQPReceiver,
 }
 
 impl AMQPEmitterAdapter {
     pub fn new() -> Self {
         Self {
             sender: AMQPSender::new(),
-            _receiver: AMQPReceiver {},
+            receiver: AMQPReceiver {},
         }
     }
 
-    pub fn sender_cloned(&self) -> AMQPSender {
-        self.sender.clone()
+    pub fn split(self) -> (AMQPSender, AMQPReceiver) {
+        (self.sender, self.receiver)
     }
+
+    // pub fn sender_cloned(&self) -> AMQPSender {
+    //     self.sender.clone()
+    // }
 }
 
 #[derive(Debug, Clone)]
@@ -69,7 +42,7 @@ impl AMQPSender {
 struct AMQPReceiver {}
 
 impl AMQPReceiver {
-    pub fn subscribe<H>(store: Store, handler: H) -> JoinHandle<()>
+    pub fn subscribe<H>(&self, store: Store, handler: H) -> JoinHandle<()>
     where
         H: Fn(Event, &Store) -> () + Send + 'static,
     {
@@ -105,9 +78,9 @@ impl Store {
         println!("Store func in handler");
     }
 
-    pub fn emit(&self) {
-        // TODO
-    }
+    // pub fn emit(&self) {
+    //     // TODO
+    // }
 }
 
 #[derive(Debug)]
@@ -115,17 +88,17 @@ struct SubscribableStore {
     // Only this is clonable
     _store: Store,
 
-    emitter: AMQPEmitterAdapter,
+    // emitter: AMQPEmitterAdapter,
+    receiver: AMQPReceiver,
 }
 
 impl SubscribableStore {
     pub fn new(emitter: AMQPEmitterAdapter) -> Self {
-        // let (emitter, receiver) = emitter.split();
-        let sender = emitter.sender_cloned();
+        let (sender, receiver) = emitter.split();
 
         Self {
             _store: Store::new(sender),
-            emitter,
+            receiver,
         }
     }
 
@@ -135,7 +108,7 @@ impl SubscribableStore {
     {
         let handler_store = self._store.clone();
 
-        let _handle = AMQPReceiver::subscribe(handler_store, handler);
+        let _handle = self.receiver.subscribe(handler_store, handler);
     }
 }
 
