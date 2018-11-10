@@ -1,7 +1,8 @@
 [package]
-name = "event-store"
-version = "0.1.0"
 authors = ["James Waples <jamwaffles@gmail.com>"]
 edition = "2018"
-
+name = "event-store"
+version = "0.1.0"
 [dependencies]
+log = "0.4.6"
+pretty_env_logger = "0.2.5"

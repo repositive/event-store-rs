@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 mod emitter;
 
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
@@ -58,6 +61,8 @@ impl SubscribableStore {
 
 #[test]
 fn it_works() {
+    pretty_env_logger::init();
+
     let emitter = AMQPEmitterAdapter::new();
     let store = SubscribableStore::new(emitter);
 
