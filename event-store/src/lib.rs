@@ -1,58 +1,84 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
+type Event = u32;
+
 #[derive(Clone, Debug)]
 struct EventSender {
-    tx: Sender<u32>,
+    tx: Sender<Event>,
 }
 
-impl EventSender {
-    pub fn new(tx: Sender<u32>) -> Self {
-        Self { tx }
-    }
-}
+// impl EventSender {
+//     pub fn new(tx: Sender<Event>) -> Self {
+//         Self { tx }
+//     }
 
-#[derive(Debug)]
-struct EventReceiver {
-    rx: Receiver<u32>,
-}
+//     pub fn emit(&self, _evt: Event) {}
+// }
 
-impl EventReceiver {
-    pub fn new(rx: Receiver<u32>) -> Self {
-        Self { rx }
-    }
-}
+// #[derive(Debug)]
+// struct EventReceiver {
+//     tx: Sender<Event>,
+//     rx: Receiver<Event>,
+// }
+
+// impl EventReceiver {
+//     pub fn new() -> Self {
+//         let (tx, rx) = channel();
+
+//         // TODO: Move tx into AMQP future thread crap,
+
+//         Self { tx, rx }
+//     }
+// }
 
 #[derive(Debug)]
 struct AMQPEmitterAdapter {
-    tx: EventSender,
-    rx: EventReceiver,
+    sender: AMQPSender,
+    // TODO: Use PhantomData to constrain type so that static method can be used
+    _receiver: AMQPReceiver,
 }
 
 impl AMQPEmitterAdapter {
     pub fn new() -> Self {
-        let (tx, rx) = channel();
-
         Self {
-            tx: EventSender::new(tx),
-            rx: EventReceiver::new(rx),
+            sender: AMQPSender::new(),
+            _receiver: AMQPReceiver {},
         }
     }
 
-    pub fn emitter_cloned(&self) -> EventSender {
-        self.tx.clone()
+    pub fn sender_cloned(&self) -> AMQPSender {
+        self.sender.clone()
     }
+}
 
-    // pub fn split(self) -> (EventSender, EventReceiver) {
-    //     (self.tx, self.rx)
-    // }
+#[derive(Debug, Clone)]
+// TODO: Custom impl clone to open new TCP connection
+struct AMQPSender {}
 
+impl AMQPSender {
+    pub fn new() -> Self {
+        // TODO: Open TCP connection, keep handle on self. Connection cannot be cloned. Custom clone
+        // impl must open a new connection.
+
+        Self {}
+    }
+}
+
+#[derive(Debug)]
+struct AMQPReceiver {}
+
+impl AMQPReceiver {
     pub fn subscribe<H>(store: Store, handler: H) -> JoinHandle<()>
     where
-        H: Fn(u32, &Store) -> () + Send + 'static,
+        H: Fn(Event, &Store) -> () + Send + 'static,
     {
         thread::spawn(move || {
             println!("Subscribe");
+
+            // TODO: Open Rabbit connection
+
+            // TODO: Subscribe to Rabbit queue
 
             store.some_func();
 
@@ -63,11 +89,11 @@ impl AMQPEmitterAdapter {
 
 #[derive(Clone, Debug)]
 struct Store {
-    emitter: EventSender,
+    emitter: AMQPSender,
 }
 
 impl Store {
-    pub fn new(emitter: EventSender) -> Self {
+    pub fn new(emitter: AMQPSender) -> Self {
         Self { emitter }
     }
 
@@ -77,6 +103,10 @@ impl Store {
 
     pub fn some_other_func(&self) {
         println!("Store func in handler");
+    }
+
+    pub fn emit(&self) {
+        // TODO
     }
 }
 
@@ -91,21 +121,21 @@ struct SubscribableStore {
 impl SubscribableStore {
     pub fn new(emitter: AMQPEmitterAdapter) -> Self {
         // let (emitter, receiver) = emitter.split();
-        let _emitter = emitter.emitter_cloned();
+        let sender = emitter.sender_cloned();
 
         Self {
-            _store: Store::new(_emitter),
+            _store: Store::new(sender),
             emitter,
         }
     }
 
     pub fn subscribe<H>(&self, handler: H)
     where
-        H: Fn(u32, &Store) -> () + Send + 'static,
+        H: Fn(Event, &Store) -> () + Send + 'static,
     {
         let handler_store = self._store.clone();
 
-        let _handle = AMQPEmitterAdapter::subscribe(handler_store, handler);
+        let _handle = AMQPReceiver::subscribe(handler_store, handler);
     }
 }
 
