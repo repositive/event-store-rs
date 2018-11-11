@@ -60,7 +60,11 @@ impl<'a> Store<'a> {
     }
 
     pub fn save(&self, event: &Event<TestEvent>) -> Result<(), String> {
+        trace!("Store save");
+
         self.save_no_emit(event).map(|_| {
+            trace!("Save no emit complete");
+
             self.emitter.emit(event);
         })
     }
@@ -130,14 +134,14 @@ fn it_works() {
     let (set_stmt, get_stmt) = PgCacheAdapter::prepare_statements(&cache_conn);
 
     let cache = PgCacheAdapter::new(&set_stmt, &get_stmt);
-    let store = PgStoreAdapter::new(pool.clone());
+    let store_adapter = PgStoreAdapter::new(pool.clone());
     // let cache = PgCacheAdapter::new(pool.clone());
 
     let emitter = AMQPEmitterAdapter::new(addr, "iris".into());
 
     trace!("Emitter all done");
 
-    let store = SubscribableStore::new(emitter, cache, store);
+    let store = SubscribableStore::new(emitter, cache, store_adapter);
 
     trace!("All done");
 
@@ -148,6 +152,12 @@ fn it_works() {
     });
 
     trace!("SUBBED");
+
+    store
+        .save(&Event::from_data(TestEvent { num: 10 }))
+        .expect("Could not save");
+
+    trace!("--- END ---");
 
     loop {}
 }
