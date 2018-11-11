@@ -62,12 +62,70 @@ impl PgStoreAdapter {
         &self,
         query: PgQuery,
         since: Option<DateTime<Utc>>,
-    ) -> Result<Vec<Event<TestEvents>>, String> {
-        Ok(Vec::new())
+    ) -> Result<Vec<TestEvents>, String> {
+        let conn = self.pool.clone();
+
+        let pool = conn
+            .get()
+            .expect("Could not connect to the pool (aggregate)");
+
+        let query_string = Self::generate_query(&query, since);
+        let trans = pool
+            .transaction()
+            .expect("Unable to initialise transaction");
+        let stmt = trans
+            .prepare(&query_string)
+            .expect("Unable to prepare transaction");
+        let mut params: Vec<&ToSql> = Vec::new();
+
+        for (i, _arg) in query.args.iter().enumerate() {
+            params.push(&*query.args[i]);
+        }
+
+        let results = stmt
+            .lazy_query(&trans, &params, 1000)
+            .unwrap()
+            .map(|row| {
+                let id: Uuid = row.get("id");
+                let data_json: JsonValue = row.get("data");
+                let context_json: JsonValue = row.get("context");
+
+                let thing = json!({
+                                    "id": id,
+                                    "data": data_json,
+                                    "context": context_json,
+                                });
+
+                let evt: TestEvents = from_value(thing).expect("Could not decode row");
+
+                evt
+            })
+            .collect()
+            .expect("ain't no collec");
+
+        trans.finish().expect("Could not finish transaction");
+
+        Ok(results)
     }
 
     pub fn save(&self, event: &Event<TestEvents>) -> Result<(), String> {
-        Ok(())
+        self.pool
+            .get()
+            .expect("Could not connect to the pool (save)")
+            .execute(
+                r#"INSERT INTO events (id, data, context)
+                    VALUES ($1, $2, $3)"#,
+                &[
+                    &event.id,
+                    &to_value(&event.data).expect("Unable to convert event data to value"),
+                    &to_value(&event.context).expect("Cannot convert event context"),
+                ],
+            )
+            .map(|_| ())
+            .map_err(|err| match err.code() {
+                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
+                _ => "UNEXPECTED".into(),
+            })
     }
 
     pub fn last_event(&self) -> Result<Option<Event<TestEvents>>, String> {
