@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
 use crate::Event;
+use crate::TestEvent;
 use crate::TestEvents;
 use fallible_iterator::FallibleIterator;
-use postgres::error::DUPLICATE_COLUMN;
+use postgres::error::{DUPLICATE_COLUMN, UNIQUE_VIOLATION};
 use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
@@ -108,7 +109,9 @@ impl PgStoreAdapter {
         Ok(results)
     }
 
-    pub fn save(&self, event: &Event<TestEvents>) -> Result<(), String> {
+    pub fn save(&self, event: &Event<TestEvent>) -> Result<(), String> {
+        trace!("Persist event to store {:?}", event);
+
         self.pool
             .get()
             .expect("Could not connect to the pool (save)")
@@ -123,12 +126,16 @@ impl PgStoreAdapter {
             )
             .map(|_| ())
             .map_err(|err| match err.code() {
-                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
+                Some(e) if e == &DUPLICATE_COLUMN || e == &UNIQUE_VIOLATION => {
+                    debug!("Event {} already exists", event.id);
+
+                    "DUPLICATE_COLUMN".into()
+                }
                 _ => "UNEXPECTED".into(),
             })
     }
 
-    pub fn last_event(&self) -> Result<Option<Event<TestEvents>>, String> {
+    pub fn last_event(&self) -> Result<Option<Event<TestEvent>>, String> {
         Ok(None)
     }
 }

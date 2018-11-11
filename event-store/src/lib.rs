@@ -59,9 +59,15 @@ impl<'a> Store<'a> {
         println!("Store func in handler");
     }
 
-    // pub fn emit(&self) {
-    //     // TODO
-    // }
+    pub fn save(&self, event: &Event<TestEvent>) -> Result<(), String> {
+        self.save_no_emit(event).map(|_| {
+            self.emitter.emit(event);
+        })
+    }
+
+    pub(crate) fn save_no_emit(&self, event: &Event<TestEvent>) -> Result<(), String> {
+        self.store.save(event)
+    }
 }
 
 #[derive(Debug)]
@@ -85,6 +91,10 @@ impl<'a> SubscribableStore<'a> {
             _store: Store::new(sender, cache, store),
             receiver,
         }
+    }
+
+    pub fn save(&self, event: &Event<TestEvent>) -> Result<(), String> {
+        self._store.save(event)
     }
 
     pub fn subscribe<H>(&self, handler: H) -> JoinHandle<()>

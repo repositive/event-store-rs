@@ -106,7 +106,7 @@ impl AMQPSender {
         }
     }
 
-    pub fn emit(&self, event: Event<TestEvent>) {
+    pub fn emit(&self, event: &Event<TestEvent>) {
         Runtime::new()
             .unwrap()
             .block_on_all(
@@ -243,6 +243,7 @@ impl AMQPReceiver {
                         trace!("TXed");
 
                         // TODO: This is still acked even if the handler fails!
+                        // TODO: Even worse, the message is acked even if it is already stored in the DB
                         channel.basic_ack(message.delivery_tag, false)
                     })
                 });
@@ -260,10 +261,10 @@ impl AMQPReceiver {
                 .expect("Subscriber spawn failed");
         });
 
-        for msg in rx {
-            trace!("RX: {:?}", msg);
+        for event in rx {
+            trace!("RX: {:?}", event);
 
-            handler(msg, &store);
+            store.save_no_emit(&event).map(|_| handler(event, &store));
         }
 
         handle
