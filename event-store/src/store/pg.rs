@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use crate::event_context::EventContext;
 use crate::Event;
 use crate::TestEvent;
 use crate::TestEvents;
@@ -136,6 +137,37 @@ impl PgStoreAdapter {
     }
 
     pub fn last_event(&self) -> Result<Option<Event<TestEvent>>, String> {
-        Ok(None)
+        trace!("Get last received event");
+
+        let rows = self.pool
+                .get()
+                .expect("Could not connect to the pool (last_event)")
+                .query(
+                    r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
+                    "#,
+                    // TODO: Trait calls instead of hardcoded type and namespace
+                    &[
+                        &"some_namespace",
+                        &"TestEvent"
+                    ],
+                ).expect("Unable to query database (last_event)");
+
+        if rows.len() == 1 {
+            let row = rows.get(0);
+            let id: Uuid = row.get("id");
+            let data_json: JsonValue = row.get("data");
+            let context_json: JsonValue = row.get("context");
+
+            let data: TestEvent = from_value(data_json).unwrap();
+            let context: EventContext = from_value(context_json).unwrap();
+
+            trace!("Last received event ID {}", id);
+
+            Ok(Some(Event { id, data, context }))
+        } else {
+            debug!("No previously received events found");
+
+            Ok(None)
+        }
     }
 }
