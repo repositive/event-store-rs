@@ -1,7 +1,7 @@
 use crate::TestEvent;
 use crate::TestEvents;
 use crate::{Event, Store};
-use futures::future::{ok as FutOk, Future};
+use futures::future::{ok as FutOk, Future, IntoFuture};
 use futures::stream::Stream;
 use lapin_futures::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
@@ -10,6 +10,7 @@ use lapin_futures::channel::{
 use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::types::FieldTable;
 use std::fmt;
+use std::io;
 use std::net::SocketAddr;
 use std::str;
 use std::sync::mpsc::{channel, Receiver, Sender};
@@ -24,11 +25,18 @@ pub struct AMQPEmitterAdapter {
 }
 
 impl AMQPEmitterAdapter {
-    pub fn new(uri: SocketAddr, exchange: String) -> Self {
-        Self {
-            sender: AMQPSender::new(uri, exchange.clone()),
-            receiver: AMQPReceiver::new(uri, exchange.clone()),
-        }
+    pub fn new(
+        uri: SocketAddr,
+        exchange: String,
+    ) -> Box<Future<Item = Self, Error = io::Error> + Send> {
+        Box::new(
+            AMQPSender::new(uri, exchange.clone()).and_then(move |sender| {
+                FutOk(Self {
+                    sender,
+                    receiver: AMQPReceiver::new(uri, exchange.clone()),
+                })
+            }),
+        )
     }
 
     pub fn split(self) -> (AMQPSender, AMQPReceiver) {
@@ -54,73 +62,90 @@ impl fmt::Debug for AMQPSender {
 }
 
 impl AMQPSender {
-    pub fn new(uri: SocketAddr, exchange: String) -> Self {
-        let channel = Runtime::new()
-            .unwrap()
-            .block_on(
-                TcpStream::connect(&uri)
-                    .and_then(|stream| {
-                        trace!("Sender stream connected");
+    pub fn new(
+        uri: SocketAddr,
+        exchange: String,
+    ) -> Box<Future<Item = Self, Error = io::Error> + Send> {
+        let _exchange = exchange.clone();
 
-                        Client::connect(stream, ConnectionOptions::default())
+        Box::new(
+            TcpStream::connect(&uri)
+                .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
+                .and_then(|(client, heartbeat)| {
+                    trace!("Start heartbeat");
+
+                    tokio::spawn(heartbeat.map_err(|e| error!("Heartbeat spawn error: {:?}", e)))
+                        .into_future()
+                        .map(|_| client)
+                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Heartbeat spawn error"))
+                })
+                .and_then(move |client| {
+                    trace!("Set up channel");
+
+                    client
+                        .create_channel()
+                        .map(move |channel| (client, channel))
+                })
+                .and_then(move |(client, channel)| {
+                    trace!("Exchange declare");
+
+                    channel
+                        .exchange_declare(
+                            &_exchange,
+                            &"topic",
+                            ExchangeDeclareOptions {
+                                durable: true,
+                                ..ExchangeDeclareOptions::default()
+                            },
+                            FieldTable::new(),
+                        )
+                        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Channel spawn error"))
+                        .map(|_| (client, channel))
+                })
+                .and_then(move |(_client, channel)| {
+                    trace!("Channel created");
+
+                    FutOk(Self {
+                        channel,
+                        exchange,
+                        uri,
                     })
-                    .and_then(|(client, heartbeat)| {
-                        tokio::spawn(heartbeat.map_err(|_| ()));
-
-                        trace!("Heartbeat spawned");
-
-                        // create_channel returns a future that is resolved
-                        // once the channel is successfully created
-                        client.create_channel()
-                    })
-                    .and_then(move |channel| {
-                        trace!("Exchange declare");
-
-                        channel
-                            .exchange_declare(
-                                &"exchange_here",
-                                &"topic",
-                                ExchangeDeclareOptions {
-                                    durable: true,
-                                    auto_delete: false,
-                                    ..ExchangeDeclareOptions::default()
-                                },
-                                FieldTable::new(),
-                            )
-                            .map(|_| channel)
-                    })
-                    .and_then(move |channel| {
-                        trace!("Channel declared");
-
-                        FutOk(channel)
-                    }),
-            )
-            .expect("runtime failure");
-
-        trace!("Channel created");
-
-        Self {
-            uri,
-            exchange,
-            channel,
-        }
+                }),
+        )
     }
 
     pub fn emit(&self, event: &Event<TestEvent>) {
-        Runtime::new()
-            .unwrap()
-            .block_on_all(
-                self.channel.basic_publish(
-                    "exchange_here",
-                    "queue_name_here",
-                    format!("Emit event, number: {:?}", event)
-                        .as_bytes()
-                        .to_vec(),
-                    BasicPublishOptions::default(),
-                    BasicProperties::default(),
-                ),
+        let payload: Vec<u8> = serde_json::to_string(event)
+            .expect("Cant serialise event")
+            .into();
+        let id = event.id;
+
+        let event_name = "queue_name_here";
+
+        trace!(
+            "Emit event {} (ID {}) to exchange {}",
+            event_name,
+            id,
+            self.exchange
+        );
+
+        let fut = self
+            .channel
+            .basic_publish(
+                &self.exchange,
+                &event_name,
+                payload,
+                BasicPublishOptions::default(),
+                BasicProperties::default(),
             )
-            .expect("Could not emit");
+            .map(|_| {
+                trace!("Got to end");
+            });
+
+        Runtime::new()
+            .expect("Emit runtime")
+            .block_on(fut)
+            .expect("Emit future");
     }
 }
 
@@ -128,18 +153,11 @@ impl AMQPSender {
 pub struct AMQPReceiver {
     uri: SocketAddr,
     exchange: String,
-    // tx: Sender<Event>,
-    // rx: Receiver<Event>,
 }
 
 impl AMQPReceiver {
     pub fn new(uri: SocketAddr, exchange: String) -> Self {
-        Self {
-            uri,
-            exchange,
-            // tx,
-            // rx,
-        }
+        Self { uri, exchange }
     }
 
     pub fn subscribe<H>(&self, store: Store, handler: H) -> JoinHandle<()>
@@ -147,26 +165,11 @@ impl AMQPReceiver {
         H: Fn(Event<TestEvent>, &Store) -> () + Send + 'static,
     {
         let _uri = self.uri.clone();
-        // let _store = store.clone();
-        let (tx, rx) = channel();
 
         trace!("Start subscriber thread for event");
 
-        let handle = thread::spawn(move || {
+        thread::spawn(move || {
             trace!("Subscribe");
-
-            // stream.for_each(move |message| {
-            //                     debug!("got message: {:?}", message);
-            //                     info!(
-            //                         "decoded message: {:?}",
-            //                         std::str::from_utf8(&message.data).unwrap()
-            //                     );
-
-            //                     // TODO: Actual event payload
-            //                     handler(321, &store);
-
-            //                     channel.basic_ack(message.delivery_tag, false)
-            //                 })
 
             let fut = TcpStream::connect(&_uri)
                 .and_then(|stream| {
@@ -236,37 +239,17 @@ impl AMQPReceiver {
                         let data: Event<TestEvent> =
                             serde_json::from_str(payload).expect("Decode message JSON");
                         trace!("Received message with ID {}: {}", data.id, payload);
-                        // handler(&data);
 
-                        tx.send(data).expect("Failed to send");
+                        handler(data, &store);
 
-                        trace!("TXed");
-
-                        // TODO: This is still acked even if the handler fails!
-                        // TODO: Even worse, the message is acked even if it is already stored in the DB
                         channel.basic_ack(message.delivery_tag, false)
                     })
                 });
-
-            //  let (channel, stream) = Runtime::new()
-            //      .unwrap()
-            //      .block_on_all(fut)
-            //      .expect("Subscribe runtime failure");
-
-            // ;
 
             Runtime::new()
                 .unwrap()
                 .block_on_all(fut)
                 .expect("Subscriber spawn failed");
-        });
-
-        for event in rx {
-            trace!("RX: {:?}", event);
-
-            store.save_no_emit(&event).map(|_| handler(event, &store));
-        }
-
-        handle
+        })
     }
 }
