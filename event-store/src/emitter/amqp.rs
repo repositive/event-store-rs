@@ -1,3 +1,5 @@
+use crate::TestEvent;
+use crate::TestEvents;
 use crate::{Event, Store};
 use futures::future::{ok as FutOk, Future};
 use futures::stream::Stream;
@@ -9,6 +11,7 @@ use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::types::FieldTable;
 use std::fmt;
 use std::net::SocketAddr;
+use std::str;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use tokio::net::TcpStream;
@@ -103,7 +106,7 @@ impl AMQPSender {
         }
     }
 
-    pub fn emit(&self, event: Event) {
+    pub fn emit(&self, event: Event<TestEvent>) {
         Runtime::new()
             .unwrap()
             .block_on_all(
@@ -141,7 +144,7 @@ impl AMQPReceiver {
 
     pub fn subscribe<H>(&self, store: Store, handler: H) -> JoinHandle<()>
     where
-        H: Fn(Event, &Store) -> () + Send + 'static,
+        H: Fn(Event<TestEvent>, &Store) -> () + Send + 'static,
     {
         let _uri = self.uri.clone();
         // let _store = store.clone();
@@ -226,14 +229,16 @@ impl AMQPReceiver {
 
                     stream.for_each(move |message| {
                         debug!("got message: {:?}", message);
-                        info!(
-                            "decoded message: {:?}",
-                            std::str::from_utf8(&message.data).unwrap()
-                        );
 
-                        // TODO: Actual event payload
-                        // handler(321, &_store);
-                        tx.send(321).expect("Failed to send");
+                        let payload =
+                            str::from_utf8(&message.data).expect("Message to string failed");
+                        trace!("Message payload {}", payload);
+                        let data: Event<TestEvent> =
+                            serde_json::from_str(payload).expect("Decode message JSON");
+                        trace!("Received message with ID {}: {}", data.id, payload);
+                        // handler(&data);
+
+                        tx.send(data).expect("Failed to send");
 
                         trace!("TXed");
 
@@ -256,7 +261,7 @@ impl AMQPReceiver {
         });
 
         for msg in rx {
-            trace!("RX: {}", msg);
+            trace!("RX: {:?}", msg);
 
             handler(msg, &store);
         }

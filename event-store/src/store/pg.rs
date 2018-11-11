@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use crate::Event;
+use crate::TestEvents;
 use fallible_iterator::FallibleIterator;
 use postgres::error::DUPLICATE_COLUMN;
 use postgres::types::ToSql;
@@ -57,15 +58,19 @@ impl PgStoreAdapter {
         }
     }
 
-    pub fn read(&self, query: PgQuery, since: Option<DateTime<Utc>>) -> Result<Vec<Event>, String> {
+    pub fn read(
+        &self,
+        query: PgQuery,
+        since: Option<DateTime<Utc>>,
+    ) -> Result<Vec<Event<TestEvents>>, String> {
         Ok(Vec::new())
     }
 
-    pub fn save(&self, event: &Event) -> Result<(), String> {
+    pub fn save(&self, event: &Event<TestEvents>) -> Result<(), String> {
         Ok(())
     }
 
-    pub fn last_event(&self) -> Result<Option<Event>, String> {
+    pub fn last_event(&self) -> Result<Option<Event<TestEvents>>, String> {
         Ok(None)
     }
 }

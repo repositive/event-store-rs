@@ -2,19 +2,38 @@
 extern crate log;
 #[macro_use]
 extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate event_store_derive;
 
 mod cache;
 mod emitter;
+mod event;
+mod event_context;
 mod store;
 
 use crate::cache::pg::PgCacheAdapter;
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
+use crate::event::Event;
 use crate::store::pg::PgStoreAdapter;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
 
-type Event = u32;
+// type Event = u32;
+
+/// Test event
+#[derive(EventData, Debug)]
+#[event_store(namespace = "some_namespace")]
+pub struct TestEvent {
+    pub num: u32,
+}
+
+#[derive(Events, Debug)]
+pub enum TestEvents {
+    Test(Event<TestEvent>),
+}
 
 #[derive(Clone, Debug)]
 pub struct Store<'a> {
@@ -70,7 +89,7 @@ impl<'a> SubscribableStore<'a> {
 
     pub fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
-        H: Fn(Event, &Store) -> () + Send + 'static,
+        H: Fn(Event<TestEvent>, &Store) -> () + Send + 'static,
     {
         trace!("Store subscribe called");
 
@@ -112,8 +131,8 @@ fn it_works() {
 
     trace!("All done");
 
-    let _handle = store.subscribe(|num, st| {
-        println!("I'm in a handler. Num: {}", num);
+    let _handle = store.subscribe(|evt, st| {
+        println!("I'm in a handler. Num: {:?}", evt);
 
         st.some_other_func();
     });
