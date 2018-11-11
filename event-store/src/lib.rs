@@ -17,6 +17,7 @@ use crate::cache::pg::PgCacheAdapter;
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
 use crate::event::Event;
 use crate::store::pg::PgStoreAdapter;
+use futures::future::{ok as FutOk, Future};
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
@@ -166,6 +167,12 @@ fn it_works() {
 
     let _handle = store.subscribe(|evt, st| {
         println!("I'm in a handler. Num: {:?}", evt);
+
+        let test_fut: Box<Future<Item = u32, Error = ()> + Send> = Box::new(FutOk(123));
+
+        let test_res = Runtime::new().unwrap().block_on_all(test_fut).unwrap();
+
+        debug!("TEST RES {}", test_res);
 
         st.some_other_func();
     });
