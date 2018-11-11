@@ -8,6 +8,7 @@ use r2d2_postgres::PostgresConnectionManager;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{from_value, to_value};
 
+#[derive(Debug, Clone)]
 pub struct PgCacheAdapter<'a> {
     set_stmt: &'a Statement<'a>,
     get_stmt: &'a Statement<'a>,

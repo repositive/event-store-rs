@@ -9,6 +9,7 @@ mod store;
 
 use crate::cache::pg::PgCacheAdapter;
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
+use crate::store::pg::PgStoreAdapter;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
@@ -16,13 +17,19 @@ use std::thread::JoinHandle;
 type Event = u32;
 
 #[derive(Clone, Debug)]
-pub struct Store {
+pub struct Store<'a> {
     emitter: AMQPSender,
+    cache: PgCacheAdapter<'a>,
+    store: PgStoreAdapter,
 }
 
-impl Store {
-    pub fn new(emitter: AMQPSender) -> Self {
-        Self { emitter }
+impl<'a> Store<'a> {
+    pub fn new(emitter: AMQPSender, cache: PgCacheAdapter<'a>, store: PgStoreAdapter) -> Self {
+        Self {
+            emitter,
+            cache,
+            store,
+        }
     }
 
     pub fn some_func(&self) {
@@ -39,20 +46,24 @@ impl Store {
 }
 
 #[derive(Debug)]
-pub struct SubscribableStore {
+pub struct SubscribableStore<'a> {
     // Only this is clonable
-    _store: Store,
+    _store: Store<'a>,
 
     // emitter: AMQPEmitterAdapter,
     receiver: AMQPReceiver,
 }
 
-impl SubscribableStore {
-    pub fn new(emitter: AMQPEmitterAdapter) -> Self {
+impl<'a> SubscribableStore<'a> {
+    pub fn new(
+        emitter: AMQPEmitterAdapter,
+        cache: PgCacheAdapter<'a>,
+        store: PgStoreAdapter,
+    ) -> Self {
         let (sender, receiver) = emitter.split();
 
         Self {
-            _store: Store::new(sender),
+            _store: Store::new(sender, cache, store),
             receiver,
         }
     }
@@ -90,12 +101,14 @@ fn it_works() {
     let (set_stmt, get_stmt) = PgCacheAdapter::prepare_statements(&cache_conn);
 
     let cache = PgCacheAdapter::new(&set_stmt, &get_stmt);
+    let store = PgStoreAdapter::new(pool.clone());
+    // let cache = PgCacheAdapter::new(pool.clone());
 
     let emitter = AMQPEmitterAdapter::new(addr, "iris".into());
 
     trace!("Emitter all done");
 
-    let store = SubscribableStore::new(emitter);
+    let store = SubscribableStore::new(emitter, cache, store);
 
     trace!("All done");
 

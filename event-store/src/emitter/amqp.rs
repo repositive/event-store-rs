@@ -9,6 +9,7 @@ use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::types::FieldTable;
 use std::fmt;
 use std::net::SocketAddr;
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
@@ -124,11 +125,18 @@ impl AMQPSender {
 pub struct AMQPReceiver {
     uri: SocketAddr,
     exchange: String,
+    // tx: Sender<Event>,
+    // rx: Receiver<Event>,
 }
 
 impl AMQPReceiver {
     pub fn new(uri: SocketAddr, exchange: String) -> Self {
-        Self { uri, exchange }
+        Self {
+            uri,
+            exchange,
+            // tx,
+            // rx,
+        }
     }
 
     pub fn subscribe<H>(&self, store: Store, handler: H) -> JoinHandle<()>
@@ -136,89 +144,123 @@ impl AMQPReceiver {
         H: Fn(Event, &Store) -> () + Send + 'static,
     {
         let _uri = self.uri.clone();
+        // let _store = store.clone();
+        let (tx, rx) = channel();
 
         trace!("Start subscriber thread for event");
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             trace!("Subscribe");
+
+            // stream.for_each(move |message| {
+            //                     debug!("got message: {:?}", message);
+            //                     info!(
+            //                         "decoded message: {:?}",
+            //                         std::str::from_utf8(&message.data).unwrap()
+            //                     );
+
+            //                     // TODO: Actual event payload
+            //                     handler(321, &store);
+
+            //                     channel.basic_ack(message.delivery_tag, false)
+            //                 })
+
+            let fut = TcpStream::connect(&_uri)
+                .and_then(|stream| {
+                    // connect() returns a future of an AMQP Client
+                    // that resolves once the handshake is done
+                    Client::connect(stream, ConnectionOptions::default())
+                })
+                .and_then(|(client, heartbeat)| {
+                    // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
+                    // dispatching events on time.
+                    // If we ran it as part of the "main" chain of futures, we might end up not sending
+                    // some heartbeats if we don't poll often enough (because of some blocking task or such).
+                    tokio::spawn(heartbeat.map_err(|_| ()));
+
+                    // create_channel returns a future that is resolved
+                    // once the channel is successfully created
+                    client.create_channel()
+                })
+                .and_then(move |channel| {
+                    info!("created channel");
+
+                    channel
+                        .queue_declare(
+                            "queue_name_here",
+                            QueueDeclareOptions::default(),
+                            FieldTable::new(),
+                        )
+                        .map(|queue| (channel, queue))
+                })
+                .and_then(move |(channel, queue)| {
+                    trace!("Bind queue");
+
+                    channel
+                        .queue_bind(
+                            &"queue_name_here",
+                            &"exchange_here",
+                            &"queue_name_here",
+                            QueueBindOptions::default(),
+                            FieldTable::new(),
+                        )
+                        .map(|_| (channel, queue))
+                })
+                .and_then(move |(channel, queue)| {
+                    info!("channel declared queue {}", "queue_name_here");
+
+                    // basic_consume returns a future of a message
+                    // stream. Any time a message arrives for this consumer,
+                    // the for_each method would be called
+                    channel
+                        .basic_consume(
+                            &queue,
+                            "exchange_here",
+                            BasicConsumeOptions::default(),
+                            FieldTable::new(),
+                        )
+                        .map(|stream| (channel, stream))
+                })
+                .and_then(move |(channel, stream)| {
+                    info!("got consumer stream");
+
+                    stream.for_each(move |message| {
+                        debug!("got message: {:?}", message);
+                        info!(
+                            "decoded message: {:?}",
+                            std::str::from_utf8(&message.data).unwrap()
+                        );
+
+                        // TODO: Actual event payload
+                        // handler(321, &_store);
+                        tx.send(321).expect("Failed to send");
+
+                        trace!("TXed");
+
+                        // TODO: This is still acked even if the handler fails!
+                        channel.basic_ack(message.delivery_tag, false)
+                    })
+                });
+
+            //  let (channel, stream) = Runtime::new()
+            //      .unwrap()
+            //      .block_on_all(fut)
+            //      .expect("Subscribe runtime failure");
+
+            // ;
 
             Runtime::new()
                 .unwrap()
-                .block_on_all(
-                    TcpStream::connect(&_uri)
-                        .and_then(|stream| {
-                            // connect() returns a future of an AMQP Client
-                            // that resolves once the handshake is done
-                            Client::connect(stream, ConnectionOptions::default())
-                        })
-                        .and_then(|(client, heartbeat)| {
-                            // The heartbeat future should be run in a dedicated thread so that nothing can prevent it from
-                            // dispatching events on time.
-                            // If we ran it as part of the "main" chain of futures, we might end up not sending
-                            // some heartbeats if we don't poll often enough (because of some blocking task or such).
-                            tokio::spawn(heartbeat.map_err(|_| ()));
+                .block_on_all(fut)
+                .expect("Subscriber spawn failed");
+        });
 
-                            // create_channel returns a future that is resolved
-                            // once the channel is successfully created
-                            client.create_channel()
-                        })
-                        .and_then(|channel| {
-                            let id = channel.id;
-                            info!("created channel with id: {}", id);
+        for msg in rx {
+            trace!("RX: {}", msg);
 
-                            channel
-                                .queue_declare(
-                                    "queue_name_here",
-                                    QueueDeclareOptions::default(),
-                                    FieldTable::new(),
-                                )
-                                .and_then(move |queue| {
-                                    trace!("Bind queue");
+            handler(msg, &store);
+        }
 
-                                    channel
-                                        .queue_bind(
-                                            &"queue_name_here",
-                                            &"exchange_here",
-                                            &"queue_name_here",
-                                            QueueBindOptions::default(),
-                                            FieldTable::new(),
-                                        )
-                                        .map(|_| (channel, queue))
-                                })
-                                .and_then(move |(channel, queue)| {
-                                    info!("channel {} declared queue {}", id, "queue_name_here");
-
-                                    // basic_consume returns a future of a message
-                                    // stream. Any time a message arrives for this consumer,
-                                    // the for_each method would be called
-                                    channel
-                                        .basic_consume(
-                                            &queue,
-                                            "exchange_here",
-                                            BasicConsumeOptions::default(),
-                                            FieldTable::new(),
-                                        )
-                                        .map(|stream| (channel, stream))
-                                })
-                                .and_then(move |(channel, stream)| {
-                                    info!("got consumer stream");
-
-                                    stream.for_each(move |message| {
-                                        debug!("got message: {:?}", message);
-                                        info!(
-                                            "decoded message: {:?}",
-                                            std::str::from_utf8(&message.data).unwrap()
-                                        );
-
-                                        // TODO: Actual event payload
-                                        handler(321, &store);
-
-                                        channel.basic_ack(message.delivery_tag, false)
-                                    })
-                                })
-                        }),
-                )
-                .expect("Subscribe runtime failure");
-        })
+        handle
     }
 }
