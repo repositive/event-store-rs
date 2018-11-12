@@ -17,35 +17,49 @@ use crate::cache::pg::PgCacheAdapter;
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
 use crate::event::Event;
 use crate::store::pg::PgStoreAdapter;
+use crate::store::StoreAdapter;
+use crate::store::StoreQuery;
+use event_store_derive_internals::EventData;
+use event_store_derive_internals::Events;
 use futures::future::{ok as FutOk, Future};
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::thread::JoinHandle;
 use tokio::runtime::Runtime;
 
-// type Event = u32;
-
-/// Test event
-#[derive(EventData, Debug)]
-#[event_store(namespace = "some_namespace")]
-pub struct TestEvent {
-    pub num: u32,
+trait EventStore<E, Q, S>
+where
+    E: Events + Debug,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q> + Clone,
+{
+    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
+    where
+        ED: EventData;
 }
 
-#[derive(Events, Debug)]
-pub enum TestEvents {
-    Test(Event<TestEvent>),
+trait SubscribableEventStore<E, Q, S>: EventStore<E, Q, S>
+where
+    E: Events + Debug,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q> + Clone,
+{
+    fn subscribe<H, ED>(&self, handler: H) -> JoinHandle<()>
+    where
+        ED: EventData + Debug,
+        H: Fn(Event<ED>, &Store<S>) -> () + Send + Sync + 'static;
 }
 
 #[derive(Clone, Debug)]
-pub struct Store {
+pub struct Store<S> {
     emitter: AMQPSender,
     cache: PgCacheAdapter,
-    store: PgStoreAdapter,
+    store: S,
 }
 
-impl Store {
-    pub fn new(emitter: AMQPSender, cache: PgCacheAdapter, store: PgStoreAdapter) -> Self {
+impl<S> Store<S> {
+    pub fn new(emitter: AMQPSender, cache: PgCacheAdapter, store: S) -> Self {
         Self {
             emitter,
             cache,
@@ -60,8 +74,18 @@ impl Store {
     pub fn some_other_func(&self) {
         println!("Store func in handler");
     }
+}
 
-    pub fn save(&self, event: &Event<TestEvent>) -> Result<(), String> {
+impl<E, Q, S> EventStore<E, Q, S> for Store<S>
+where
+    E: Events + Debug,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q> + Clone,
+{
+    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
+    where
+        ED: EventData + Debug,
+    {
         trace!("Store save");
 
         self.save_no_emit(event).map(|_| {
@@ -71,22 +95,22 @@ impl Store {
         })
     }
 
-    pub(crate) fn save_no_emit(&self, event: &Event<TestEvent>) -> Result<(), String> {
-        self.store.save(event)
-    }
+    // fn save_no_emit(&self, event: &Event<TestEvent>) -> Result<(), String> {
+    //     self.store.save(event)
+    // }
 }
 
 #[derive(Debug)]
-pub struct SubscribableStore {
+pub struct SubscribableStore<S> {
     // Only this is clonable
-    _store: Store,
+    _store: Store<S>,
 
     // emitter: AMQPEmitterAdapter,
     receiver: AMQPReceiver,
 }
 
-impl SubscribableStore {
-    pub fn new(emitter: AMQPEmitterAdapter, cache: PgCacheAdapter, store: PgStoreAdapter) -> Self {
+impl<S> SubscribableStore<S> {
+    pub fn new(emitter: AMQPEmitterAdapter, cache: PgCacheAdapter, store: S) -> Self {
         let (sender, receiver) = emitter.split();
 
         Self {
@@ -94,29 +118,47 @@ impl SubscribableStore {
             receiver,
         }
     }
+}
 
-    pub fn save(&self, event: &Event<TestEvent>) -> Result<(), String> {
+impl<E, Q, S> EventStore<E, Q, S> for SubscribableStore<S>
+where
+    E: Events + Debug,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q> + Clone,
+{
+    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
+    where
+        ED: EventData + Debug,
+    {
         self._store.save(event)
     }
+}
 
-    pub fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
+impl<E, Q, S> SubscribableEventStore<E, Q, S> for SubscribableStore<S>
+where
+    E: Events + Debug,
+    Q: StoreQuery,
+    S: StoreAdapter<E, Q> + Clone,
+{
+    fn subscribe<H, ED>(&self, handler: H) -> JoinHandle<()>
     where
-        H: Fn(Event<TestEvent>, &Store) -> () + Send + Sync + 'static,
+        ED: EventData + Debug,
+        H: Fn(Event<ED>, &Store<S>) -> () + Send + Sync + 'static,
     {
         trace!("Store subscribe called");
 
         let handler_store = self._store.clone();
 
-        self.receiver.subscribe(handler_store, move |event, store| {
-            trace!("Handler called for event {}", event.id);
+        self.receiver.subscribe(move |event: Event<ED>| {
+            trace!("Received event {}", event.id);
 
             // TODO: How should store save errors be handled in event handlers?
-            let _ = store
-                .save_no_emit(&event)
+            let _ = handler_store
+                .save(&event)
                 .map(|_| {
-                    trace!("New event saved");
+                    handler(event, &handler_store);
 
-                    handler(event, store);
+                    trace!("Handler called for event {}", event.id);
                 })
                 .map_err(|e| {
                     debug!("Handler not called: {}", e);
@@ -145,7 +187,7 @@ fn it_works() {
 
     // let (set_stmt, get_stmt) = PgCacheAdapter::prepare_statements(&cache_conn);
 
-    // let cache = PgCacheAdapter::new(&set_stmt, &get_stmt);
+    // let cache = PgCacheAdapter::new(pool.clone(), &set_stmt, &get_stmt);
     let cache = PgCacheAdapter::new(pool.clone());
     let store_adapter = PgStoreAdapter::new(pool.clone());
     // let cache = PgCacheAdapter::new(pool.clone());

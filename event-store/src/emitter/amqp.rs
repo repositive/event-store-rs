@@ -1,7 +1,7 @@
 use crate::TestEvent;
 use crate::TestEvents;
 use crate::{Event, Store};
-use futures::future::{ok as FutOk, Future, IntoFuture};
+use futures::future::{self, ok as FutOk, Future, IntoFuture};
 use futures::stream::Stream;
 use lapin_futures::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
@@ -16,7 +16,9 @@ use std::str;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use tokio::net::TcpStream;
+use tokio::runtime::current_thread::block_on_all;
 use tokio::runtime::Runtime;
+// use tokio::runtime::current_thread::Runtime;
 
 #[derive(Debug)]
 pub struct AMQPEmitterAdapter {
@@ -160,9 +162,9 @@ impl AMQPReceiver {
         Self { uri, exchange }
     }
 
-    pub fn subscribe<H>(&self, store: Store, handler: H) -> JoinHandle<()>
+    pub fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
-        H: Fn(Event<TestEvent>, &Store) -> () + Send + 'static,
+        H: Fn(Event<TestEvent>) -> () + Send + 'static,
     {
         let _uri = self.uri.clone();
 
@@ -240,16 +242,40 @@ impl AMQPReceiver {
                             serde_json::from_str(payload).expect("Decode message JSON");
                         trace!("Received message with ID {}: {}", data.id, payload);
 
-                        handler(data, &store);
+                        handler(data);
 
                         channel.basic_ack(message.delivery_tag, false)
                     })
-                });
+                })
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "Heartbeat spawn error"));
 
-            Runtime::new()
-                .unwrap()
-                .block_on_all(fut)
-                .expect("Subscriber spawn failed");
+            trace!("Begin listen");
+
+            Runtime::new().unwrap().block_on_all(fut).unwrap();
+            // tokio::spawn(fut);
+
+            // let (channel, stream) = Runtime::new()
+            //     .unwrap()
+            //     .block_on_all(fut)
+            //     .expect("Subscriber spawn failed");
+
+            // trace!("Got channel, stream");
+
+            // _store.some_func();
+
+            // stream.for_each(move |message| {
+            //     debug!("got message: {:?}", message);
+
+            //     let payload = str::from_utf8(&message.data).expect("Message to string failed");
+            //     trace!("Message payload {}", payload);
+            //     let data: Event<TestEvent> =
+            //         serde_json::from_str(payload).expect("Decode message JSON");
+            //     trace!("Received message with ID {}: {}", data.id, payload);
+
+            //     // handler(data, &_store);
+
+            //     channel.basic_ack(message.delivery_tag, false)
+            // });
         })
     }
 }
