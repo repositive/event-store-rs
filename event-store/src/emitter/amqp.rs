@@ -1,6 +1,8 @@
-use crate::TestEvent;
-use crate::TestEvents;
+use crate::emitter::EmitterAdapter;
+use crate::emitter::EmitterReceiver;
+use crate::emitter::EmitterSender;
 use crate::{Event, Store};
+use event_store_derive_internals::EventData;
 use futures::future::{self, ok as FutOk, Future, IntoFuture};
 use futures::stream::Stream;
 use lapin_futures::channel::{
@@ -40,8 +42,13 @@ impl AMQPEmitterAdapter {
             }),
         )
     }
+}
 
-    pub fn split(self) -> (AMQPSender, AMQPReceiver) {
+impl EmitterAdapter for AMQPEmitterAdapter {
+    fn split<ED, TX, RX>(self) -> (TX, RX)
+    where
+        ED: EventData,
+    {
         (self.sender, self.receiver)
     }
 }
@@ -115,8 +122,13 @@ impl AMQPSender {
                 }),
         )
     }
+}
 
-    pub fn emit(&self, event: &Event<TestEvent>) {
+impl<ED> EmitterSender<ED> for AMQPSender
+where
+    ED: EventData,
+{
+    fn emit(&self, event: &Event<ED>) {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
@@ -161,10 +173,15 @@ impl AMQPReceiver {
     pub fn new(uri: SocketAddr, exchange: String) -> Self {
         Self { uri, exchange }
     }
+}
 
-    pub fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
+impl<ED> EmitterReceiver<ED> for AMQPReceiver
+where
+    ED: EventData,
+{
+    fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
-        H: Fn(Event<TestEvent>) -> () + Send + 'static,
+        H: Fn(Event<ED>) -> () + Send + 'static,
     {
         let _uri = self.uri.clone();
 
@@ -238,7 +255,7 @@ impl AMQPReceiver {
                         let payload =
                             str::from_utf8(&message.data).expect("Message to string failed");
                         trace!("Message payload {}", payload);
-                        let data: Event<TestEvent> =
+                        let data: Event<ED> =
                             serde_json::from_str(payload).expect("Decode message JSON");
                         trace!("Received message with ID {}: {}", data.id, payload);
 

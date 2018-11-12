@@ -77,12 +77,12 @@ impl PgStoreAdapter {
     }
 }
 
-impl<E, ED> StoreAdapter<E, ED, PgQuery> for PgStoreAdapter
+impl<E, Q> StoreAdapter<E, Q> for PgStoreAdapter
 where
     E: Events + Debug,
-    ED: EventData + Debug,
+    Q: StoreQuery,
 {
-    fn read(&self, query: PgQuery, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String> {
+    fn read(&self, query: Q, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String> {
         let conn = self.pool.clone();
 
         let pool = conn
@@ -128,7 +128,10 @@ where
         Ok(results)
     }
 
-    fn save(&self, event: &Event<ED>) -> Result<(), String> {
+    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
+    where
+        ED: EventData + Debug,
+    {
         trace!("Persist event to store {:?}", event);
 
         self.pool
@@ -154,7 +157,10 @@ where
             })
     }
 
-    fn last_event(&self) -> Result<Option<Event<ED>>, String> {
+    fn last_event<ED>(&self) -> Result<Option<Event<ED>>, String>
+    where
+        ED: EventData + Debug,
+    {
         trace!("Get last received event");
 
         let rows = self.pool

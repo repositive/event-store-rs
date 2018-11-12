@@ -32,18 +32,18 @@ trait EventStore<E, Q, S>
 where
     E: Events + Debug,
     Q: StoreQuery,
-    S: StoreAdapter<E, Q> + Clone,
+    S: StoreAdapter<E, Q> + Clone + Send + 'static,
 {
     fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
     where
-        ED: EventData;
+        ED: EventData + Debug;
 }
 
 trait SubscribableEventStore<E, Q, S>: EventStore<E, Q, S>
 where
     E: Events + Debug,
     Q: StoreQuery,
-    S: StoreAdapter<E, Q> + Clone,
+    S: StoreAdapter<E, Q> + Clone + Send + 'static,
 {
     fn subscribe<H, ED>(&self, handler: H) -> JoinHandle<()>
     where
@@ -80,7 +80,7 @@ impl<E, Q, S> EventStore<E, Q, S> for Store<S>
 where
     E: Events + Debug,
     Q: StoreQuery,
-    S: StoreAdapter<E, Q> + Clone,
+    S: StoreAdapter<E, Q> + Clone + Send + 'static,
 {
     fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
     where
@@ -88,7 +88,7 @@ where
     {
         trace!("Store save");
 
-        self.save_no_emit(event).map(|_| {
+        self.store.save(event).map(|_| {
             trace!("Save no emit complete");
 
             self.emitter.emit(event);
@@ -124,7 +124,7 @@ impl<E, Q, S> EventStore<E, Q, S> for SubscribableStore<S>
 where
     E: Events + Debug,
     Q: StoreQuery,
-    S: StoreAdapter<E, Q> + Clone,
+    S: StoreAdapter<E, Q> + Clone + Send + 'static,
 {
     fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
     where
@@ -138,7 +138,7 @@ impl<E, Q, S> SubscribableEventStore<E, Q, S> for SubscribableStore<S>
 where
     E: Events + Debug,
     Q: StoreQuery,
-    S: StoreAdapter<E, Q> + Clone,
+    S: StoreAdapter<E, Q> + Clone + Send + 'static,
 {
     fn subscribe<H, ED>(&self, handler: H) -> JoinHandle<()>
     where
@@ -165,6 +165,12 @@ where
                 });
         })
     }
+}
+
+#[derive(EventData, Debug)]
+#[event_store(namespace = "some_namespace")]
+struct TestEvent {
+    num: u32,
 }
 
 #[test]
