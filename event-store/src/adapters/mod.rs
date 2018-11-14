@@ -34,7 +34,9 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
         ED: EventData + Send;
 
     /// Returns the last event of the type ED
-    fn last_event<ED: EventData + Send>(&self) -> Result<Option<Event<ED>>, String>;
+    fn last_event<ED>(&self) -> Result<Option<Event<ED>>, String>
+    where
+        ED: EventData + Send;
 }
 
 /// Result of a cache search
