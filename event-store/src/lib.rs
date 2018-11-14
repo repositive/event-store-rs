@@ -146,25 +146,25 @@ where
     fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
         ED: EventData + Send + Sync + 'static,
-        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static,
+        H: Fn(Event<ED>, &Self) -> () + Send + Sync + 'static,
     {
         let _self = self.clone();
 
-        let sub = self.emitter.subscribe(move |event: &Event<ED>| {
+        let handle = self.emitter.subscribe(move |event: Event<ED>| {
             trace!("Subscription received event ID {}", event.id);
 
             _self
                 .store
-                .save(event)
+                .save(&event)
                 .map(|_| {
                     handler(event, &_self);
                 })
                 .expect(&format!("Failed to handle event with ID {}", event.id));
         });
 
-        let handle = thread::spawn(|| {
-            block_on_all(sub).expect("Subscription thread failed");
-        });
+        // let handle = thread::spawn(|| {
+        //     block_on_all(sub).expect("Subscription thread failed");
+        // });
 
         Ok(handle)
     }

@@ -39,5 +39,5 @@ pub trait Store<
     fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
     where
         ED: EventData + Send + Sync + 'static,
-        H: Fn(&Event<ED>, &Self) -> () + Send + Sync + 'static;
+        H: Fn(Event<ED>, &Self) -> () + Send + Sync + 'static;
 }

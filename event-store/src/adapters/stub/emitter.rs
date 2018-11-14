@@ -4,6 +4,7 @@ use adapters::EmitterAdapter;
 use event_store_derive_internals::EventData;
 use futures::future::ok as FutOk;
 use std::io::Error;
+use std::thread::{self, JoinHandle};
 use utils::BoxedFuture;
 use Event;
 
@@ -23,11 +24,13 @@ impl EmitterAdapter for StubEmitterAdapter {
         Ok(())
     }
 
-    fn subscribe<ED, H>(&self, _handler: H) -> BoxedFuture<(), ()>
+    fn subscribe<ED, H>(&self, _handler: H) -> JoinHandle<()>
     where
         ED: EventData + 'static,
-        H: Fn(&Event<ED>) -> (),
+        H: Fn(Event<ED>) -> (),
     {
-        Box::new(FutOk(()))
+        thread::spawn(move || {
+            println!("Stub subscribe");
+        })
     }
 }

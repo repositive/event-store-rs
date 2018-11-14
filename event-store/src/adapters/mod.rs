@@ -16,6 +16,7 @@ use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
+use std::thread::JoinHandle;
 use utils::BoxedFuture;
 use Event;
 use Events;
@@ -61,8 +62,8 @@ pub trait EmitterAdapter: Send + Sync + Clone + 'static {
     fn emit<E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), ()>
+    fn subscribe<ED, H>(&self, handler: H) -> JoinHandle<()>
     where
         ED: EventData + 'static,
-        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
+        H: Fn(Event<ED>) -> () + Send + Sync + 'static;
 }
