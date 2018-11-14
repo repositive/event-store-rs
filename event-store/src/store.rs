@@ -11,8 +11,8 @@ pub trait Store<Q, S, C, EM>: Clone
 where
     Q: StoreQuery,
     S: StoreAdapter<Q>,
-    C: CacheAdapter + Clone + Send + Sync + 'static,
-    EM: EmitterAdapter + Send + Sync + 'static,
+    C: CacheAdapter,
+    EM: EmitterAdapter,
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self;
