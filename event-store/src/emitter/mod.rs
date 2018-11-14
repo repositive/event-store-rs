@@ -22,10 +22,11 @@ where
     fn emit(&self, event: &Event<ED>);
 }
 
-pub trait EmitterAdapter {
-    fn split<ED, TX, RX>(self) -> (TX, RX)
-    where
-        ED: EventData,
-        TX: EmitterSender<ED>,
-        RX: EmitterReceiver<ED>;
+pub trait EmitterAdapter<ED, TX, RX>
+where
+    ED: EventData,
+    TX: EmitterSender<ED>,
+    RX: EmitterReceiver<ED>,
+{
+    fn split(self) -> (TX, RX);
 }

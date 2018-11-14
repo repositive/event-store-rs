@@ -15,6 +15,7 @@ mod store;
 
 use crate::cache::pg::PgCacheAdapter;
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
+use crate::emitter::{EmitterAdapter, EmitterReceiver, EmitterSender};
 use crate::event::Event;
 use crate::store::pg::PgStoreAdapter;
 use crate::store::StoreAdapter;
@@ -28,26 +29,28 @@ use std::net::SocketAddr;
 use std::thread::JoinHandle;
 use tokio::runtime::Runtime;
 
-trait EventStore<E, Q, S>
+trait EventStore<E, ED, Q, S, TX>
 where
     E: Events + Debug,
+    ED: EventData,
     Q: StoreQuery,
     S: StoreAdapter<E, Q> + Clone + Send + 'static,
+    TX: EmitterSender<ED>,
 {
-    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
-    where
-        ED: EventData + Debug;
+    fn save(&self, event: &Event<ED>) -> Result<(), String>;
 }
 
-trait SubscribableEventStore<E, Q, S>: EventStore<E, Q, S>
+trait SubscribableEventStore<E, ED, Q, S, TX, RX>: EventStore<E, ED, Q, S, TX>
 where
     E: Events + Debug,
+    ED: EventData + Debug,
     Q: StoreQuery,
     S: StoreAdapter<E, Q> + Clone + Send + 'static,
+    TX: EmitterSender<ED>,
+    RX: EmitterReceiver<ED>,
 {
-    fn subscribe<H, ED>(&self, handler: H) -> JoinHandle<()>
+    fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
-        ED: EventData + Debug,
         H: Fn(Event<ED>, &Store<S>) -> () + Send + Sync + 'static;
 }
 
@@ -76,16 +79,15 @@ impl<S> Store<S> {
     }
 }
 
-impl<E, Q, S> EventStore<E, Q, S> for Store<S>
+impl<E, ED, Q, S, TX> EventStore<E, ED, Q, S, TX> for Store<S>
 where
     E: Events + Debug,
+    ED: EventData + Debug,
     Q: StoreQuery,
     S: StoreAdapter<E, Q> + Clone + Send + 'static,
+    TX: EmitterSender<ED>,
 {
-    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
-    where
-        ED: EventData + Debug,
-    {
+    fn save(&self, event: &Event<ED>) -> Result<(), String> {
         trace!("Store save");
 
         self.store.save(event).map(|_| {
@@ -120,29 +122,30 @@ impl<S> SubscribableStore<S> {
     }
 }
 
-impl<E, Q, S> EventStore<E, Q, S> for SubscribableStore<S>
+impl<E, ED, Q, S, TX> EventStore<E, ED, Q, S, TX> for SubscribableStore<S>
 where
     E: Events + Debug,
+    ED: EventData + Debug,
     Q: StoreQuery,
     S: StoreAdapter<E, Q> + Clone + Send + 'static,
+    TX: EmitterSender<ED>,
 {
-    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
-    where
-        ED: EventData + Debug,
-    {
+    fn save(&self, event: &Event<ED>) -> Result<(), String> {
         self._store.save(event)
     }
 }
 
-impl<E, Q, S> SubscribableEventStore<E, Q, S> for SubscribableStore<S>
+impl<E, ED, Q, S, TX, RX> SubscribableEventStore<E, ED, Q, S, TX, RX> for SubscribableStore<S>
 where
     E: Events + Debug,
+    ED: EventData + Debug,
     Q: StoreQuery,
     S: StoreAdapter<E, Q> + Clone + Send + 'static,
+    TX: EmitterSender<ED>,
+    RX: EmitterReceiver<ED>,
 {
-    fn subscribe<H, ED>(&self, handler: H) -> JoinHandle<()>
+    fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
-        ED: EventData + Debug,
         H: Fn(Event<ED>, &Store<S>) -> () + Send + Sync + 'static,
     {
         trace!("Store subscribe called");

@@ -44,11 +44,13 @@ impl AMQPEmitterAdapter {
     }
 }
 
-impl EmitterAdapter for AMQPEmitterAdapter {
-    fn split<ED, TX, RX>(self) -> (TX, RX)
-    where
-        ED: EventData,
-    {
+impl<ED, TX, RX> EmitterAdapter<ED, TX, RX> for AMQPEmitterAdapter
+where
+    ED: EventData,
+    TX: EmitterSender<ED>,
+    RX: EmitterReceiver<ED>,
+{
+    fn split(self) -> (TX, RX) {
         (self.sender, self.receiver)
     }
 }

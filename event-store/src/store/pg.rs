@@ -77,12 +77,11 @@ impl PgStoreAdapter {
     }
 }
 
-impl<E, Q> StoreAdapter<E, Q> for PgStoreAdapter
+impl<E> StoreAdapter<E, PgQuery> for PgStoreAdapter
 where
     E: Events + Debug,
-    Q: StoreQuery,
 {
-    fn read(&self, query: Q, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String> {
+    fn read(&self, query: PgQuery, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String> {
         let conn = self.pool.clone();
 
         let pool = conn
