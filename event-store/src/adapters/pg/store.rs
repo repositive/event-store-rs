@@ -93,7 +93,7 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
         Ok(results)
     }
 
-    fn save<ED: EventData + Sync + Send>(&self, event: &Event<ED>) -> Result<(), String> {
+    fn save<ED: EventData + Send>(&self, event: &Event<ED>) -> Result<(), String> {
         self.pool
             .get()
             .expect("Could not connect to the pool (save)")

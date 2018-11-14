@@ -39,7 +39,6 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use serde::{Deserialize, Serialize};
 use std::thread::JoinHandle;
 use store::Store;
 use store_query::StoreQuery;
@@ -76,12 +75,12 @@ impl EventData for EventReplayRequested {
 #[derive(Serialize, Deserialize)]
 struct DummyEvent {}
 
-impl<'a, Q, S, C, EM> Store<'a, Q, S, C, EM> for EventStore<S, C, EM>
+impl<Q, S, C, EM> Store<Q, S, C, EM> for EventStore<S, C, EM>
 where
-    Q: StoreQuery + Send + Sync + 'a,
-    S: StoreAdapter<Q> + Send + Sync + Clone + 'a,
-    C: CacheAdapter + Send + Sync + Clone + 'static,
-    EM: EmitterAdapter + Send + Sync + Clone + 'a,
+    Q: StoreQuery,
+    S: StoreAdapter<Q>,
+    C: CacheAdapter,
+    EM: EmitterAdapter,
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self {
@@ -93,18 +92,11 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<'b, E, T, A>(&'b self, query_args: A) -> Result<T, String>
+    fn aggregate<E, T, A>(&self, query_args: A) -> Result<T, String>
     where
-        E: Events + Send + Sync + 'b,
-        Q: 'b,
-        T: Aggregator<E, A, Q>
-            + Send
-            + Sync
-            + Serialize
-            + for<'de> Deserialize<'de>
-            + PartialEq
-            + 'b,
-        A: Clone + 'b,
+        E: Events + Send,
+        T: Aggregator<E, A, Q>,
+        A: Clone,
     {
         let store_query = T::query(query_args.clone());
         let cache_id = store_query.unique_id();
@@ -133,7 +125,10 @@ where
     }
 
     /// Save an event to the store with optional context
-    fn save<ED: EventData + Send + Sync>(&self, event: &Event<ED>) -> Result<(), String> {
+    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
+    where
+        ED: EventData + Send,
+    {
         self.store.save(event)?;
 
         self.emitter

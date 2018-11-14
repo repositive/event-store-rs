@@ -31,17 +31,17 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
     /// Save an event to the store
     fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
     where
-        ED: EventData + Send + Sync;
+        ED: EventData + Send;
 
     /// Returns the last event of the type ED
-    fn last_event<'b, ED: EventData + Send>(&self) -> Result<Option<Event<ED>>, String>;
+    fn last_event<ED: EventData + Send>(&self) -> Result<Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter {
+pub trait CacheAdapter: Clone + Send + Sync + 'static {
     /// Insert an item into the cache
     fn set<V>(&self, key: String, value: V) -> Result<(), String>
     where
@@ -56,9 +56,9 @@ pub trait CacheAdapter {
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter: Send + Sync + Clone + 'static {
+pub trait EmitterAdapter: Clone + Send + Sync + 'static {
     /// Emit an event
-    fn emit<E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error>;
+    fn emit<E: EventData + Send>(&self, event: &Event<E>) -> Result<(), io::Error>;
 
     /// Subscribe to an event
     fn subscribe<ED, H>(&self, handler: H) -> JoinHandle<()>
