@@ -1,4 +1,4 @@
-use crate::emitter::EmitterAdapter;
+// use crate::emitter::EmitterAdapter;
 use crate::emitter::EmitterReceiver;
 use crate::emitter::EmitterSender;
 use crate::{Event, Store};
@@ -23,12 +23,12 @@ use tokio::runtime::Runtime;
 // use tokio::runtime::current_thread::Runtime;
 
 #[derive(Debug)]
-pub struct AMQPEmitterAdapter {
-    sender: AMQPSender,
-    receiver: AMQPReceiver,
+pub struct AMQPEmitterAdapter<TX, RX> {
+    sender: TX,
+    receiver: RX,
 }
 
-impl AMQPEmitterAdapter {
+impl AMQPEmitterAdapter<AMQPSender, AMQPReceiver> {
     pub fn new(
         uri: SocketAddr,
         exchange: String,
@@ -42,18 +42,21 @@ impl AMQPEmitterAdapter {
             }),
         )
     }
-}
 
-impl<ED, TX, RX> EmitterAdapter<ED, TX, RX> for AMQPEmitterAdapter
-where
-    ED: EventData,
-    TX: EmitterSender<ED>,
-    RX: EmitterReceiver<ED>,
-{
-    fn split(self) -> (TX, RX) {
+    pub fn split(self) -> (AMQPSender, AMQPReceiver) {
         (self.sender, self.receiver)
     }
 }
+
+// impl<ED> EmitterAdapter<ED, AMQPSender, AMQPReceiver>
+//     for AMQPEmitterAdapter<AMQPSender, AMQPReceiver>
+// where
+//     ED: EventData,
+// {
+//     fn split(self) -> (AMQPSender, AMQPReceiver) {
+//         (self.sender, self.receiver)
+//     }
+// }
 
 #[derive(Clone)]
 pub struct AMQPSender {

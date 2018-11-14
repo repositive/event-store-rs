@@ -15,7 +15,7 @@ mod store;
 
 use crate::cache::pg::PgCacheAdapter;
 use crate::emitter::amqp::{AMQPEmitterAdapter, AMQPReceiver, AMQPSender};
-use crate::emitter::{EmitterAdapter, EmitterReceiver, EmitterSender};
+use crate::emitter::{EmitterReceiver, EmitterSender};
 use crate::event::Event;
 use crate::store::pg::PgStoreAdapter;
 use crate::store::StoreAdapter;
@@ -51,18 +51,18 @@ where
 {
     fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
-        H: Fn(Event<ED>, &Store<S>) -> () + Send + Sync + 'static;
+        H: Fn(Event<ED>, &Store<S, TX>) -> () + Send + Sync + 'static;
 }
 
 #[derive(Clone, Debug)]
-pub struct Store<S> {
-    emitter: AMQPSender,
+pub struct Store<S, TX> {
+    emitter: TX,
     cache: PgCacheAdapter,
     store: S,
 }
 
-impl<S> Store<S> {
-    pub fn new(emitter: AMQPSender, cache: PgCacheAdapter, store: S) -> Self {
+impl<S, TX> Store<S, TX> {
+    pub fn new(emitter: TX, cache: PgCacheAdapter, store: S) -> Self {
         Self {
             emitter,
             cache,
@@ -79,7 +79,7 @@ impl<S> Store<S> {
     }
 }
 
-impl<E, ED, Q, S, TX> EventStore<E, ED, Q, S, TX> for Store<S>
+impl<E, ED, Q, S, TX> EventStore<E, ED, Q, S, TX> for Store<S, TX>
 where
     E: Events + Debug,
     ED: EventData + Debug,
@@ -103,17 +103,17 @@ where
 }
 
 #[derive(Debug)]
-pub struct SubscribableStore<S> {
+pub struct SubscribableStore<S, TX, RX> {
     // Only this is clonable
-    _store: Store<S>,
+    _store: Store<S, TX>,
 
     // emitter: AMQPEmitterAdapter,
-    receiver: AMQPReceiver,
+    receiver: RX,
 }
 
-impl<S> SubscribableStore<S> {
-    pub fn new(emitter: AMQPEmitterAdapter, cache: PgCacheAdapter, store: S) -> Self {
-        let (sender, receiver) = emitter.split();
+impl<S, TX, RX> SubscribableStore<S, TX, RX> {
+    pub fn new((sender, receiver): (TX, RX), cache: PgCacheAdapter, store: S) -> Self {
+        // let (sender, receiver) = emitter.split();
 
         Self {
             _store: Store::new(sender, cache, store),
@@ -122,7 +122,7 @@ impl<S> SubscribableStore<S> {
     }
 }
 
-impl<E, ED, Q, S, TX> EventStore<E, ED, Q, S, TX> for SubscribableStore<S>
+impl<E, ED, Q, S, TX, RX> EventStore<E, ED, Q, S, TX> for SubscribableStore<S, TX, RX>
 where
     E: Events + Debug,
     ED: EventData + Debug,
@@ -135,25 +135,26 @@ where
     }
 }
 
-impl<E, ED, Q, S, TX, RX> SubscribableEventStore<E, ED, Q, S, TX, RX> for SubscribableStore<S>
+impl<E, ED, Q, S, TX, RX> SubscribableEventStore<E, ED, Q, S, TX, RX>
+    for SubscribableStore<S, TX, RX>
 where
     E: Events + Debug,
     ED: EventData + Debug,
     Q: StoreQuery,
     S: StoreAdapter<E, Q> + Clone + Send + 'static,
-    TX: EmitterSender<ED>,
+    TX: EmitterSender<ED> + Clone + Send + 'static,
     RX: EmitterReceiver<ED>,
 {
     fn subscribe<H>(&self, handler: H) -> JoinHandle<()>
     where
-        H: Fn(Event<ED>, &Store<S>) -> () + Send + Sync + 'static,
+        H: Fn(Event<ED>, &Store<S, TX>) -> () + Send + Sync + 'static,
     {
         trace!("Store subscribe called");
 
         let handler_store = self._store.clone();
 
         self.receiver.subscribe(move |event: Event<ED>| {
-            trace!("Received event {}", event.id);
+            trace!("Received event");
 
             // TODO: How should store save errors be handled in event handlers?
             let _ = handler_store
@@ -161,7 +162,7 @@ where
                 .map(|_| {
                     handler(event, &handler_store);
 
-                    trace!("Handler called for event {}", event.id);
+                    trace!("Handler called for event");
                 })
                 .map_err(|e| {
                     debug!("Handler not called: {}", e);
@@ -174,6 +175,11 @@ where
 #[event_store(namespace = "some_namespace")]
 struct TestEvent {
     num: u32,
+}
+
+#[derive(Events, Debug)]
+enum TestEvents {
+    Evt(TestEvent),
 }
 
 #[test]
@@ -212,11 +218,11 @@ fn it_works() {
 
     trace!("Emitter all done");
 
-    let store = SubscribableStore::new(emitter, cache, store_adapter);
+    let store = SubscribableStore::new(emitter.split(), cache, store_adapter);
 
     trace!("All done");
 
-    let _handle = store.subscribe(|evt, st| {
+    let _handle = store.subscribe(|evt: TestEvent, st| {
         println!("I'm in a handler. Num: {:?}", evt);
 
         let test_fut: Box<Future<Item = u32, Error = ()> + Send> = Box::new(FutOk(123));

@@ -15,18 +15,18 @@ where
 }
 
 /// Emit events
-pub trait EmitterSender<ED>
+pub trait EmitterSender<ED>: Clone + Send
 where
     ED: EventData,
 {
     fn emit(&self, event: &Event<ED>);
 }
 
-pub trait EmitterAdapter<ED, TX, RX>
-where
-    ED: EventData,
-    TX: EmitterSender<ED>,
-    RX: EmitterReceiver<ED>,
-{
-    fn split(self) -> (TX, RX);
-}
+// pub trait EmitterAdapter<ED, TX, RX>
+// where
+//     ED: EventData,
+//     TX: EmitterSender<ED>,
+//     RX: EmitterReceiver<ED>,
+// {
+//     fn split(self) -> (TX, RX);
+// }
