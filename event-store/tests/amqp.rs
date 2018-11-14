@@ -33,17 +33,11 @@ fn emitter_emits_and_subscribes() {
         .block_on(AMQPEmitterAdapter::new(addr, "iris".into()))
         .expect("Could not start AMQP sender");
 
-    let sub = amqp.subscribe(move |_event: &Event<TestIncrementEvent>| {
+    let sub = amqp.subscribe(move |_event: Event<TestIncrementEvent>| {
         println!("Received test event");
 
         &sh.lock().unwrap().send(()).unwrap();
     });
-
-    let mut rt = Runtime::new().expect("Subscriber runtime could not be created");
-
-    println!("Spawn subscriber thread");
-
-    rt.spawn(sub);
 
     thread::sleep(time::Duration::from_millis(100));
 
@@ -54,4 +48,6 @@ fn emitter_emits_and_subscribes() {
     .expect("Could not send event");
 
     assert!(rx.recv_timeout(Duration::from_secs(5)).is_ok());
+
+    sub.join().unwrap();
 }
