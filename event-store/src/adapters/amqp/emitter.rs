@@ -237,13 +237,14 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         let event_name = ED::event_type();
         let event_namespace = ED::event_namespace();
         let queue_name = format!("{}.{}", event_namespace, event_name);
-        let exchange = self.exchange.clone();
+        let _exchange = self.exchange.clone();
+        let _uri = self.uri;
 
         trace!("Creating queue {}", queue_name);
 
         thread::spawn(move || {
-            let consumer = connect(self.uri, self.exchange.clone())
-                .and_then(|(_, channel)| create_consumer(channel, queue_name, exchange, handler));
+            let consumer = connect(_uri, _exchange.clone())
+                .and_then(|(_, channel)| create_consumer(channel, queue_name, _exchange, handler));
 
             trace!("Begin listen");
 

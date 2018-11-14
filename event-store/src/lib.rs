@@ -40,11 +40,9 @@ pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
-use std::thread;
 use std::thread::JoinHandle;
 use store::Store;
 use store_query::StoreQuery;
-use tokio::runtime::current_thread::block_on_all;
 
 /// Main event store
 #[derive(Clone)]
@@ -151,7 +149,9 @@ where
         let _self = self.clone();
 
         let handle = self.emitter.subscribe(move |event: Event<ED>| {
-            trace!("Subscription received event ID {}", event.id);
+            let event_id = event.id;
+
+            trace!("Subscription received event ID {}", event_id);
 
             _self
                 .store
@@ -159,12 +159,8 @@ where
                 .map(|_| {
                     handler(event, &_self);
                 })
-                .expect(&format!("Failed to handle event with ID {}", event.id));
+                .expect(&format!("Failed to handle event with ID {}", event_id));
         });
-
-        // let handle = thread::spawn(|| {
-        //     block_on_all(sub).expect("Subscription thread failed");
-        // });
 
         Ok(handle)
     }

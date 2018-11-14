@@ -2,10 +2,8 @@
 
 use adapters::EmitterAdapter;
 use event_store_derive_internals::EventData;
-use futures::future::ok as FutOk;
 use std::io::Error;
 use std::thread::{self, JoinHandle};
-use utils::BoxedFuture;
 use Event;
 
 /// Stub event emitter
