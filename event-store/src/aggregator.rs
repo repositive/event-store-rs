@@ -58,7 +58,7 @@ use store_query::StoreQuery;
 /// }
 ///
 /// // The domain entity we want to aggregate to
-/// #[derive(Clone, Debug, PartialEq)]
+/// #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 /// struct UserDetails {
 ///     name: String,
 ///     email: String,
