@@ -16,15 +16,15 @@ type Connection = Pool<PostgresConnectionManager>;
 
 /// Representation of a Postgres query and args
 #[derive(Debug)]
-pub struct PgQuery<'a> {
+pub struct PgQuery {
     /// Query string with placeholders
-    pub query: &'a str,
+    pub query: String,
 
     /// Arguments to use for the query
-    pub args: Vec<Box<ToSql + Send + Sync>>,
+    pub args: Vec<Box<ToSql>>,
 }
 
-impl<'a> StoreQuery for PgQuery<'a> {
+impl StoreQuery for PgQuery {
     fn unique_id(&self) -> String {
         let hash = Sha256::digest(format!("{:?}:[{}]", self.args, self.query).as_bytes());
         hash.iter().fold(String::new(), |mut acc, hex| {
@@ -34,10 +34,13 @@ impl<'a> StoreQuery for PgQuery<'a> {
     }
 }
 
-impl<'a> PgQuery<'a> {
+impl PgQuery {
     /// Create a new query from a query string and arguments
-    pub fn new(query: &'a str, args: Vec<Box<ToSql + Send + Sync>>) -> Self {
-        Self { query, args }
+    pub fn new(query: &str, args: Vec<Box<ToSql>>) -> Self {
+        Self {
+            query: query.into(),
+            args,
+        }
     }
 }
 

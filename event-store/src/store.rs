@@ -33,10 +33,7 @@ pub trait Store<
         A: Clone + 'b;
 
     /// Save an event to the store with optional context
-    fn save<'b, ED: EventData + Send + Sync + 'b>(
-        &'b self,
-        event: &'b Event<ED>,
-    ) -> Result<(), String>;
+    fn save<ED: EventData + Send + Sync>(&self, event: &Event<ED>) -> Result<(), String>;
 
     /// Subscribe to an event
     fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>

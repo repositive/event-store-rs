@@ -20,7 +20,7 @@ impl PgCacheAdapter {
 }
 
 impl CacheAdapter for PgCacheAdapter {
-    fn set<'a, V: Serialize + Send + 'a>(&self, key: String, value: V) -> Result<(), String> {
+    fn set<V: Serialize + Send>(&self, key: String, value: V) -> Result<(), String> {
         self.conn
             .get()
             .expect("Could not get PG connection")
@@ -35,9 +35,9 @@ impl CacheAdapter for PgCacheAdapter {
             .map_err(|_| "Failed to set cache item".into())
     }
 
-    fn get<'a, T>(&self, key: String) -> Result<Option<CacheResult<T>>, String>
+    fn get<T>(&self, key: String) -> Result<Option<CacheResult<T>>, String>
     where
-        T: DeserializeOwned + Send + 'a,
+        T: DeserializeOwned + Send,
     {
         let rows = self
             .conn

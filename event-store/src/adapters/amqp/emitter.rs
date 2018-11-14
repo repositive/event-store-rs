@@ -195,7 +195,7 @@ fn connect(
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error> {
+    fn emit<E: EventData>(&self, event: &Event<E>) -> Result<(), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
@@ -228,7 +228,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         Runtime::new().unwrap().block_on(fut)
     }
 
-    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), ()>
     where
         ED: EventData + 'static,
         H: Fn(&Event<ED>) -> () + Send + 'static,
