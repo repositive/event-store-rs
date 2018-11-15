@@ -4,7 +4,7 @@ use adapters::pg::PgQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
-use postgres::error::DUPLICATE_COLUMN;
+use postgres::error::{DUPLICATE_COLUMN, UNIQUE_VIOLATION};
 use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
@@ -107,9 +107,15 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
                 ],
             )
             .map(|_| ())
-            .map_err(|err| match err.code() {
-                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
-                _ => "UNEXPECTED".into(),
+            .map_err(|err| {
+                error!("Store save error: code {:?}", err);
+
+                match err.code() {
+                    Some(e) if e == &DUPLICATE_COLUMN || e == &UNIQUE_VIOLATION => {
+                        "DUPLICATE_COLUMN".into()
+                    }
+                    _ => "UNEXPECTED".into(),
+                }
             })
     }
 
