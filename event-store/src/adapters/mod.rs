@@ -7,10 +7,12 @@
 // TODO: No pub
 pub mod amqp;
 mod pg;
+mod redis;
 mod stub;
 
 pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
+pub use self::redis::RedisCacheAdapter;
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;

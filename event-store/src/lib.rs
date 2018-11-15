@@ -2,6 +2,7 @@
 #![deny(missing_docs)]
 
 extern crate fallible_iterator;
+extern crate redis;
 #[macro_use]
 extern crate serde_derive;
 extern crate chrono;
