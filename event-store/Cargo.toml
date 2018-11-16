@@ -1,37 +1,50 @@
 [package]
+authors = ["James Waples <jamwaffles@gmail.com>"]
 name = "event-store"
 version = "0.1.0"
-authors = ["James Waples <jamwaffles@gmail.com>"]
+[[bench]]
+harness = false
+name = "testhelpers"
 
-[badges]
-travis-ci = { repository = "repositive/event-store-rs", branch = "master" }
+[[bench]]
+harness = false
+name = "exercise"
+[badges.travis-ci]
+branch = "master"
+repository = "repositive/event-store-rs"
 
 [dependencies]
+fallible-iterator = "0.1.5"
+futures = "0.1.25"
+lapin-futures = "0.14.0"
+log = "0.4.6"
+r2d2 = "0.8.2"
+r2d2_postgres = "0.14.0"
+redis = "0.9.1"
 serde = "1.0.80"
 serde_derive = "1.0.80"
 serde_json = "1.0.32"
-fallible-iterator = "0.1.5"
 sha2 = "0.8.0"
-chrono = { version = "0.4.6", features = ["serde"] }
-uuid = { version = "0.5.1", features = ["serde", "v4"] }
-event-store-derive = { path = "../event-store-derive" }
-event-store-derive-internals = { path = "../event-store-derive-internals" }
-log = "0.4.6"
-lapin-futures = "0.14.0"
-futures = "0.1.25"
 tokio = "0.1.11"
-r2d2 = "0.8.2"
-postgres = { version = "0.15.2", features = [ "with-serde_json", "with-uuid", "with-chrono" ] }
-r2d2_postgres = "0.14.0"
+
+[dependencies.chrono]
+features = ["serde"]
+version = "0.4.6"
+
+[dependencies.event-store-derive]
+path = "../event-store-derive"
+
+[dependencies.event-store-derive-internals]
+path = "../event-store-derive-internals"
+
+[dependencies.postgres]
+features = ["with-serde_json", "with-uuid", "with-chrono"]
+version = "0.15.2"
+
+[dependencies.uuid]
+features = ["serde", "v4"]
+version = "0.5.1"
 
 [dev-dependencies]
 criterion = "0.2.5"
 env_logger = "0.5.13"
-
-[[bench]]
-name = "testhelpers"
-harness = false
-
-[[bench]]
-name = "pg"
-harness = false

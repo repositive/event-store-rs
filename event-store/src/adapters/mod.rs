@@ -7,10 +7,12 @@
 // TODO: No pub
 pub mod amqp;
 mod pg;
+mod redis;
 mod stub;
 
 pub use self::amqp::AMQPEmitterAdapter;
 pub use self::pg::{PgCacheAdapter, PgQuery, PgStoreAdapter};
+pub use self::redis::RedisCacheAdapter;
 pub use self::stub::StubEmitterAdapter;
 use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
@@ -34,14 +36,16 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
         ED: EventData + Send;
 
     /// Returns the last event of the type ED
-    fn last_event<ED: EventData + Send>(&self) -> Result<Option<Event<ED>>, String>;
+    fn last_event<ED>(&self) -> Result<Option<Event<ED>>, String>
+    where
+        ED: EventData + Send;
 }
 
 /// Result of a cache search
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter: Clone + Send + Sync + 'static {
+pub trait CacheAdapter: Clone + Send + 'static {
     /// Insert an item into the cache
     fn set<V>(&self, key: String, value: V) -> Result<(), String>
     where
@@ -56,7 +60,7 @@ pub trait CacheAdapter: Clone + Send + Sync + 'static {
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter: Clone + Send + Sync + 'static {
+pub trait EmitterAdapter: Clone + Send + 'static {
     /// Emit an event
     fn emit<E: EventData + Send>(&self, event: &Event<E>) -> Result<(), io::Error>;
 
@@ -64,5 +68,5 @@ pub trait EmitterAdapter: Clone + Send + Sync + 'static {
     fn subscribe<ED, H>(&self, handler: H) -> JoinHandle<()>
     where
         ED: EventData + 'static,
-        H: Fn(Event<ED>) -> () + Send + Sync + 'static;
+        H: Fn(Event<ED>) -> () + Send + 'static;
 }

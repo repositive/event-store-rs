@@ -17,6 +17,7 @@ services:
 before_install:
   - docker-compose up -d rabbit
   - docker-compose up -d postgres
+  - docker-compose up -d redis
   - rustup toolchain add nightly || true
   - rustup self update
   - rustup component add rustfmt-preview --toolchain nightly
