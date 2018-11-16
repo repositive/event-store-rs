@@ -11,11 +11,8 @@ use event_store::{
     Event, EventStore,
 };
 
-use r2d2::Pool;
-use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::thread;
 use std::time::Duration;
-use tokio::runtime::current_thread::block_on_all;
 
 #[test]
 fn it_queries_the_database() {

@@ -5,9 +5,7 @@ extern crate r2d2_postgres;
 extern crate tokio;
 
 use event_store::prelude::*;
-use event_store::testhelpers::{
-    pg_connect, redis_connect, redis_empty_cache, TestCounterEntity, TestIncrementEvent,
-};
+use event_store::testhelpers::{pg_connect, redis_connect, TestCounterEntity, TestIncrementEvent};
 use event_store::{
     adapters::{PgStoreAdapter, RedisCacheAdapter, StubEmitterAdapter},
     Event, EventStore,
