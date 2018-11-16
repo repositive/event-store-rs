@@ -1,8 +1,7 @@
 extern crate env_logger;
-#[macro_use]
-extern crate log;
 extern crate event_store;
 extern crate futures;
+extern crate log;
 extern crate serde_json;
 extern crate tokio;
 
