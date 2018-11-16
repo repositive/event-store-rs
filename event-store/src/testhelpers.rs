@@ -5,6 +5,7 @@ use prelude::*;
 use r2d2::{self, Pool};
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use redis::Client as RedisClient;
 use std::time::{SystemTime, UNIX_EPOCH};
 use Event;
 
@@ -86,12 +87,29 @@ pub fn pg_connect() -> Pool<PostgresConnectionManager> {
     pool
 }
 
+/// Connect to a Redis server on port 6378
+pub fn redis_connect() -> RedisClient {
+    redis::Client::open("redis://127.0.0.1:6378").expect("Could not connect to Redis server")
+}
+
 /// Create an event store from a Postgres connection pool
 #[macro_export]
 macro_rules! pg_store {
     ($conn:ident) => {{
         let store_adapter = PgStoreAdapter::new($conn.clone());
         let cache_adapter = PgCacheAdapter::new($conn.clone());
+        let emitter_adapter = StubEmitterAdapter::new();
+
+        EventStore::new(store_adapter, cache_adapter, emitter_adapter)
+    }};
+}
+
+/// Create an event store from a Postgres connection pool with a Redis cache
+#[macro_export]
+macro_rules! pg_store_with_redis_cache {
+    ($conn:ident, $redis_conn:ident) => {{
+        let store_adapter = PgStoreAdapter::new($conn.clone());
+        let cache_adapter = RedisCacheAdapter::new($redis_conn.clone());
         let emitter_adapter = StubEmitterAdapter::new();
 
         EventStore::new(store_adapter, cache_adapter, emitter_adapter)
@@ -131,6 +149,14 @@ macro_rules! pg_empty_cache {
             .unwrap()
             .execute("TRUNCATE aggregate_cache", &[])
             .expect("Failed to trunacte cache table");
+    }};
+}
+
+/// Remove every entry from the Redis cache
+#[macro_export]
+macro_rules! redis_empty_cache {
+    ($conn:ident) => {{
+        redis::cmd("FLUSHDB").execute(&$conn);
     }};
 }
 

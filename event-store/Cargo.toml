@@ -8,7 +8,7 @@ name = "testhelpers"
 
 [[bench]]
 harness = false
-name = "pg"
+name = "exercise"
 [badges.travis-ci]
 branch = "master"
 repository = "repositive/event-store-rs"
