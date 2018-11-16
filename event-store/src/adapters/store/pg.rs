@@ -2,7 +2,7 @@
 
 use super::StoreQuery;
 use adapters::StoreAdapter;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use fallible_iterator::FallibleIterator;
 use postgres::error::{DUPLICATE_COLUMN, UNIQUE_VIOLATION};
 use postgres::types::ToSql;
@@ -107,10 +107,10 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
                 let context_json: JsonValue = row.get("context");
 
                 let thing = json!({
-                            "id": id,
-                            "data": data_json,
-                            "context": context_json,
-                        });
+                    "id": id,
+                    "data": data_json,
+                    "context": context_json,
+                });
 
                 let evt: E = from_value(thing).expect("Could not decode row");
 
@@ -181,6 +181,67 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
         } else {
             Ok(None)
         }
+    }
+
+    fn read_since<ED>(&self, since: Option<DateTime<Utc>>) -> Result<Vec<Event<ED>>, String>
+    where
+        ED: EventData,
+    {
+        // Last found event time, or start from the beginning of time if none
+        let from_time: DateTime<Utc> = since.unwrap_or(DateTime::<Utc>::from_utc(
+            NaiveDateTime::from_timestamp(0, 0),
+            Utc,
+        ));
+
+        let conn = self.pool.clone();
+
+        let pool = conn
+            .get()
+            .expect("Could not connect to the pool (aggregate)");
+
+        let trans = pool
+            .transaction()
+            .expect("Unable to initialise transaction");
+
+        let stmt = trans
+            .prepare(
+                r#"SELECT * FROM events
+                WHERE events.context->>'time' >= $1
+                AND data->>'event_namespace' = $2
+                AND data->>'event_type' = $3
+                ORDER BY events.context->>'time' ASC
+            "#,
+            )
+            .expect("Unable to prepare transaction");
+
+        let results = stmt
+            .lazy_query(
+                &trans,
+                &[&ED::event_namespace(), &ED::event_type(), &from_time],
+                1000,
+            )
+            .unwrap()
+            .map(|row| {
+                let id: Uuid = row.get("id");
+                let data_json: JsonValue = row.get("data");
+                let context_json: JsonValue = row.get("context");
+
+                let thing = json!({
+                    "id": id,
+                    "data": data_json,
+                    "context": context_json,
+                });
+
+                let evt: Event<ED> = from_value(thing).expect("Could not decode row");
+
+                evt
+            })
+            .collect()
+            .expect("ain't no collec");
+
+        trans.finish().expect("Could not finish transaction");
+
+        Ok(results)
     }
 }
 

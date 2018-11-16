@@ -22,6 +22,13 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Clone + 'static {
     fn last_event<ED>(&self) -> Result<Option<Event<ED>>, String>
     where
         ED: EventData;
+
+    /// Read every event of a particular type created at or after a given time
+    ///
+    /// If the given time is `None`, events are read from the beginning of time till now
+    fn read_since<ED>(&self, since: Option<DateTime<Utc>>) -> Result<Vec<Event<ED>>, String>
+    where
+        ED: EventData;
 }
 
 /// A query to be passed to the store
