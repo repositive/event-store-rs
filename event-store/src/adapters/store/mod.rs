@@ -7,21 +7,21 @@ use event_store_derive_internals::{EventData, Events};
 pub use self::pg::{PgQuery, PgStoreAdapter};
 
 /// Storage backend
-pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
+pub trait StoreAdapter<Q: StoreQuery>: Send + Clone + 'static {
     /// Read a list of events matching a query
 
     fn read<E>(&self, query: Q, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String>
     where
-        E: Events + Send;
+        E: Events;
     /// Save an event to the store
     fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
     where
-        ED: EventData + Send;
+        ED: EventData;
 
     /// Returns the last event of the type ED
     fn last_event<ED>(&self) -> Result<Option<Event<ED>>, String>
     where
-        ED: EventData + Send;
+        ED: EventData;
 }
 
 /// A query to be passed to the store

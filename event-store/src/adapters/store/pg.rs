@@ -77,7 +77,7 @@ impl PgStoreAdapter {
 impl StoreAdapter<PgQuery> for PgStoreAdapter {
     fn read<E>(&self, query: PgQuery, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String>
     where
-        E: Events + Send,
+        E: Events,
     {
         let conn = self.pool.clone();
 
@@ -124,7 +124,10 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
         Ok(results)
     }
 
-    fn save<ED: EventData + Send>(&self, event: &Event<ED>) -> Result<(), String> {
+    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
+    where
+        ED: EventData,
+    {
         self.pool
             .get()
             .expect("Could not connect to the pool (save)")
@@ -150,7 +153,10 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
             })
     }
 
-    fn last_event<ED: EventData + Send>(&self) -> Result<Option<Event<ED>>, String> {
+    fn last_event<ED>(&self) -> Result<Option<Event<ED>>, String>
+    where
+        ED: EventData,
+    {
         let rows = self.pool
                 .get()
                 .expect("Could not connect to the pool (last_event)")
