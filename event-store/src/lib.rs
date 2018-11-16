@@ -50,25 +50,12 @@ pub struct EventStore<S, C, EM> {
     emitter: EM,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(EventData)]
+#[event_store(namespace = "eventstore")]
 struct EventReplayRequested {
     requested_event_type: String,
     requested_event_namespace: String,
     since: DateTime<Utc>,
-}
-
-impl EventData for EventReplayRequested {
-    fn event_type() -> &'static str {
-        "EventReplayRequested"
-    }
-
-    fn event_namespace() -> &'static str {
-        "event_store"
-    }
-
-    fn event_namespace_and_type() -> &'static str {
-        "event_store.EventReplayRequested"
-    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -157,5 +144,39 @@ where
         });
 
         Ok(handle)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_meta<ED>(_event: ED) -> (&'static str, &'static str, &'static str)
+    where
+        ED: EventData,
+    {
+        (
+            ED::event_namespace_and_type(),
+            ED::event_namespace(),
+            ED::event_type(),
+        )
+    }
+
+    #[test]
+    fn event_replay_requested_ident() {
+        let res = get_meta(EventReplayRequested {
+            requested_event_namespace: "some_ns".into(),
+            requested_event_type: "SomeType".into(),
+            since: Utc::now(),
+        });
+
+        assert_eq!(
+            res,
+            (
+                "eventstore.EventReplayRequested",
+                "eventstore",
+                "EventReplayRequested"
+            )
+        );
     }
 }
