@@ -1,10 +1,9 @@
-use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter};
+use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter, StoreQuery};
 use aggregator::Aggregator;
 use event::Event;
 use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
 use std::thread::JoinHandle;
-use store_query::StoreQuery;
 
 /// Store trait
 pub trait Store<Q, S, C, EM>: Clone

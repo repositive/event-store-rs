@@ -1,7 +1,7 @@
+use adapters::StoreQuery;
 use event_store_derive_internals::Events;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
-use store_query::StoreQuery;
 
 /// Aggregator trait
 ///

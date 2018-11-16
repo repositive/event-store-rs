@@ -1,6 +1,6 @@
 //! Store adapter backed by Postgres
 
-use adapters::pg::PgQuery;
+use super::StoreQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
@@ -9,12 +9,43 @@ use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
 use serde_json::{from_value, to_value, Value as JsonValue};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use Event;
 use EventContext;
 use EventData;
 use Events;
+
+/// Representation of a Postgres query and args
+#[derive(Debug)]
+pub struct PgQuery {
+    /// Query string with placeholders
+    pub query: String,
+
+    /// Arguments to use for the query
+    pub args: Vec<Box<ToSql>>,
+}
+
+impl StoreQuery for PgQuery {
+    fn unique_id(&self) -> String {
+        let hash = Sha256::digest(format!("{:?}:[{}]", self.args, self.query).as_bytes());
+        hash.iter().fold(String::new(), |mut acc, hex| {
+            acc.push_str(&format!("{:X}", hex));
+            acc
+        })
+    }
+}
+
+impl PgQuery {
+    /// Create a new query from a query string and arguments
+    pub fn new(query: &str, args: Vec<Box<ToSql>>) -> Self {
+        Self {
+            query: query.into(),
+            args,
+        }
+    }
+}
 
 /// Postgres store adapter
 #[derive(Clone)]

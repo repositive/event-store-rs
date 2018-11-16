@@ -1,10 +1,10 @@
 //! Stub emitter implementation
 
-use adapters::EmitterAdapter;
+use super::EmitterAdapter;
+use event::Event;
 use event_store_derive_internals::EventData;
 use std::io::Error;
 use std::thread::{self, JoinHandle};
-use Event;
 
 /// Stub event emitter
 #[derive(Clone)]

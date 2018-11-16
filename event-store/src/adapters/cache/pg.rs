@@ -1,20 +1,21 @@
 //! Cache adapter backed by postgres
 
-use super::Connection;
-use adapters::{CacheAdapter, CacheResult};
+use super::{CacheAdapter, CacheResult};
 use chrono::prelude::*;
+use r2d2::Pool;
+use r2d2_postgres::PostgresConnectionManager;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{from_value, to_value};
 
 /// Postgres cache adapter
 #[derive(Clone)]
 pub struct PgCacheAdapter {
-    conn: Connection,
+    conn: Pool<PostgresConnectionManager>,
 }
 
 impl PgCacheAdapter {
     /// Create a new PgStore from a Postgres DB connection
-    pub fn new(conn: Connection) -> Self {
+    pub fn new(conn: Pool<PostgresConnectionManager>) -> Self {
         Self { conn }
     }
 }

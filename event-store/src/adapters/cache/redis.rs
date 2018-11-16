@@ -1,10 +1,16 @@
-use super::RedisCacheItem;
-use adapters::{CacheAdapter, CacheResult};
+use super::{CacheAdapter, CacheResult};
+use chrono::DateTime;
 use chrono::Utc;
 use redis::{Client, Commands, Connection};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{from_str, to_string};
+
+#[derive(Serialize, Deserialize)]
+struct RedisCacheItem<D> {
+    data: D,
+    time: DateTime<Utc>,
+}
 
 /// Redis cache adapter
 pub struct RedisCacheAdapter {

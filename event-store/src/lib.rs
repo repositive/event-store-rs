@@ -29,12 +29,11 @@ mod event;
 mod event_context;
 pub mod prelude;
 mod store;
-mod store_query;
 #[macro_use]
 pub mod testhelpers;
 mod utils;
 
-use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter};
+use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter, StoreQuery};
 use aggregator::Aggregator;
 use chrono::prelude::*;
 pub use event::Event;
@@ -42,7 +41,6 @@ pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
 use std::thread::JoinHandle;
 use store::Store;
-use store_query::StoreQuery;
 
 /// Main event store
 #[derive(Clone)]
