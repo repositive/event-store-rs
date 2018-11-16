@@ -1,9 +1,10 @@
+use super::RedisCacheItem;
 use adapters::{CacheAdapter, CacheResult};
-use chrono::{DateTime, NaiveDateTime, Utc};
-use redis::{Client, Connection};
+use chrono::Utc;
+use redis::{Client, Commands, Connection};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::{from_value, to_value};
+use serde_json::{from_str, to_string};
 
 /// Redis cache adapter
 pub struct RedisCacheAdapter {
@@ -37,19 +38,34 @@ impl RedisCacheAdapter {
 }
 
 impl CacheAdapter for RedisCacheAdapter {
-    fn set<V>(&self, key: String, value: V) -> Result<(), String>
+    fn set<V>(&self, id: String, data: V) -> Result<(), String>
     where
         V: Serialize + Send,
     {
-        // TODO: Implement
-        Ok(())
+        let time = Utc::now();
+
+        // TODO: Error handling
+        let value: String = to_string(&RedisCacheItem { time, data })
+            .expect("Failed to serialize Redis cache item");
+
+        self.conn.set(id, value).map_err(|err| {
+            error!("Failed to set cache item: {:?}", err);
+
+            "Failed to set cache item".into()
+        })
     }
 
+    // TODO: Error handling
     fn get<T>(&self, key: String) -> Result<Option<CacheResult<T>>, String>
     where
         T: DeserializeOwned + Send,
     {
-        // TODO: Implement
-        Ok(None)
+        let value: Option<String> = self.conn.get(key).unwrap();
+
+        Ok(value.map(|value| {
+            let parsed: RedisCacheItem<T> = from_str(&value).unwrap();
+
+            (parsed.data, parsed.time)
+        }))
     }
 }
