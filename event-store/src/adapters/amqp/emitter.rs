@@ -14,6 +14,7 @@ use serde_json;
 use std::io;
 use std::net::SocketAddr;
 use std::str;
+use std::thread::{self, JoinHandle};
 use tokio;
 use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
@@ -90,7 +91,7 @@ fn create_consumer<H, E>(
 ) -> impl Future<Item = (), Error = ()> + Send + 'static
 where
     E: EventData + 'static,
-    H: Fn(&Event<E>) -> () + Send + 'static,
+    H: Fn(Event<E>) -> () + Send + 'static,
 {
     let event_namespace = E::event_namespace();
     let event_type = E::event_type();
@@ -145,7 +146,7 @@ where
                 let payload = str::from_utf8(&message.data).unwrap();
                 let data: Event<E> = serde_json::from_str(payload).unwrap();
                 trace!("Received message with ID {}: {}", data.id, payload);
-                handler(&data);
+                handler(data);
                 channel.basic_ack(message.delivery_tag, false)
             })
         })
@@ -195,7 +196,7 @@ fn connect(
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error> {
+    fn emit<E: EventData>(&self, event: &Event<E>) -> Result<(), io::Error> {
         let payload: Vec<u8> = serde_json::to_string(event)
             .expect("Cant serialise event")
             .into();
@@ -228,21 +229,26 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         Runtime::new().unwrap().block_on(fut)
     }
 
-    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
+    fn subscribe<ED, H>(&self, handler: H) -> JoinHandle<()>
     where
         ED: EventData + 'static,
-        H: Fn(&Event<ED>) -> () + Send + 'static,
+        H: Fn(Event<ED>) -> () + Send + 'static,
     {
         let event_name = ED::event_type();
         let event_namespace = ED::event_namespace();
         let queue_name = format!("{}.{}", event_namespace, event_name);
-        let exchange = self.exchange.clone();
+        let _exchange = self.exchange.clone();
+        let _uri = self.uri;
 
         trace!("Creating queue {}", queue_name);
 
-        let consumer = connect(self.uri, self.exchange.clone())
-            .and_then(|(_, channel)| create_consumer(channel, queue_name, exchange, handler));
+        thread::spawn(move || {
+            let consumer = connect(_uri, _exchange.clone())
+                .and_then(|(_, channel)| create_consumer(channel, queue_name, _exchange, handler));
 
-        Box::new(consumer)
+            trace!("Begin listen");
+
+            Runtime::new().unwrap().block_on_all(consumer).unwrap();
+        })
     }
 }

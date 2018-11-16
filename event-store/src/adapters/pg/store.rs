@@ -4,7 +4,7 @@ use adapters::pg::PgQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
-use postgres::error::DUPLICATE_COLUMN;
+use postgres::error::{DUPLICATE_COLUMN, UNIQUE_VIOLATION};
 use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
@@ -22,13 +22,13 @@ pub struct PgStoreAdapter {
     pool: Pool<PostgresConnectionManager>,
 }
 
-impl<'a> PgStoreAdapter {
+impl PgStoreAdapter {
     /// Create a new PgStore from a Postgres DB connection
     pub fn new(conn: Pool<PostgresConnectionManager>) -> Self {
         Self { pool: conn }
     }
 
-    fn generate_query(initial_query: &PgQuery<'a>, since: Option<DateTime<Utc>>) -> String {
+    fn generate_query(initial_query: &PgQuery, since: Option<DateTime<Utc>>) -> String {
         if let Some(timestamp) = since {
             String::from(format!(
             "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
@@ -43,14 +43,10 @@ impl<'a> PgStoreAdapter {
     }
 }
 
-impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
-    fn read<'b, E>(
-        &self,
-        query: PgQuery<'b>,
-        since: Option<DateTime<Utc>>,
-    ) -> Result<Vec<E>, String>
+impl StoreAdapter<PgQuery> for PgStoreAdapter {
+    fn read<E>(&self, query: PgQuery, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String>
     where
-        E: Events + Send + 'b,
+        E: Events + Send,
     {
         let conn = self.pool.clone();
 
@@ -97,10 +93,7 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
         Ok(results)
     }
 
-    fn save<'b, ED: EventData + Sync + Send + 'b>(
-        &self,
-        event: &'b Event<ED>,
-    ) -> Result<(), String> {
+    fn save<ED: EventData + Send>(&self, event: &Event<ED>) -> Result<(), String> {
         self.pool
             .get()
             .expect("Could not connect to the pool (save)")
@@ -114,13 +107,19 @@ impl<'a> StoreAdapter<PgQuery<'a>> for PgStoreAdapter {
                 ],
             )
             .map(|_| ())
-            .map_err(|err| match err.code() {
-                Some(e) if e == &DUPLICATE_COLUMN => "DUPLICATE_COLUMN".into(),
-                _ => "UNEXPECTED".into(),
+            .map_err(|err| {
+                error!("Store save error: code {:?}", err);
+
+                match err.code() {
+                    Some(e) if e == &DUPLICATE_COLUMN || e == &UNIQUE_VIOLATION => {
+                        "DUPLICATE_COLUMN".into()
+                    }
+                    _ => "UNEXPECTED".into(),
+                }
             })
     }
 
-    fn last_event<'b, ED: EventData + Send + 'b>(&self) -> Result<Option<Event<ED>>, String> {
+    fn last_event<ED: EventData + Send>(&self) -> Result<Option<Event<ED>>, String> {
         let rows = self.pool
                 .get()
                 .expect("Could not connect to the pool (last_event)")

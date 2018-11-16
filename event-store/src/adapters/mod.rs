@@ -16,7 +16,7 @@ use chrono::{DateTime, Utc};
 use event_store_derive_internals::EventData;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io;
-use utils::BoxedFuture;
+use std::thread::JoinHandle;
 use Event;
 use Events;
 use StoreQuery;
@@ -25,45 +25,44 @@ use StoreQuery;
 pub trait StoreAdapter<Q: StoreQuery>: Send + Sync + Clone + 'static {
     /// Read a list of events matching a query
 
-    fn read<'b, E>(&self, query: Q, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String>
+    fn read<E>(&self, query: Q, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String>
     where
-        E: Events + Send + 'b,
-        Q: 'b;
+        E: Events + Send;
     /// Save an event to the store
-    fn save<'b, ED>(&self, event: &'b Event<ED>) -> Result<(), String>
+    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
     where
-        ED: EventData + Send + Sync + 'b;
+        ED: EventData + Send;
 
     /// Returns the last event of the type ED
-    fn last_event<'b, ED: EventData + Send + 'b>(&self) -> Result<Option<Event<ED>>, String>;
+    fn last_event<ED: EventData + Send>(&self) -> Result<Option<Event<ED>>, String>;
 }
 
 /// Result of a cache search
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Caching backend
-pub trait CacheAdapter {
+pub trait CacheAdapter: Clone + Send + Sync + 'static {
     /// Insert an item into the cache
-    fn set<'a, V>(&self, key: String, value: V) -> Result<(), String>
+    fn set<V>(&self, key: String, value: V) -> Result<(), String>
     where
-        V: Serialize + Send + 'a;
+        V: Serialize + Send;
 
     /// Retrieve an item from the cache
-    fn get<'a, T>(&self, key: String) -> Result<Option<CacheResult<T>>, String>
+    fn get<T>(&self, key: String) -> Result<Option<CacheResult<T>>, String>
     where
-        T: DeserializeOwned + Send + 'a;
+        T: DeserializeOwned + Send;
 }
 
 /// Closure called when an incoming event must be handled
 
 /// Event emitter interface
-pub trait EmitterAdapter: Send + Sync + Clone + 'static {
+pub trait EmitterAdapter: Clone + Send + Sync + 'static {
     /// Emit an event
-    fn emit<'a, E: EventData + Sync>(&self, event: &Event<E>) -> Result<(), io::Error>;
+    fn emit<E: EventData + Send>(&self, event: &Event<E>) -> Result<(), io::Error>;
 
     /// Subscribe to an event
-    fn subscribe<'a, ED, H>(&self, handler: H) -> BoxedFuture<'a, (), ()>
+    fn subscribe<ED, H>(&self, handler: H) -> JoinHandle<()>
     where
         ED: EventData + 'static,
-        H: Fn(&Event<ED>) -> () + Send + Sync + 'static;
+        H: Fn(Event<ED>) -> () + Send + Sync + 'static;
 }
