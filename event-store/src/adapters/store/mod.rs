@@ -3,6 +3,7 @@ mod pg;
 use chrono::{DateTime, Utc};
 use event::Event;
 use event_store_derive_internals::{EventData, Events};
+use serde_json::Value as JsonValue;
 
 pub use self::pg::{PgQuery, PgStoreAdapter};
 
@@ -27,14 +28,12 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Clone + 'static {
     ///
     /// Unlike other parts of the API, this method requires passing of a namespace and event name
     /// string, which may lead to incorrect behaviour due to typos, etc.
-    fn read_events_since<ED>(
+    fn read_events_since(
         &self,
         event_namespace: String,
         event_type: String,
         since: DateTime<Utc>,
-    ) -> Result<Vec<Event<ED>>, String>
-    where
-        ED: EventData;
+    ) -> Result<Vec<JsonValue>, String>;
 }
 
 /// A query to be passed to the store

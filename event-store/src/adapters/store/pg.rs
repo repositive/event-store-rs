@@ -183,15 +183,12 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
         }
     }
 
-    fn read_events_since<ED>(
+    fn read_events_since(
         &self,
         event_namespace: String,
         event_type: String,
         since: DateTime<Utc>,
-    ) -> Result<Vec<Event<ED>>, String>
-    where
-        ED: EventData,
-    {
+    ) -> Result<Vec<JsonValue>, String> {
         let query = PgQuery::new(
             r#"SELECT * FROM events
                 WHERE data->>'event_namespace = $1
@@ -227,15 +224,11 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
                 let data_json: JsonValue = row.get("data");
                 let context_json: JsonValue = row.get("context");
 
-                let thing = json!({
-                            "id": id,
-                            "data": data_json,
-                            "context": context_json,
-                        });
-
-                let evt: Event<ED> = from_value(thing).expect("Could not decode row");
-
-                evt
+                json!({
+                    "id": id,
+                    "data": data_json,
+                    "context": context_json,
+                })
             })
             .collect()
             .expect("ain't no collec");

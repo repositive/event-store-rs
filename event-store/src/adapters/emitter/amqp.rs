@@ -12,6 +12,7 @@ use lapin::channel::{
 use lapin::client::{Client, ConnectionOptions};
 use lapin::types::FieldTable;
 use serde_json;
+use serde_json::{to_value, Value as JsonValue};
 use std::io;
 use std::net::SocketAddr;
 use std::str;
@@ -197,21 +198,33 @@ fn connect(
 
 impl EmitterAdapter for AMQPEmitterAdapter {
     fn emit<E: EventData>(&self, event: &Event<E>) -> Result<(), io::Error> {
-        let payload: Vec<u8> = serde_json::to_string(event)
-            .expect("Cant serialise event")
-            .into();
         let event_namespace = E::event_namespace();
         let event_type = E::event_type();
-        let id = event.id;
-
         let event_name = format!("{}.{}", event_namespace, event_type);
 
         trace!(
             "Emit event {} (ID {}) to exchange {}",
             event_name,
-            id,
+            event.id,
             self.exchange
         );
+
+        self.emit_with_string_ident(event_namespace.into(), event_type.into(), &to_value(event)?)
+    }
+
+    fn emit_with_string_ident(
+        &self,
+        event_namespace: &str,
+        event_type: &str,
+        event: &JsonValue,
+    ) -> Result<(), io::Error> {
+        let payload: Vec<u8> = serde_json::to_string(event)
+            .expect("Cant serialise event")
+            .into();
+
+        let event_name = format!("{}.{}", event_namespace, event_type);
+
+        trace!("Emit event {} to exchange {}", event_name, self.exchange);
 
         let fut = self
             .channel

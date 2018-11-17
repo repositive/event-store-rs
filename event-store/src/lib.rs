@@ -76,16 +76,31 @@ where
         emitter.subscribe(move |replay: Event<EventReplayRequested>| {
             trace!("Received replay request {}", replay.id);
 
+            let EventReplayRequested {
+                requested_event_namespace,
+                requested_event_type,
+                since,
+                ..
+            } = replay.data;
+
             let events = _store
                 .read_events_since(
-                    replay.data.requested_event_namespace,
-                    replay.data.requested_event_type,
-                    replay.data.since,
+                    requested_event_namespace.clone(),
+                    requested_event_type.clone(),
+                    since,
                 )
                 .expect("Could not read events since");
 
             for event in events {
-                _emitter.emit(&event);
+                trace!("Replay event {:?}", event);
+
+                _emitter
+                    .emit_with_string_ident(
+                        &requested_event_namespace,
+                        &requested_event_type,
+                        &event,
+                    )
+                    .unwrap();
             }
         });
 
