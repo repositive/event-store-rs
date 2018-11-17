@@ -23,10 +23,16 @@ pub trait StoreAdapter<Q: StoreQuery>: Send + Clone + 'static {
     where
         ED: EventData;
 
-    /// Read every event of a particular type created at or after a given time
+    /// Reads events created at or after a specific time given an event type and namespace
     ///
-    /// If the given time is `None`, events are read from the beginning of time till now
-    fn read_since<ED>(&self, since: Option<DateTime<Utc>>) -> Result<Vec<Event<ED>>, String>
+    /// Unlike other parts of the API, this method requires passing of a namespace and event name
+    /// string, which may lead to incorrect behaviour due to typos, etc.
+    fn read_events_since<ED>(
+        &self,
+        event_namespace: String,
+        event_type: String,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<Event<ED>>, String>
     where
         ED: EventData;
 }

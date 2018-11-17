@@ -70,6 +70,25 @@ where
 {
     /// Create a new event store
     fn new(store: S, cache: C, emitter: EM) -> Self {
+        let _store = store.clone();
+        let _emitter = emitter.clone();
+
+        emitter.subscribe(move |replay: Event<EventReplayRequested>| {
+            trace!("Received replay request {}", replay.id);
+
+            let events = _store
+                .read_events_since(
+                    replay.data.requested_event_namespace,
+                    replay.data.requested_event_type,
+                    replay.data.since,
+                )
+                .expect("Could not read events since");
+
+            for event in events {
+                _emitter.emit(&event);
+            }
+        });
+
         Self {
             store,
             cache,
@@ -127,6 +146,11 @@ where
         ED: EventData + Send + Sync + 'static,
         H: Fn(Event<ED>, &Self) -> () + Send + Sync + 'static,
     {
+        let last_event: Option<Event<ED>> = self
+            .store
+            .last_event()
+            .expect("Failed to look for last event");
+
         let _self = self.clone();
 
         let handle = self.emitter.subscribe(move |event: Event<ED>| {
@@ -142,6 +166,17 @@ where
                 })
                 .expect(&format!("Failed to handle event with ID {}", event_id));
         });
+
+        // TODO: Emit EventReplayRequested
+        self.emitter
+            .emit(&Event::from_data(EventReplayRequested {
+                requested_event_type: ED::event_type().to_string(),
+                requested_event_namespace: ED::event_namespace().to_string(),
+                since: last_event
+                    .map(|e| e.context.time)
+                    .unwrap_or(Utc.ymd(0, 0, 0).and_hms(0, 0, 0)),
+            }))
+            .expect("Failed to emit replay request event");
 
         Ok(handle)
     }

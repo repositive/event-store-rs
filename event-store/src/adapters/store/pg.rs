@@ -2,7 +2,7 @@
 
 use super::StoreQuery;
 use adapters::StoreAdapter;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
 use postgres::error::{DUPLICATE_COLUMN, UNIQUE_VIOLATION};
 use postgres::types::ToSql;
@@ -183,15 +183,23 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
         }
     }
 
-    fn read_since<ED>(&self, since: Option<DateTime<Utc>>) -> Result<Vec<Event<ED>>, String>
+    fn read_events_since<ED>(
+        &self,
+        event_namespace: String,
+        event_type: String,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<Event<ED>>, String>
     where
         ED: EventData,
     {
-        // Last found event time, or start from the beginning of time if none
-        let from_time: DateTime<Utc> = since.unwrap_or(DateTime::<Utc>::from_utc(
-            NaiveDateTime::from_timestamp(0, 0),
-            Utc,
-        ));
+        let query = PgQuery::new(
+            r#"SELECT * FROM events
+                WHERE data->>'event_namespace = $1
+                AND data->>'event_type' = $2"#,
+            vec![Box::new(event_namespace), Box::new(event_type)],
+        );
+
+        let query_string = Self::generate_query(&query, Some(since));
 
         let conn = self.pool.clone();
 
@@ -202,24 +210,17 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
         let trans = pool
             .transaction()
             .expect("Unable to initialise transaction");
-
         let stmt = trans
-            .prepare(
-                r#"SELECT * FROM events
-                WHERE events.context->>'time' >= $1
-                AND data->>'event_namespace' = $2
-                AND data->>'event_type' = $3
-                ORDER BY events.context->>'time' ASC
-            "#,
-            )
+            .prepare(&query_string)
             .expect("Unable to prepare transaction");
+        let mut params: Vec<&ToSql> = Vec::new();
+
+        for (i, _arg) in query.args.iter().enumerate() {
+            params.push(&*query.args[i]);
+        }
 
         let results = stmt
-            .lazy_query(
-                &trans,
-                &[&ED::event_namespace(), &ED::event_type(), &from_time],
-                1000,
-            )
+            .lazy_query(&trans, &params, 1000)
             .unwrap()
             .map(|row| {
                 let id: Uuid = row.get("id");
@@ -227,10 +228,10 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
                 let context_json: JsonValue = row.get("context");
 
                 let thing = json!({
-                    "id": id,
-                    "data": data_json,
-                    "context": context_json,
-                });
+                            "id": id,
+                            "data": data_json,
+                            "context": context_json,
+                        });
 
                 let evt: Event<ED> = from_value(thing).expect("Could not decode row");
 
