@@ -191,7 +191,7 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
     ) -> Result<Vec<JsonValue>, String> {
         let query = PgQuery::new(
             r#"SELECT * FROM events
-                WHERE data->>'event_namespace = $1
+                WHERE data->>'event_namespace' = $1
                 AND data->>'event_type' = $2"#,
             vec![Box::new(event_namespace), Box::new(event_type)],
         );
