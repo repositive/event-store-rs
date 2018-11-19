@@ -51,7 +51,7 @@ pub struct EventStore<S, C, EM> {
 }
 
 #[derive(EventData)]
-#[event_store(namespace = "eventstore")]
+#[event_store(namespace = "_eventstore")]
 struct EventReplayRequested {
     requested_event_type: String,
     requested_event_namespace: String,
@@ -223,8 +223,8 @@ mod tests {
         assert_eq!(
             res,
             (
-                "eventstore.EventReplayRequested",
-                "eventstore",
+                "_eventstore.EventReplayRequested",
+                "_eventstore",
                 "EventReplayRequested"
             )
         );
