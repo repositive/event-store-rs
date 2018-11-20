@@ -39,8 +39,12 @@ use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
-use std::thread::JoinHandle;
+use futures::future::ok as FutOk;
+use futures::Future;
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
 use store::Store;
+use utils::BoxedFuture;
 
 /// Main event store
 #[derive(Clone)]
@@ -73,42 +77,139 @@ where
         let _store = store.clone();
         let _emitter = emitter.clone();
 
-        emitter.subscribe(move |replay: Event<EventReplayRequested>| {
-            trace!("Received replay request {}", replay.id);
+        trace!("Create new store");
 
-            let EventReplayRequested {
-                requested_event_namespace,
-                requested_event_type,
-                since,
-                ..
-            } = replay.data;
+        // let fut = emitter.subscribe(move |replay: Event<EventReplayRequested>| {
+        //     trace!("Received replay request {}", replay.id);
 
-            let events = _store
-                .read_events_since(
-                    requested_event_namespace.clone(),
-                    requested_event_type.clone(),
+        //     let EventReplayRequested {
+        //         requested_event_namespace,
+        //         requested_event_type,
+        //         since,
+        //         ..
+        //     } = replay.data;
+
+        //     let events = _store
+        //         .read_events_since(
+        //             requested_event_namespace.clone(),
+        //             requested_event_type.clone(),
+        //             since,
+        //         )
+        //         .expect("Could not read events since");
+
+        //     trace!("Found {} events to replay", events.len());
+
+        //     for event in events {
+        //         trace!("Replay event {:?}", event);
+
+        //         tokio::spawn(
+        //             _emitter
+        //                 .emit_with_string_ident(
+        //                     &requested_event_namespace,
+        //                     &requested_event_type,
+        //                     &event,
+        //                 )
+        //                 .map_err(|_| ()),
+        //         );
+        //         // .unwrap();
+        //     }
+        // });
+
+        let replay_fut = _emitter
+            .clone()
+            .subscribe(move |replay: Event<EventReplayRequested>| {
+                trace!("Received replay request {}", replay.id);
+
+                let EventReplayRequested {
+                    requested_event_namespace,
+                    requested_event_type,
                     since,
-                )
-                .expect("Could not read events since");
+                    ..
+                } = replay.data;
 
-            for event in events {
-                trace!("Replay event {:?}", event);
-
-                _emitter
-                    .emit_with_string_ident(
-                        &requested_event_namespace,
-                        &requested_event_type,
-                        &event,
+                let events = _store
+                    .read_events_since(
+                        requested_event_namespace.clone(),
+                        requested_event_type.clone(),
+                        since,
                     )
-                    .unwrap();
-            }
-        });
+                    .expect("Could not read events since");
+
+                trace!("Found {} events to replay", events.len());
+
+                for event in events {
+                    trace!("Replay event {:?}", event);
+
+                    tokio::spawn(
+                        _emitter
+                            .emit_with_string_ident(
+                                &requested_event_namespace,
+                                &requested_event_type,
+                                &event,
+                            )
+                            .map_err(|_| ()),
+                    );
+                    // .unwrap();
+                }
+            });
+
+        // TODO: Spawn this in a `Store.run()` call in the future. This needs to happen once the
+        // `Store` is split into `InnerStore` and a subscribable `Store`.
+        tokio::spawn(replay_fut);
 
         Self {
             store,
             cache,
             emitter,
         }
+
+        // let fut = emitter
+        //     .subscribe(move |replay: Event<EventReplayRequested>| {
+        //         trace!("Received replay request {}", replay.id);
+
+        //         let EventReplayRequested {
+        //             requested_event_namespace,
+        //             requested_event_type,
+        //             since,
+        //             ..
+        //         } = replay.data;
+
+        //         let events = _store
+        //             .read_events_since(
+        //                 requested_event_namespace.clone(),
+        //                 requested_event_type.clone(),
+        //                 since,
+        //             )
+        //             .expect("Could not read events since");
+
+        //         trace!("Found {} events to replay", events.len());
+
+        //         for event in events {
+        //             trace!("Replay event {:?}", event);
+
+        //             tokio::spawn(
+        //                 _emitter
+        //                     .emit_with_string_ident(
+        //                         &requested_event_namespace,
+        //                         &requested_event_type,
+        //                         &event,
+        //                     )
+        //                     .map_err(|_| ()),
+        //             );
+        //             // .unwrap();
+        //         }
+        //     })
+        //     .and_then(|_| {
+        //         trace!("Replay registered");
+
+        //         FutOk(Self {
+        //             store,
+        //             cache,
+        //             emitter,
+        //         })
+        //     });
+
+        // Box::new(fut)
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
@@ -118,6 +219,8 @@ where
         T: Aggregator<E, A, Q>,
         A: Clone,
     {
+        trace!("Begin aggregate");
+
         let store_query = T::query(query_args.clone());
         let cache_id = store_query.unique_id();
 
@@ -141,22 +244,26 @@ where
             _ => Ok(()),
         }?;
 
+        trace!("Aggregate complete");
+
         Ok(agg)
     }
 
     /// Save an event to the store with optional context
-    fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
+    fn save<ED>(&self, event: &Event<ED>) -> BoxedFuture<(), String>
     where
         ED: EventData + Send,
     {
-        self.store.save(event)?;
+        self.store.save(event).expect("Save failed");
 
-        self.emitter
-            .emit(&event)
-            .map_err(|_| "It was not possible to emit the event".into())
+        Box::new(
+            self.emitter
+                .emit(&event)
+                .map_err(|_| format!("It was not possible to emit the event")),
+        )
     }
 
-    fn subscribe<ED, H>(&self, handler: H) -> Result<JoinHandle<()>, ()>
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), ()>
     where
         ED: EventData + Send + Sync + 'static,
         H: Fn(Event<ED>, &Self) -> () + Send + Sync + 'static,
@@ -167,33 +274,51 @@ where
             .expect("Failed to look for last event");
 
         let _self = self.clone();
+        let _self2 = self.clone();
 
-        let handle = self.emitter.subscribe(move |event: Event<ED>| {
-            let event_id = event.id;
+        let handle =
+            self.emitter
+                .subscribe(move |event: Event<ED>| {
+                    let event_id = event.id;
 
-            trace!("Subscription received event ID {}", event_id);
+                    trace!("Subscription received event ID {}", event_id);
 
-            _self
-                .store
-                .save(&event)
-                .map(|_| {
-                    handler(event, &_self);
+                    _self
+                        .store
+                        .save(&event)
+                        .map(|_| {
+                            handler(event, &_self);
+                        })
+                        .expect(&format!("Failed to handle event with ID {}", event_id));
                 })
-                .expect(&format!("Failed to handle event with ID {}", event_id));
-        });
+                .and_then(move |_| {
+                    _self2.emitter.emit(&Event::from_data(EventReplayRequested {
+                        requested_event_type: ED::event_type().to_string(),
+                        requested_event_namespace: ED::event_namespace().to_string(),
+                        since: last_event.map(|e| e.context.time).unwrap_or(
+                            DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc),
+                        ),
+                    }))
+                });
 
-        // TODO: Emit EventReplayRequested
-        self.emitter
-            .emit(&Event::from_data(EventReplayRequested {
-                requested_event_type: ED::event_type().to_string(),
-                requested_event_namespace: ED::event_namespace().to_string(),
-                since: last_event
-                    .map(|e| e.context.time)
-                    .unwrap_or(Utc.ymd(0, 0, 0).and_hms(0, 0, 0)),
-            }))
-            .expect("Failed to emit replay request event");
+        Box::new(handle)
 
-        Ok(handle)
+        // thread::sleep(Duration::from_millis(1000));
+
+        // self.emitter
+        //     .emit(&Event::from_data(EventReplayRequested {
+        //         requested_event_type: ED::event_type().to_string(),
+        //         requested_event_namespace: ED::event_namespace().to_string(),
+        //         since: last_event
+        //             .map(|e| e.context.time)
+        //             .unwrap_or(DateTime::<Utc>::from_utc(
+        //                 NaiveDateTime::from_timestamp(0, 0),
+        //                 Utc,
+        //             )),
+        //     }))
+        //     .expect("Failed to emit replay request event");
+
+        // Ok(handle)
     }
 }
 

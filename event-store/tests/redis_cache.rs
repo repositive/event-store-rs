@@ -5,7 +5,9 @@ extern crate r2d2_postgres;
 extern crate tokio;
 
 use event_store::prelude::*;
-use event_store::testhelpers::{pg_connect, redis_connect, TestCounterEntity, TestIncrementEvent};
+use event_store::testhelpers::{
+    pg_create_random_db, redis_connect, TestCounterEntity, TestIncrementEvent,
+};
 use event_store::{
     adapters::{PgStoreAdapter, RedisCacheAdapter, StubEmitterAdapter},
     Event, EventStore,
@@ -16,7 +18,7 @@ use std::time::Duration;
 
 #[test]
 fn redis_aggregate_cache() {
-    let conn = pg_connect();
+    let conn = pg_create_random_db("redis");
     let redis_conn = redis_connect();
 
     redis_empty_cache!(redis_conn);

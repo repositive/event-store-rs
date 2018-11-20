@@ -1,12 +1,19 @@
 //! Test helpers. Do not use in application code.
 
 use adapters::PgQuery;
+use futures::prelude::*;
+use lapin::channel::QueuePurgeOptions;
+use lapin::client::{Client as AMQPClient, ConnectionOptions};
 use prelude::*;
 use r2d2::{self, Pool};
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use redis::Client as RedisClient;
+use std::io;
+use std::net::SocketAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::net::TcpStream;
+use utils::BoxedFuture;
 use Event;
 
 /// Test event
@@ -74,19 +81,6 @@ impl Aggregator<TestEvents, String, PgQuery> for TestCounterEntity {
     }
 }
 
-/// Connect to a local Postgres database on port 5430
-pub fn pg_connect() -> Pool<PostgresConnectionManager> {
-    let manager = PostgresConnectionManager::new(
-        "postgres://postgres@localhost:5430/eventstorerust",
-        TlsMode::None,
-    )
-    .unwrap();
-
-    let pool = r2d2::Pool::new(manager).unwrap();
-
-    pool
-}
-
 /// Connect to a Redis server on port 6378
 pub fn redis_connect() -> RedisClient {
     redis::Client::open("redis://127.0.0.1:6378").expect("Could not connect to Redis server")
@@ -99,6 +93,25 @@ macro_rules! pg_store {
         let store_adapter = PgStoreAdapter::new($conn.clone());
         let cache_adapter = PgCacheAdapter::new($conn.clone());
         let emitter_adapter = StubEmitterAdapter::new();
+
+        EventStore::new(store_adapter, cache_adapter, emitter_adapter)
+    }};
+}
+
+/// Create an event store from a Postgres connection pool and AMQP emitter/listener
+#[macro_export]
+macro_rules! pg_store_with_amqp_emitter {
+    ($conn:ident, $emitter_runtime:ident) => {{
+        let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
+
+        let amqp = AMQPEmitterAdapter::new(addr, "_test".into());
+
+        let emitter_adapter = $emitter_runtime
+            .block_on(amqp)
+            .expect("Could not start AMQP emitter");
+
+        let store_adapter = PgStoreAdapter::new($conn.clone());
+        let cache_adapter = PgCacheAdapter::new($conn.clone());
 
         EventStore::new(store_adapter, cache_adapter, emitter_adapter)
     }};
@@ -173,8 +186,8 @@ fn current_time_ms() -> u64 {
 }
 
 /// Create a new database with a random name, returning the connection
-pub fn pg_create_random_db() -> Pool<PostgresConnectionManager> {
-    let db_id = format!("eventstorerust-test-{}", current_time_ms());
+pub fn pg_create_random_db(ident: &str) -> Pool<PostgresConnectionManager> {
+    let db_id = format!("eventstorerust-test-{}-{}", current_time_ms(), ident,);
 
     println!("Create test DB {}", db_id);
 
@@ -219,4 +232,29 @@ pub fn pg_create_random_db() -> Pool<PostgresConnectionManager> {
     .unwrap();
 
     pool
+}
+
+/// Connect to test AMQP and purge all events on the `_test` exchange
+pub fn amqp_clear_queue(queue_name: &'static str) -> BoxedFuture<(), ()> {
+    let uri: SocketAddr = "127.0.0.1:5673".parse().unwrap();
+
+    trace!("Begin purge queue");
+
+    let fut = TcpStream::connect(&uri)
+        .and_then(|stream| AMQPClient::connect(stream, ConnectionOptions::default()))
+        .and_then(move |(client, _)| {
+            trace!("Set up channel");
+
+            client.create_channel()
+        })
+        .and_then(move |channel| {
+            trace!("Purge queue");
+
+            channel
+                .queue_purge(queue_name, QueuePurgeOptions::default())
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "purge error"))
+        })
+        .map_err(|e| panic!("Failed to connect {:?}", e));
+
+    Box::new(fut)
 }

@@ -27,7 +27,7 @@ use std::time::Duration;
 
 fn compare(c: &mut Criterion) {
     let bench_pg_store_pg_cache = Fun::new("exercise pg store and pg cache", |b, _| {
-        let conn = pg_create_random_db();
+        let conn = pg_create_random_db("exercise-pg");
 
         let store = pg_store!(conn);
 
@@ -78,7 +78,7 @@ fn compare(c: &mut Criterion) {
     });
 
     let bench_pg_store_redis_cache = Fun::new("exercise pg store and redis cache", |b, _| {
-        let conn = pg_create_random_db();
+        let conn = pg_create_random_db("exercise-redis");
         let redis_conn = redis_connect();
 
         redis_empty_cache!(redis_conn);

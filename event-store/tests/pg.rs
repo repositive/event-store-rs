@@ -5,7 +5,7 @@ extern crate r2d2_postgres;
 extern crate tokio;
 
 use event_store::prelude::*;
-use event_store::testhelpers::{pg_connect, TestCounterEntity, TestIncrementEvent};
+use event_store::testhelpers::{pg_create_random_db, TestCounterEntity, TestIncrementEvent};
 use event_store::{
     adapters::{PgCacheAdapter, PgStoreAdapter, StubEmitterAdapter},
     Event, EventStore,
@@ -16,7 +16,7 @@ use std::time::Duration;
 
 #[test]
 fn it_queries_the_database() {
-    let conn = pg_connect();
+    let conn = pg_create_random_db("query");
     let store = pg_store!(conn);
     let ident = String::from("it_queries_the_database");
 
@@ -36,7 +36,7 @@ fn it_queries_the_database() {
 
 #[test]
 fn it_saves_events() {
-    let conn = pg_connect();
+    let conn = pg_create_random_db("save");
     let store = pg_store!(conn);
     let ident = String::from("it_saves_events");
 
@@ -52,7 +52,7 @@ fn it_saves_events() {
 
 #[test]
 fn it_uses_the_aggregate_cache() {
-    let conn = pg_connect();
+    let conn = pg_create_random_db("aggregate");
     let store = pg_store!(conn);
     let ident = String::from("it_uses_the_aggregate_cache");
 

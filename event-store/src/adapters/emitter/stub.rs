@@ -3,9 +3,12 @@
 use super::EmitterAdapter;
 use event::Event;
 use event_store_derive_internals::EventData;
+use futures::future::ok as FutOk;
+use futures::Future;
 use serde_json::Value as JsonValue;
 use std::io::Error;
 use std::thread::{self, JoinHandle};
+use utils::BoxedFuture;
 
 /// Stub event emitter
 #[derive(Clone)]
@@ -19,8 +22,8 @@ impl StubEmitterAdapter {
 }
 
 impl EmitterAdapter for StubEmitterAdapter {
-    fn emit<E: EventData>(&self, _event: &Event<E>) -> Result<(), Error> {
-        Ok(())
+    fn emit<E: EventData>(&self, _event: &Event<E>) -> BoxedFuture<(), ()> {
+        Box::new(FutOk(()))
     }
 
     fn emit_with_string_ident(
@@ -28,17 +31,19 @@ impl EmitterAdapter for StubEmitterAdapter {
         _event_namespace: &str,
         _event_type: &str,
         _event: &JsonValue,
-    ) -> Result<(), Error> {
-        Ok(())
+    ) -> BoxedFuture<(), ()> {
+        Box::new(FutOk(()))
     }
 
-    fn subscribe<ED, H>(&self, _handler: H) -> JoinHandle<()>
+    fn subscribe<ED, H>(&self, _handler: H) -> BoxedFuture<(), ()>
     where
         ED: EventData + 'static,
         H: Fn(Event<ED>) -> (),
     {
-        thread::spawn(move || {
-            println!("Stub subscribe");
-        })
+        // thread::spawn(move || {
+        //     println!("Stub subscribe");
+        // })
+
+        Box::new(FutOk(()))
     }
 }

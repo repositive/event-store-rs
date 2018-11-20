@@ -1,8 +1,10 @@
 use event::Event;
 use event_store_derive_internals::EventData;
+use futures::Future;
 use serde_json::Value as JsonValue;
 use std::io;
 use std::thread::JoinHandle;
+use utils::BoxedFuture;
 
 mod amqp;
 mod stub;
@@ -13,7 +15,7 @@ pub use self::stub::StubEmitterAdapter;
 /// Event emitter interface
 pub trait EmitterAdapter: Clone + Send + 'static {
     /// Emit an event
-    fn emit<E: EventData + Send>(&self, event: &Event<E>) -> Result<(), io::Error>;
+    fn emit<E: EventData + Send>(&self, event: &Event<E>) -> BoxedFuture<(), ()>;
 
     /// Emit an event given a namespace, type and payload value
     ///
@@ -25,10 +27,10 @@ pub trait EmitterAdapter: Clone + Send + 'static {
         event_namespace: &str,
         event_type: &str,
         event: &JsonValue,
-    ) -> Result<(), io::Error>;
+    ) -> BoxedFuture<(), ()>;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H) -> JoinHandle<()>
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), ()>
     where
         ED: EventData + 'static,
         H: Fn(Event<ED>) -> () + Send + 'static;
