@@ -3,6 +3,9 @@ extern crate event_store;
 extern crate r2d2;
 extern crate r2d2_postgres;
 extern crate tokio;
+#[macro_use]
+extern crate log;
+extern crate futures;
 
 use event_store::prelude::*;
 use event_store::testhelpers::{
@@ -12,9 +15,10 @@ use event_store::{
     adapters::{PgStoreAdapter, RedisCacheAdapter, StubEmitterAdapter},
     Event, EventStore,
 };
-
-use std::thread;
-use std::time::Duration;
+use futures::future::ok as FutOk;
+use futures::lazy;
+use futures::Future;
+use tokio::runtime::Runtime;
 
 #[test]
 fn redis_aggregate_cache() {
@@ -23,7 +27,6 @@ fn redis_aggregate_cache() {
 
     redis_empty_cache!(redis_conn);
 
-    let store = pg_store_with_redis_cache!(conn, redis_conn);
     let ident = String::from("it_uses_the_aggregate_cache");
 
     pg_delete_events!(conn, ident);
@@ -39,13 +42,25 @@ fn redis_aggregate_cache() {
         ident: ident.clone(),
     });
 
-    assert!(store.save(&test_ev_1).is_ok());
-    assert!(store.save(&test_ev_2).is_ok());
+    let fut = lazy(move || {
+        let store = pg_store_with_redis_cache!(conn, redis_conn);
 
-    // Wait for DB to process
-    thread::sleep(Duration::from_millis(10));
+        store
+            .save(&test_ev_1)
+            .join(store.save(&test_ev_2))
+            .map(|_| store)
+    })
+    .and_then(|store| {
+        trace!("Both events saved");
 
-    let entity: TestCounterEntity = store.aggregate(ident).unwrap();
+        let entity: TestCounterEntity = store.aggregate(ident).unwrap();
 
-    assert_eq!(entity.counter, 3);
+        assert_eq!(entity.counter, 3);
+
+        FutOk(())
+    });
+
+    let rt = Runtime::new().unwrap();
+
+    rt.block_on_all(fut).unwrap();
 }

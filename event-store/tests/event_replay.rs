@@ -16,6 +16,7 @@ use event_store::{
     Event, EventStore,
 };
 use futures::future::ok as FutOk;
+use futures::lazy;
 use futures::Future;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -42,60 +43,57 @@ fn event_replay_all_events() {
     let other_store_adapter = PgStoreAdapter::new(other_conn.clone());
     let other_cache_adapter = PgCacheAdapter::new(other_conn.clone());
 
-    let fut = FutOk(())
-        .and_then(|_| {
-            let other_store = EventStore::new(other_store_adapter, other_cache_adapter, other_amqp);
+    let fut = lazy(|| {
+        let other_store = EventStore::new(other_store_adapter, other_cache_adapter, other_amqp);
 
-            other_store
-                .save(&Event::from_data(TestIncrementEvent {
-                    by: 1,
-                    ident: ident.clone(),
-                }))
-                .map(|_| (other_store, ident))
-                .map_err(|_| ())
-                .and_then(move |(store, ident)| {
-                    store
-                        .save(&Event::from_data(TestIncrementEvent {
-                            by: 2,
-                            ident: ident.clone(),
-                        }))
-                        .map(|_| (store, ident))
-                        .map_err(|_| ())
-                })
-                .and_then(move |(store, ident)| {
-                    store
-                        .save(&Event::from_data(TestIncrementEvent { by: 3, ident }))
-                        .map(|_| store)
-                        .map_err(|_| ())
-                })
-        })
-        .and_then(|_| amqp_clear_queue("some_namespace.TestIncrementEvent"))
-        .and_then(|_| Delay::new(Instant::now() + Duration::from_millis(100)).map_err(|_| ()))
-        .and_then(|_| {
-            trace!("This store initialised");
+        other_store
+            .save(&Event::from_data(TestIncrementEvent {
+                by: 1,
+                ident: ident.clone(),
+            }))
+            .map(|_| (other_store, ident))
+            .and_then(move |(store, ident)| {
+                store
+                    .save(&Event::from_data(TestIncrementEvent {
+                        by: 2,
+                        ident: ident.clone(),
+                    }))
+                    .map(|_| (store, ident))
+            })
+            .and_then(move |(store, ident)| {
+                store
+                    .save(&Event::from_data(TestIncrementEvent { by: 3, ident }))
+                    .map(|_| store)
+            })
+            .map_err(|_| ())
+    })
+    .and_then(|_| amqp_clear_queue("some_namespace.TestIncrementEvent"))
+    .and_then(|_| Delay::new(Instant::now() + Duration::from_millis(100)).map_err(|_| ()))
+    .and_then(|_| {
+        trace!("This store initialised");
 
-            let this_store = EventStore::new(store_adapter, cache_adapter, amqp);
+        let this_store = EventStore::new(store_adapter, cache_adapter, amqp);
 
-            this_store
-                .subscribe(|_evt: Event<TestIncrementEvent>, _| {
-                    info!("Event handler for {:?}", _evt);
-                })
-                .map(|_| this_store)
-        })
-        .and_then(|store| {
-            Delay::new(Instant::now() + Duration::from_millis(100))
-                .map_err(|_| ())
-                .map(|_| store)
-        })
-        .and_then(move |this_store| {
-            let entity: TestCounterEntity = this_store.aggregate("event_replay".into()).unwrap();
+        this_store
+            .subscribe(|_evt: Event<TestIncrementEvent>, _| {
+                info!("Event handler for {:?}", _evt);
+            })
+            .map(|_| this_store)
+    })
+    .and_then(|store| {
+        Delay::new(Instant::now() + Duration::from_millis(100))
+            .map_err(|_| ())
+            .map(|_| store)
+    })
+    .and_then(move |this_store| {
+        let entity: TestCounterEntity = this_store.aggregate("event_replay".into()).unwrap();
 
-            debug!("Aggregated entity: {:?}", entity);
+        debug!("Aggregated entity: {:?}", entity);
 
-            assert_eq!(entity.counter, 6);
+        assert_eq!(entity.counter, 6);
 
-            FutOk(this_store)
-        });
+        FutOk(this_store)
+    });
 
     let mut rt = Runtime::new().unwrap();
 
