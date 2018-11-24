@@ -18,6 +18,7 @@ use event_store::{
 use futures::future::ok as FutOk;
 use futures::lazy;
 use futures::Future;
+use std::io;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
@@ -65,10 +66,12 @@ fn event_replay_all_events() {
                     .save(&Event::from_data(TestIncrementEvent { by: 3, ident }))
                     .map(|_| store)
             })
-            .map_err(|_| ())
     })
     .and_then(|_| amqp_clear_queue("some_namespace.TestIncrementEvent"))
-    .and_then(|_| Delay::new(Instant::now() + Duration::from_millis(100)).map_err(|_| ()))
+    .and_then(|_| {
+        Delay::new(Instant::now() + Duration::from_millis(100))
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
+    })
     .and_then(|_| {
         trace!("This store initialised");
 
@@ -82,8 +85,8 @@ fn event_replay_all_events() {
     })
     .and_then(|store| {
         Delay::new(Instant::now() + Duration::from_millis(100))
-            .map_err(|_| ())
             .map(|_| store)
+            .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
     })
     .and_then(move |this_store| {
         let entity: TestCounterEntity = this_store.aggregate("event_replay".into()).unwrap();

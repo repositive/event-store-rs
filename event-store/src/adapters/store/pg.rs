@@ -61,15 +61,15 @@ impl PgStoreAdapter {
 
     fn generate_query(initial_query: &PgQuery, since: Option<DateTime<Utc>>) -> String {
         if let Some(timestamp) = since {
-            String::from(format!(
-            "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
-            initial_query.query, timestamp,
-        ))
+            format!(
+                "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
+                initial_query.query, timestamp,
+            )
         } else {
-            String::from(format!(
+            format!(
                 "SELECT * FROM ({}) AS events ORDER BY events.context->>'time' ASC",
                 initial_query.query
-            ))
+            )
         }
     }
 }

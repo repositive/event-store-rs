@@ -179,10 +179,7 @@ fn current_time_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");
 
-    let in_ms =
-        since_the_epoch.as_secs() * 1000 + since_the_epoch.subsec_nanos() as u64 / 1_000_000;
-
-    in_ms
+    since_the_epoch.as_secs() * 1000 + since_the_epoch.subsec_nanos() as u64 / 1_000_000
 }
 
 /// Create a new database with a random name, returning the connection
@@ -235,7 +232,7 @@ pub fn pg_create_random_db(ident: &str) -> Pool<PostgresConnectionManager> {
 }
 
 /// Connect to test AMQP and purge all events on the `_test` exchange
-pub fn amqp_clear_queue(queue_name: &'static str) -> BoxedFuture<(), ()> {
+pub fn amqp_clear_queue(queue_name: &'static str) -> BoxedFuture<(), io::Error> {
     let uri: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
     trace!("Begin purge queue");
@@ -253,8 +250,7 @@ pub fn amqp_clear_queue(queue_name: &'static str) -> BoxedFuture<(), ()> {
             channel
                 .queue_purge(queue_name, QueuePurgeOptions::default())
                 .map_err(|_| io::Error::new(io::ErrorKind::Other, "purge error"))
-        })
-        .map_err(|e| panic!("Failed to connect {:?}", e));
+        });
 
     Box::new(fut)
 }

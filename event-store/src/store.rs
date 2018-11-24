@@ -3,6 +3,7 @@ use aggregator::Aggregator;
 use event::Event;
 use event_store_derive_internals::{EventData, Events};
 use serde::{Deserialize, Serialize};
+use std::io;
 use utils::BoxedFuture;
 
 /// Store trait
@@ -24,12 +25,12 @@ where
         A: Clone;
 
     /// Save an event to the store with optional context
-    fn save<ED>(&self, event: &Event<ED>) -> BoxedFuture<(), String>
+    fn save<ED>(&self, event: &Event<ED>) -> BoxedFuture<(), io::Error>
     where
         ED: EventData + Send;
 
     /// Subscribe to an event
-    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), ()>
+    fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
     where
         ED: EventData + Send + Sync + 'static,
         H: Fn(Event<ED>, &Self) -> () + Send + Sync + 'static;
