@@ -24,7 +24,6 @@ before_install:
 
 script:
   - cargo +nightly fmt --all -- --check
-  - cargo build --all --release
   - cargo test --all --release
   - cargo bench --no-run
 
