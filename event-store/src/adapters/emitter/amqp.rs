@@ -63,10 +63,7 @@ impl AMQPEmitterAdapter {
 
         let channel = Runtime::new().unwrap().block_on(channel).unwrap();
 
-        Self {
-            options,
-            channel: channel.1,
-        }
+        Self { options, channel }
     }
 }
 
@@ -132,7 +129,7 @@ where
 fn connect(
     uri: &SocketAddr,
     exchange: String,
-) -> impl Future<Item = (Client<TcpStream>, Channel<TcpStream>), Error = io::Error> {
+) -> impl Future<Item = Channel<TcpStream>, Error = io::Error> {
     TcpStream::connect(uri)
         .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
         .and_then(|(client, heartbeat)| {
@@ -146,11 +143,9 @@ fn connect(
         .and_then(move |client| {
             trace!("Set up channel");
 
-            client
-                .create_channel()
-                .map(move |channel| (client, channel))
+            client.create_channel()
         })
-        .and_then(move |(client, channel)| {
+        .and_then(move |channel| {
             trace!("Exchange declare");
 
             channel
@@ -163,7 +158,7 @@ fn connect(
                     },
                     FieldTable::new(),
                 )
-                .map(|_| (client, channel))
+                .map(|_| channel)
         })
 }
 
@@ -202,7 +197,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
 
         // TODO: Stop connecting all the time
         let fut = connect(&self.options.uri, self.options.exchange.clone())
-            .and_then(move |(_, channel)| {
+            .and_then(move |channel| {
                 channel.queue_declare(
                     &queue_name,
                     QueueDeclareOptions {
@@ -244,7 +239,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         let _namespace = self.options.namespace;
 
         let consumer = connect(&self.options.uri, _exchange.clone())
-            .and_then(move |(_, channel)| create_consumer::<ED>(channel, _exchange, _namespace))
+            .and_then(move |channel| create_consumer::<ED>(channel, _exchange, _namespace))
             .and_then(move |(channel, stream)| {
                 trace!("Begin consuming stream");
 
