@@ -12,7 +12,7 @@ use event_store::testhelpers::{
     amqp_clear_queue, pg_create_random_db, TestCounterEntity, TestIncrementEvent,
 };
 use event_store::{
-    adapters::{AMQPEmitterAdapter, PgCacheAdapter, PgStoreAdapter},
+    adapters::{AMQPEmitterAdapter, AMQPEmitterOptions, PgCacheAdapter, PgStoreAdapter},
     Event, EventStore,
 };
 use futures::future::ok as FutOk;
@@ -32,11 +32,20 @@ fn event_replay_all_events() {
     let this_conn = pg_create_random_db("replay-this");
 
     let ident = String::from("event_replay");
+    let _ident = ident.clone();
 
     let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
-    let amqp = AMQPEmitterAdapter::new(addr, "_test".into());
-    let other_amqp = AMQPEmitterAdapter::new(addr, "_test".into());
+    let amqp = AMQPEmitterAdapter::new(AMQPEmitterOptions {
+        uri: addr,
+        exchange: "_test".into(),
+        namespace: "this-store",
+    });
+    let other_amqp = AMQPEmitterAdapter::new(AMQPEmitterOptions {
+        uri: addr,
+        exchange: "_test".into(),
+        namespace: "other-store",
+    });
 
     let store_adapter = PgStoreAdapter::new(this_conn.clone());
     let cache_adapter = PgCacheAdapter::new(this_conn.clone());
@@ -52,30 +61,23 @@ fn event_replay_all_events() {
                 by: 1,
                 ident: ident.clone(),
             }))
-            .map(|_| (other_store, ident))
-            .and_then(move |(store, ident)| {
-                store
-                    .save(&Event::from_data(TestIncrementEvent {
-                        by: 2,
-                        ident: ident.clone(),
-                    }))
-                    .map(|_| (store, ident))
-            })
-            .and_then(move |(store, ident)| {
-                store
-                    .save(&Event::from_data(TestIncrementEvent { by: 3, ident }))
-                    .map(|_| store)
-            })
+            .join3(
+                other_store.save(&Event::from_data(TestIncrementEvent {
+                    by: 2,
+                    ident: ident.clone(),
+                })),
+                other_store.save(&Event::from_data(TestIncrementEvent { by: 3, ident })),
+            )
     })
-    .and_then(|_| amqp_clear_queue("some_namespace.TestIncrementEvent"))
+    .and_then(|_| amqp_clear_queue("other-store-some_namespace.TestIncrementEvent"))
+    // This queue doesn't normally exist on an initial run, but if it does (from a previous test)
+    // run, it should be emptied so the receiving store does not attempt to consume duplicated
+    // events.
+    .and_then(|_| amqp_clear_queue("this-store-some_namespace.TestIncrementEvent"))
     .and_then(|_| {
-        Delay::new(Instant::now() + Duration::from_millis(100))
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
-    })
-    .and_then(|_| {
-        trace!("This store initialised");
-
         let this_store = EventStore::new(store_adapter, cache_adapter, amqp);
+
+        trace!("This store initialised");
 
         this_store
             .subscribe(|_evt: Event<TestIncrementEvent>, _| {
@@ -83,22 +85,25 @@ fn event_replay_all_events() {
             })
             .map(|_| this_store)
     })
+    .and_then(|this_store| {
+        amqp_clear_queue("this-store-some_namespace.TestIncrementEvent").map(|_| this_store)
+    })
     .and_then(|store| {
+        // Wait for queues to settle
         Delay::new(Instant::now() + Duration::from_millis(100))
             .map(|_| store)
             .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
     })
-    .and_then(move |this_store| {
-        let entity: TestCounterEntity = this_store.aggregate("event_replay".into()).unwrap();
+    .and_then(|store| {
+        trace!("Event saved");
 
-        debug!("Aggregated entity: {:?}", entity);
-
-        assert_eq!(entity.counter, 6);
-
-        FutOk(this_store)
-    });
+        store.aggregate(_ident)
+    })
+    .and_then(|entity: TestCounterEntity| FutOk(entity));
 
     let mut rt = Runtime::new().unwrap();
 
-    rt.block_on(fut).unwrap();
+    let entity: TestCounterEntity = rt.block_on(fut).unwrap();
+
+    assert_eq!(entity.counter, 6);
 }

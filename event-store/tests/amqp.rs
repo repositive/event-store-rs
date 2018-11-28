@@ -6,7 +6,7 @@ extern crate log;
 extern crate serde_json;
 extern crate tokio;
 
-use event_store::adapters::{AMQPEmitterAdapter, EmitterAdapter};
+use event_store::adapters::{AMQPEmitterAdapter, AMQPEmitterOptions, EmitterAdapter};
 use event_store::testhelpers::TestIncrementEvent;
 use event_store::Event;
 use futures::Future;
@@ -28,7 +28,11 @@ fn amqp_emitter_emits_and_subscribes() {
 
     let mut rt = Runtime::new().unwrap();
 
-    let amqp = AMQPEmitterAdapter::new(addr, "iris".into());
+    let amqp = AMQPEmitterAdapter::new(AMQPEmitterOptions {
+        uri: addr,
+        exchange: "iris".into(),
+        ..AMQPEmitterOptions::default()
+    });
 
     let fut = amqp
         .subscribe(move |_event: Event<TestIncrementEvent>| {

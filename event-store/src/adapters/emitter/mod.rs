@@ -7,7 +7,7 @@ use utils::BoxedFuture;
 mod amqp;
 mod stub;
 
-pub use self::amqp::AMQPEmitterAdapter;
+pub use self::amqp::{AMQPEmitterAdapter, AMQPEmitterOptions};
 pub use self::stub::StubEmitterAdapter;
 
 /// Event emitter interface

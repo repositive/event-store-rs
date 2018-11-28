@@ -18,11 +18,11 @@ where
     fn new(store: S, cache: C, emitter: EM) -> Self;
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<E, T, A>(&self, query: A) -> Result<T, String>
+    fn aggregate<E, T, A>(&self, query: A) -> BoxedFuture<T, io::Error>
     where
-        E: Events + Send,
-        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq + Send,
-        A: Clone;
+        E: Events + Send + 'static,
+        T: Aggregator<E, A, Q> + Serialize + for<'de> Deserialize<'de> + PartialEq + Send + 'static,
+        A: Clone + 'static;
 
     /// Save an event to the store with optional context
     fn save<ED>(&self, event: &Event<ED>) -> BoxedFuture<(), io::Error>

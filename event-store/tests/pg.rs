@@ -41,12 +41,11 @@ fn it_queries_the_database() {
             store.save(&test_event).map(|_| store)
         })
         .and_then(|store| {
-            trace!("Both events saved");
+            trace!("Event saved");
 
-            let entity: TestCounterEntity = store.aggregate(ident).unwrap();
-
-            FutOk(entity)
-        });
+            store.aggregate(ident)
+        })
+        .and_then(|entity: TestCounterEntity| FutOk(entity));
 
     let mut rt = CurrentThreadRuntime::new().unwrap();
 
@@ -102,14 +101,11 @@ fn it_aggregates_multiple_events() {
             .map(|_| store)
     })
     .and_then(|store| {
-        trace!("Both events saved");
+        trace!("Event saved");
 
-        let entity: TestCounterEntity = store.aggregate(ident).unwrap();
-
-        assert_eq!(entity.counter, 3);
-
-        FutOk(())
-    });
+        store.aggregate(ident)
+    })
+    .and_then(|entity: TestCounterEntity| FutOk(entity));
 
     let mut rt = CurrentThreadRuntime::new().unwrap();
 

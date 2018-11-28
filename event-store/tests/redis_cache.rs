@@ -53,8 +53,9 @@ fn redis_aggregate_cache() {
     .and_then(|store| {
         trace!("Both events saved");
 
-        let entity: TestCounterEntity = store.aggregate(ident).unwrap();
-
+        store.aggregate(ident)
+    })
+    .and_then(|entity: TestCounterEntity| {
         assert_eq!(entity.counter, 3);
 
         FutOk(())

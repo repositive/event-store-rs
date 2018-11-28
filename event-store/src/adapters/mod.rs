@@ -9,5 +9,7 @@ mod emitter;
 mod store;
 
 pub use self::cache::{CacheAdapter, CacheResult, PgCacheAdapter, RedisCacheAdapter};
-pub use self::emitter::{AMQPEmitterAdapter, EmitterAdapter, StubEmitterAdapter};
+pub use self::emitter::{
+    AMQPEmitterAdapter, AMQPEmitterOptions, EmitterAdapter, StubEmitterAdapter,
+};
 pub use self::store::{PgQuery, PgStoreAdapter, StoreAdapter, StoreQuery};

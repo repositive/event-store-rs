@@ -147,7 +147,7 @@ use std::fmt::Debug;
 /// }
 /// ```
 pub trait Aggregator<E: Events, A: Clone, Q: StoreQuery>:
-    Clone + Debug + Default + Send + PartialEq + Serialize + for<'de> Deserialize<'de>
+    Clone + Debug + Default + Send + PartialEq + Serialize + for<'de> Deserialize<'de> + 'static
 {
     /// Apply an event `E` to `acc`, returning a copy of `Self` with updated fields. Can also just
     /// return `acc` if nothing has changed.

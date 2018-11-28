@@ -4,12 +4,15 @@ use super::StoreQuery;
 use adapters::StoreAdapter;
 use chrono::{DateTime, Utc};
 use fallible_iterator::FallibleIterator;
+use futures::future::ok as FutOk;
 use postgres::error::{DUPLICATE_COLUMN, UNIQUE_VIOLATION};
 use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
 use serde_json::{from_value, to_value, Value as JsonValue};
 use sha2::{Digest, Sha256};
+use std::io;
+use utils::BoxedFuture;
 use uuid::Uuid;
 
 use Event;
@@ -24,7 +27,7 @@ pub struct PgQuery {
     pub query: String,
 
     /// Arguments to use for the query
-    pub args: Vec<Box<ToSql>>,
+    pub args: Vec<Box<ToSql + Send>>,
 }
 
 impl StoreQuery for PgQuery {
@@ -39,7 +42,7 @@ impl StoreQuery for PgQuery {
 
 impl PgQuery {
     /// Create a new query from a query string and arguments
-    pub fn new(query: &str, args: Vec<Box<ToSql>>) -> Self {
+    pub fn new(query: &str, args: Vec<Box<ToSql + Send>>) -> Self {
         Self {
             query: query.into(),
             args,
@@ -75,9 +78,13 @@ impl PgStoreAdapter {
 }
 
 impl StoreAdapter<PgQuery> for PgStoreAdapter {
-    fn read<E>(&self, query: PgQuery, since: Option<DateTime<Utc>>) -> Result<Vec<E>, String>
+    fn read<E>(
+        &self,
+        query: PgQuery,
+        since: Option<DateTime<Utc>>,
+    ) -> BoxedFuture<Vec<E>, io::Error>
     where
-        E: Events,
+        E: Events + Send + 'static,
     {
         let conn = self.pool.clone();
 
@@ -106,6 +113,8 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
                 let data_json: JsonValue = row.get("data");
                 let context_json: JsonValue = row.get("context");
 
+                trace!("Read row {}", id);
+
                 let thing = json!({
                     "id": id,
                     "data": data_json,
@@ -121,7 +130,7 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
 
         trans.finish().expect("Could not finish transaction");
 
-        Ok(results)
+        Box::new(FutOk(results))
     }
 
     fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>

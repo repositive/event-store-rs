@@ -33,12 +33,13 @@ mod store;
 pub mod testhelpers;
 mod utils;
 
-use adapters::{CacheAdapter, CacheResult, EmitterAdapter, StoreAdapter, StoreQuery};
+use adapters::{CacheAdapter, EmitterAdapter, StoreAdapter, StoreQuery};
 use aggregator::Aggregator;
 use chrono::prelude::*;
 pub use event::Event;
 pub use event_context::EventContext;
 use event_store_derive_internals::{EventData, Events};
+use futures::future::ok as FutOk;
 use futures::Future;
 use std::io;
 use store::Store;
@@ -78,6 +79,7 @@ where
         trace!("Create new store");
 
         let replay_fut = _emitter
+            // TODO: Fix clone
             .clone()
             .subscribe(move |replay: Event<EventReplayRequested>| {
                 trace!("Received replay request {}", replay.id);
@@ -100,7 +102,11 @@ where
                 trace!("Found {} events to replay", events.len());
 
                 for event in events {
-                    trace!("Replay event {:?}", event);
+                    trace!("Replay event {}", event["id"]);
+
+                    // TODO: Fix these weird definitions
+                    let event_id = event["id"].clone();
+                    let event_id2 = event_id.clone();
 
                     tokio::spawn(
                         _emitter
@@ -109,8 +115,11 @@ where
                                 &requested_event_type,
                                 &event,
                             )
+                            .map(move |_| {
+                                trace!("Emitted event ID {}", event_id);
+                            })
                             .map_err(move |e| {
-                                error!("Failed to replay event ID {}: {}", event["id"], e)
+                                error!("Failed to replay event ID {}: {}", event_id2, e)
                             }),
                     );
                 }
@@ -129,40 +138,49 @@ where
     }
 
     /// Query the backing store and return an entity `T`, reduced from queried events
-    fn aggregate<E, T, A>(&self, query_args: A) -> Result<T, String>
+    fn aggregate<E, T, A>(&self, query_args: A) -> BoxedFuture<T, io::Error>
     where
-        E: Events + Send,
+        E: Events + Send + 'static,
         T: Aggregator<E, A, Q>,
-        A: Clone,
+        A: Clone + 'static,
     {
         trace!("Begin aggregate");
 
         let store_query = T::query(query_args.clone());
         let cache_id = store_query.unique_id();
+        let _store = self.store.clone();
+        let _cache = self.cache.clone();
+        let _default = T::default();
+        let _apply = T::apply_event;
 
-        let cache_result: Option<CacheResult<T>> = self.cache.get(cache_id.clone())?;
+        let fut = self
+            .cache
+            .get(&cache_id)
+            .and_then(move |cache_result| {
+                let initial_state = cache_result.clone().map_or(_default, |(state, _)| state);
 
-        let initial_state = cache_result
-            .clone()
-            .map_or(T::default(), |(state, _)| state);
-        let since = cache_result.clone().map(|(_, since)| since);
-        let event_list = self.store.read(store_query, since)?;
+                let since = cache_result.clone().map(|(_, since)| since);
 
-        let agg = event_list
-            .iter()
-            .fold(initial_state, |acc, event| T::apply_event(acc, &event));
+                _store
+                    .read(store_query, since)
+                    .map(move |result| (cache_result, initial_state, result))
+            })
+            .and_then(move |(cache_result, initial_state, event_list)| {
+                let agg = event_list
+                    .iter()
+                    .fold(initial_state, |acc, event| _apply(acc, &event));
 
-        match cache_result {
-            Some((ref cache_state, _)) if &agg != cache_state => {
-                self.cache.set(cache_id, agg.clone())
-            }
-            None => self.cache.set(cache_id, agg.clone()),
-            _ => Ok(()),
-        }?;
+                match cache_result {
+                    Some((ref cache_state, _)) if &agg != cache_state => {
+                        _cache.set(&cache_id, agg.clone())
+                    }
+                    None => _cache.set(&cache_id, agg.clone()),
+                    _ => Box::new(FutOk(())),
+                }
+                .map(move |_| agg)
+            });
 
-        trace!("Aggregate complete");
-
-        Ok(agg)
+        Box::new(fut)
     }
 
     /// Save an event to the store with optional context
@@ -204,6 +222,12 @@ where
                     .unwrap_or_else(|_| panic!("Failed to handle event with ID {}", event_id));
             })
             .and_then(move |_| {
+                trace!(
+                    "Request replay for {}.{}",
+                    ED::event_namespace(),
+                    ED::event_type()
+                );
+
                 _self2.emitter.emit(&Event::from_data(EventReplayRequested {
                     requested_event_type: ED::event_type().to_string(),
                     requested_event_namespace: ED::event_namespace().to_string(),

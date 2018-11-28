@@ -1,7 +1,8 @@
 //! Test helpers. Do not use in application code.
 
 use adapters::PgQuery;
-use futures::prelude::*;
+use futures::future::ok as FutOk;
+use futures::Future;
 use lapin::channel::QueuePurgeOptions;
 use lapin::client::{Client as AMQPClient, ConnectionOptions};
 use prelude::*;
@@ -73,7 +74,7 @@ impl Aggregator<TestEvents, String, PgQuery> for TestCounterEntity {
     }
 
     fn query(field: String) -> PgQuery {
-        let mut params: Vec<Box<ToSql>> = Vec::new();
+        let mut params: Vec<Box<ToSql + Send>> = Vec::new();
 
         params.push(Box::new(field));
 
@@ -247,10 +248,9 @@ pub fn amqp_clear_queue(queue_name: &'static str) -> BoxedFuture<(), io::Error> 
         .and_then(move |channel| {
             trace!("Purge queue");
 
-            channel
-                .queue_purge(queue_name, QueuePurgeOptions::default())
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "purge error"))
-        });
+            channel.queue_purge(queue_name, QueuePurgeOptions::default())
+        })
+        .or_else(|_| FutOk(()));
 
     Box::new(fut)
 }

@@ -22,24 +22,49 @@ use tokio::net::TcpStream;
 use tokio::runtime::Runtime;
 use utils::BoxedFuture;
 
+/// AMQP emitter options
+#[derive(Clone)]
+pub struct AMQPEmitterOptions {
+    /// The name of the exchange to use
+    pub exchange: String,
+
+    /// AMQP connection URI
+    pub uri: SocketAddr,
+
+    /// Namespace to operate under
+    ///
+    /// This should be the namespace of the domain or application the event store is running under.
+    /// For example, `accounts` or `admin-tool`. This is semantically different from individual
+    /// event namespaces, even if they are likely to have the same value.
+    pub namespace: &'static str,
+}
+
+impl Default for AMQPEmitterOptions {
+    fn default() -> Self {
+        Self {
+            exchange: "default".into(),
+            uri: "127.0.0.1:5672".parse().unwrap(),
+            namespace: "default",
+        }
+    }
+}
+
 /// AMQP emitter
 #[derive(Clone)]
 pub struct AMQPEmitterAdapter {
-    exchange: String,
-    uri: SocketAddr,
+    options: AMQPEmitterOptions,
     channel: Channel<TcpStream>,
 }
 
 impl AMQPEmitterAdapter {
     /// Create a new AMQPEmiterAdapter
-    pub fn new(uri: SocketAddr, exchange: String) -> Self {
-        let channel = connect(&uri, exchange.clone());
+    pub fn new(options: AMQPEmitterOptions) -> Self {
+        let channel = connect(&options.uri, options.exchange.clone());
 
         let channel = Runtime::new().unwrap().block_on(channel).unwrap();
 
         Self {
-            exchange,
-            uri,
+            options,
             channel: channel.1,
         }
     }
@@ -47,8 +72,10 @@ impl AMQPEmitterAdapter {
 
 fn create_consumer<ED>(
     channel: Channel<TcpStream>,
-    queue_name: &str,
+    // TODO: Deleteme
+    // queue_name: &str,
     exchange: String,
+    namespace: &'static str,
 ) -> impl Future<Item = (Channel<TcpStream>, Consumer<TcpStream>), Error = io::Error> + Send + 'static
 where
     ED: EventData + 'static,
@@ -56,15 +83,16 @@ where
     let event_namespace = ED::event_namespace();
     let event_type = ED::event_type();
     let event_name = format!("{}.{}", event_namespace, event_type);
+    let queue_name = format!("{}-{}", namespace, event_name);
 
     info!(
-        "Creating consumer for event {} on exchange {}",
-        event_name, exchange
+        "Creating consumer queue {} for event {} on exchange {}",
+        queue_name, event_name, exchange
     );
 
     channel
         .queue_declare(
-            queue_name,
+            &queue_name,
             QueueDeclareOptions {
                 durable: true,
                 exclusive: false,
@@ -79,7 +107,7 @@ where
 
             channel
                 .queue_bind(
-                    &event_name,
+                    &queue_name,
                     &exchange,
                     &event_name,
                     QueueBindOptions::default(),
@@ -143,14 +171,6 @@ impl EmitterAdapter for AMQPEmitterAdapter {
     fn emit<E: EventData>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error> {
         let event_namespace = E::event_namespace();
         let event_type = E::event_type();
-        let event_name = format!("{}.{}", event_namespace, event_type);
-
-        trace!(
-            "Emit event {} (ID {}) to exchange {}",
-            event_name,
-            event.id,
-            self.exchange
-        );
 
         self.emit_with_string_ident(event_namespace, event_type, &to_value(event).unwrap())
     }
@@ -166,18 +186,50 @@ impl EmitterAdapter for AMQPEmitterAdapter {
             .into();
 
         let event_name = format!("{}.{}", event_namespace, event_type);
+        let queue_name = format!("{}-{}", self.options.namespace, event_name);
 
-        trace!("Emit event {} to exchange {}", event_name, self.exchange);
+        // TODO: Fix all these clones
+        let _channel = self.channel.clone();
+        let _options = self.options.clone();
 
-        let fut = self
-            .channel
-            .basic_publish(
-                &self.exchange,
-                &event_name,
-                payload,
-                BasicPublishOptions::default(),
-                BasicProperties::default(),
-            )
+        trace!(
+            "Emit event {} (ID {}) to queue {} on exchange {}",
+            event_name,
+            event["id"],
+            queue_name,
+            self.options.exchange,
+        );
+
+        // TODO: Stop connecting all the time
+        let fut = connect(&self.options.uri, self.options.exchange.clone())
+            .and_then(move |(_, channel)| {
+                channel.queue_declare(
+                    &queue_name,
+                    QueueDeclareOptions {
+                        durable: true,
+                        exclusive: false,
+                        auto_delete: false,
+                        ..QueueDeclareOptions::default()
+                    },
+                    FieldTable::new(),
+                )
+            })
+            .and_then(move |_| {
+                trace!("Queue declared");
+
+                FutOk(_channel)
+            })
+            .and_then(move |channel| {
+                trace!("Basic publish");
+
+                channel.basic_publish(
+                    &_options.exchange,
+                    &event_name,
+                    payload,
+                    BasicPublishOptions::default(),
+                    BasicProperties::default(),
+                )
+            })
             .map(|_| ());
 
         Box::new(fut)
@@ -188,16 +240,11 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         ED: EventData + 'static,
         H: Fn(Event<ED>) -> () + Send + 'static,
     {
-        let event_name = ED::event_type();
-        let event_namespace = ED::event_namespace();
-        let queue_name = format!("{}.{}", event_namespace, event_name);
-        let _queue_name = queue_name.clone();
-        let _exchange = self.exchange.clone();
+        let _exchange = self.options.exchange.clone();
+        let _namespace = self.options.namespace;
 
-        trace!("Creating queue {}", queue_name);
-
-        let consumer = connect(&self.uri, _exchange.clone())
-            .and_then(move |(_, channel)| create_consumer::<ED>(channel, &queue_name, _exchange))
+        let consumer = connect(&self.options.uri, _exchange.clone())
+            .and_then(move |(_, channel)| create_consumer::<ED>(channel, _exchange, _namespace))
             .and_then(move |(channel, stream)| {
                 trace!("Begin consuming stream");
 
@@ -205,15 +252,14 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     .for_each(move |message| {
                         let payload = str::from_utf8(&message.data).unwrap();
                         let data: Event<ED> = serde_json::from_str(payload).unwrap();
-                        trace!("Received message with ID {}: {}", data.id, payload);
+                        trace!("Received message with ID {}", data.id);
                         handler(data);
+                        trace!("Ack {}", message.delivery_tag);
                         channel.basic_ack(message.delivery_tag, false)
                     })
                     .map_err(|e| panic!("Consumer stream panicked: {}", e));
 
                 tokio::spawn(consume);
-
-                trace!("Consumer for {} spawned", _queue_name);
 
                 FutOk(())
             });
