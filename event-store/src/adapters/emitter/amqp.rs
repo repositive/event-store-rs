@@ -198,32 +198,38 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         // TODO: Stop connecting all the time
         let fut = connect(&self.options.uri, self.options.exchange.clone())
             .and_then(move |channel| {
-                channel.queue_declare(
-                    &queue_name,
-                    QueueDeclareOptions {
-                        durable: true,
-                        exclusive: false,
-                        auto_delete: false,
-                        ..QueueDeclareOptions::default()
-                    },
-                    FieldTable::new(),
-                )
-            })
-            .and_then(move |_| {
-                trace!("Queue declared");
-
-                FutOk(_channel)
+                channel
+                    .queue_declare(
+                        &queue_name,
+                        QueueDeclareOptions {
+                            durable: true,
+                            exclusive: false,
+                            auto_delete: false,
+                            ..QueueDeclareOptions::default()
+                        },
+                        FieldTable::new(),
+                    )
+                    .map(|_| {
+                        trace!("Queue declared");
+                        channel
+                    })
             })
             .and_then(move |channel| {
                 trace!("Basic publish");
 
-                channel.basic_publish(
-                    &_options.exchange,
-                    &event_name,
-                    payload,
-                    BasicPublishOptions::default(),
-                    BasicProperties::default(),
-                )
+                channel
+                    .basic_publish(
+                        &_options.exchange,
+                        &event_name,
+                        payload,
+                        BasicPublishOptions::default(),
+                        BasicProperties::default(),
+                    )
+                    .map(|_| {
+                        trace!("Published");
+
+                        channel
+                    })
             })
             .map(|_| ());
 
