@@ -186,6 +186,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         // TODO: Fix all these clones
         let _channel = self.channel.clone();
         let _options = self.options.clone();
+        let _options2 = _options.clone();
 
         trace!(
             "Emit event {} (ID {}) to queue {} on exchange {}",
@@ -211,15 +212,26 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     )
                     .map(|_| {
                         trace!("Queue declared");
-                        channel
+                        (channel, queue_name)
                     })
             })
-            .and_then(move |channel| {
+            .and_then(move |(channel, queue_name)| {
+                channel
+                    .queue_bind(
+                        &queue_name,
+                        &_options.exchange,
+                        &event_name,
+                        QueueBindOptions::default(),
+                        FieldTable::new(),
+                    )
+                    .map(|_| (channel, _options.exchange, event_name))
+            })
+            .and_then(move |(channel, exchange, event_name)| {
                 trace!("Basic publish");
 
                 channel
                     .basic_publish(
-                        &_options.exchange,
+                        &exchange,
                         &event_name,
                         payload,
                         BasicPublishOptions::default(),

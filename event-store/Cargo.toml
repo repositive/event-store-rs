@@ -9,6 +9,10 @@ name = "testhelpers"
 [[bench]]
 harness = false
 name = "exercise"
+
+[[bench]]
+harness = false
+name = "amqp"
 [badges.travis-ci]
 branch = "master"
 repository = "repositive/event-store-rs"
