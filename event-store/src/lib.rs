@@ -43,7 +43,7 @@ use futures::future::ok as FutOk;
 use futures::Future;
 use std::io;
 use store::Store;
-use utils::BoxedFuture;
+use utils::{BoxedFuture, BoxedFutureWithLifetime};
 
 /// Main event store
 #[derive(Clone)]
@@ -186,11 +186,15 @@ where
     /// Save an event to the store with optional context
     fn save<ED>(&self, event: &Event<ED>) -> BoxedFuture<(), io::Error>
     where
-        ED: EventData + Send,
+        ED: EventData + Send + Sync,
     {
-        self.store.save(event).expect("Save failed");
+        let _store = self.store.clone();
+        let _emitter = self.emitter.clone();
+        let _event = event.clone();
 
-        Box::new(self.emitter.emit(&event))
+        _store.save(event).unwrap();
+
+        Box::new(self.emitter.emit(event))
     }
 
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
@@ -228,13 +232,15 @@ where
                     ED::event_type()
                 );
 
-                _self2.emitter.emit(&Event::from_data(EventReplayRequested {
-                    requested_event_type: ED::event_type().to_string(),
-                    requested_event_namespace: ED::event_namespace().to_string(),
-                    since: last_event.map(|e| e.context.time).unwrap_or_else(|| {
-                        DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
-                    }),
-                }))
+                // _self2.emitter.emit(&Event::from_data(EventReplayRequested {
+                //     requested_event_type: ED::event_type().to_string(),
+                //     requested_event_namespace: ED::event_namespace().to_string(),
+                //     since: last_event.map(|e| e.context.time).unwrap_or_else(|| {
+                //         DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+                //     }),
+                // }))
+
+                FutOk(())
             });
 
         Box::new(fut)

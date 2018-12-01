@@ -146,7 +146,7 @@ fn connect(
             client.create_channel()
         })
         .and_then(move |channel| {
-            trace!("Exchange declare");
+            trace!("Exchange declare {}", exchange);
 
             channel
                 .exchange_declare(
@@ -163,9 +163,9 @@ fn connect(
 }
 
 impl EmitterAdapter for AMQPEmitterAdapter {
-    fn emit<E: EventData>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error> {
-        let event_namespace = E::event_namespace();
-        let event_type = E::event_type();
+    fn emit<ED: EventData>(&self, event: &Event<ED>) -> BoxedFuture<(), io::Error> {
+        let event_namespace = ED::event_namespace();
+        let event_type = ED::event_type();
 
         self.emit_with_string_ident(event_namespace, event_type, &to_value(event).unwrap())
     }
@@ -197,25 +197,40 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         );
 
         // TODO: Stop connecting all the time
-        let fut = connect(&self.options.uri, self.options.exchange.clone())
-            .and_then(move |channel| {
-                channel
-                    .queue_declare(
-                        &queue_name,
-                        QueueDeclareOptions {
-                            durable: true,
-                            exclusive: false,
-                            auto_delete: false,
-                            ..QueueDeclareOptions::default()
-                        },
-                        FieldTable::new(),
-                    )
-                    .map(|_| {
-                        trace!("Queue declared");
-                        (channel, queue_name)
-                    })
-            })
+        // let fut = connect(&self.options.uri, self.options.exchange.clone())
+        //     .and_then(move |channel| {
+        //         channel
+        //             .queue_declare(
+        //                 &queue_name,
+        //                 QueueDeclareOptions {
+        //                     durable: true,
+        //                     exclusive: false,
+        //                     auto_delete: false,
+        //                     ..QueueDeclareOptions::default()
+        //                 },
+        //                 FieldTable::new(),
+        //             )
+        //             .map(|_| {
+        //                 trace!("Queue declared");
+        //                 (channel, queue_name)
+        //             })
+        //     })
+
+        let fut = _channel
+            .queue_declare(
+                &queue_name,
+                QueueDeclareOptions {
+                    durable: true,
+                    exclusive: false,
+                    auto_delete: false,
+                    ..QueueDeclareOptions::default()
+                },
+                FieldTable::new(),
+            )
+            .map(|_| (_channel, queue_name))
             .and_then(move |(channel, queue_name)| {
+                trace!("Bind to queue {}", queue_name);
+
                 channel
                     .queue_bind(
                         &queue_name,
@@ -227,7 +242,7 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                     .map(|_| (channel, _options.exchange, event_name))
             })
             .and_then(move |(channel, exchange, event_name)| {
-                trace!("Basic publish");
+                trace!("Basic publish {} to exchange {}", event_name, exchange);
 
                 channel
                     .basic_publish(
@@ -237,8 +252,8 @@ impl EmitterAdapter for AMQPEmitterAdapter {
                         BasicPublishOptions::default(),
                         BasicProperties::default(),
                     )
-                    .map(|_| {
-                        trace!("Published");
+                    .map(move |_| {
+                        trace!("Published {}", event_name);
 
                         channel
                     })
@@ -255,6 +270,8 @@ impl EmitterAdapter for AMQPEmitterAdapter {
     {
         let _exchange = self.options.exchange.clone();
         let _namespace = self.options.namespace;
+
+        // Box::new(FutOk(()))
 
         let consumer = connect(&self.options.uri, _exchange.clone())
             .and_then(move |channel| create_consumer::<ED>(channel, _exchange, _namespace))

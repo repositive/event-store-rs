@@ -13,7 +13,7 @@ pub use self::stub::StubEmitterAdapter;
 /// Event emitter interface
 pub trait EmitterAdapter: Clone + Send + 'static {
     /// Emit an event
-    fn emit<E: EventData + Send>(&self, event: &Event<E>) -> BoxedFuture<(), io::Error>;
+    fn emit<ED: EventData + Send>(&self, event: &Event<ED>) -> BoxedFuture<(), io::Error>;
 
     /// Emit an event given a namespace, type and payload value
     ///

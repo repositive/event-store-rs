@@ -12,10 +12,10 @@ pub use self::pg::{PgQuery, PgStoreAdapter};
 /// Storage backend
 pub trait StoreAdapter<Q: StoreQuery>: Send + Clone + 'static {
     /// Read a list of events matching a query
-
     fn read<E>(&self, query: Q, since: Option<DateTime<Utc>>) -> BoxedFuture<Vec<E>, io::Error>
     where
         E: Events + Send + 'static;
+
     /// Save an event to the store
     fn save<ED>(&self, event: &Event<ED>) -> Result<(), String>
     where

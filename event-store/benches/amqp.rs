@@ -50,26 +50,44 @@ fn emit_100_receive_100(c: &mut Criterion) {
         namespace: "bench",
     });
 
-    Runtime::new()
-        .unwrap()
-        .block_on(amqp.emit(&Event::from_data(TestIncrementEvent {
-            by: 10,
-            ident: "bench".into(),
-        })));
+    // Runtime::new()
+    //     .unwrap()
+    //     .block_on(amqp.emit(&Event::from_data(TestIncrementEvent {
+    //         by: 10,
+    //         ident: "bench".into(),
+    //     })));
 
     c.bench_function("emit 100 events and receive 100 events", move |b| {
+        let mut rt = Runtime::new().unwrap();
+
+        let amqp = AMQPEmitterAdapter::new(AMQPEmitterOptions {
+            uri: addr,
+            exchange: "bench".into(),
+            ..AMQPEmitterOptions::default()
+        });
+
         b.iter_with_setup(
             || {
-                let rt = Runtime::new().unwrap();
+                // let rt = Runtime::new().unwrap();
 
-                rt
-            },
-            move |mut rt| {
                 // let amqp = AMQPEmitterAdapter::new(AMQPEmitterOptions {
                 //     uri: addr,
                 //     exchange: "bench".into(),
                 //     ..AMQPEmitterOptions::default()
                 // });
+
+                // (rt, amqp)
+                ()
+            },
+            move |_| {
+                let mut emits = Vec::new();
+
+                for i in 0..1_i32 {
+                    emits.push(Box::new(amqp.emit(&Event::from_data(TestIncrementEvent {
+                        by: i,
+                        ident: "bench".into(),
+                    }))));
+                }
 
                 // let send = join_all((0..1_i32).map(move |i| {
                 //     Box::new(amqp.emit(&Event::from_data(TestIncrementEvent {
@@ -78,7 +96,7 @@ fn emit_100_receive_100(c: &mut Criterion) {
                 //     })))
                 // }));
 
-                // rt.block_on(send).unwrap();
+                rt.block_on(join_all(emits)).unwrap();
 
                 // rt.block_on(amqp.emit(&Event::from_data(TestIncrementEvent {
                 //     by: 10,

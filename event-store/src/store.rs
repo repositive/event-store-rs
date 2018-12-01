@@ -27,7 +27,7 @@ where
     /// Save an event to the store with optional context
     fn save<ED>(&self, event: &Event<ED>) -> BoxedFuture<(), io::Error>
     where
-        ED: EventData + Send;
+        ED: EventData + Send + Sync;
 
     /// Subscribe to an event
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>
