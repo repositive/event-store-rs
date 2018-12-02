@@ -71,11 +71,17 @@ fn event_replay_all_events() {
 
         // FutOk(())
     })
-    .and_then(|_| amqp_clear_queue("other-store-some_namespace.TestIncrementEvent"))
+    .and_then(|_| {
+        trace!("Clear queue other-store-some_namespace.TestIncrementEvent");
+        amqp_clear_queue("other-store-some_namespace.TestIncrementEvent")
+    })
     // This queue doesn't normally exist on an initial run, but if it does (from a previous test)
     // run, it should be emptied so the receiving store does not attempt to consume duplicated
     // events.
-    .and_then(|_| amqp_clear_queue("this-store-some_namespace.TestIncrementEvent"))
+    .and_then(|_| {
+        trace!("Clear queue this-store-some_namespace.TestIncrementEvent");
+        amqp_clear_queue("this-store-some_namespace.TestIncrementEvent")
+    })
     .and_then(|_| {
         let this_store = EventStore::new(store_adapter, cache_adapter, amqp);
 

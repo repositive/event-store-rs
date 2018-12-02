@@ -19,7 +19,7 @@ use std::net::SocketAddr;
 use std::str;
 use tokio;
 use tokio::net::TcpStream;
-use tokio::runtime::Runtime;
+use tokio::runtime::{current_thread, Runtime};
 use utils::BoxedFuture;
 
 /// AMQP emitter options
@@ -182,9 +182,11 @@ impl EmitterAdapter for AMQPEmitterAdapter {
 
         let event_name = format!("{}.{}", event_namespace, event_type);
         let queue_name = format!("{}-{}", self.options.namespace, event_name);
+        let event_name2 = event_name.clone();
 
         // TODO: Fix all these clones
         let _channel = self.channel.clone();
+        let _channel2 = self.channel.clone();
         let _options = self.options.clone();
         let _options2 = _options.clone();
 
@@ -216,6 +218,8 @@ impl EmitterAdapter for AMQPEmitterAdapter {
         //             })
         //     })
 
+        // Box::new(FutOk(()))
+
         let fut = _channel
             .queue_declare(
                 &queue_name,
@@ -231,36 +235,38 @@ impl EmitterAdapter for AMQPEmitterAdapter {
             .and_then(move |(channel, queue_name)| {
                 trace!("Bind to queue {}", queue_name);
 
-                channel
-                    .queue_bind(
-                        &queue_name,
-                        &_options.exchange,
-                        &event_name,
-                        QueueBindOptions::default(),
-                        FieldTable::new(),
-                    )
-                    .map(|_| (channel, _options.exchange, event_name))
+                channel.queue_bind(
+                    &queue_name,
+                    &_options.exchange,
+                    &event_name,
+                    QueueBindOptions::default(),
+                    FieldTable::new(),
+                )
             })
-            .and_then(move |(channel, exchange, event_name)| {
-                trace!("Basic publish {} to exchange {}", event_name, exchange);
+            .map_err(|e| {
+                error!("Queue declare failed: {}", e);
 
-                channel
-                    .basic_publish(
-                        &exchange,
-                        &event_name,
-                        payload,
-                        BasicPublishOptions::default(),
-                        BasicProperties::default(),
-                    )
-                    .map(move |_| {
-                        trace!("Published {}", event_name);
-
-                        channel
-                    })
+                ()
             })
-            .map(|_| ());
+            .map(|_| {
+                trace!("Queue declared");
 
-        Box::new(fut)
+                ()
+            });
+
+        tokio::spawn(fut);
+
+        Box::new(
+            _channel2
+                .basic_publish(
+                    &_options2.exchange,
+                    &event_name2,
+                    payload,
+                    BasicPublishOptions::default(),
+                    BasicProperties::default(),
+                )
+                .map(|_| ()),
+        )
     }
 
     fn subscribe<ED, H>(&self, handler: H) -> BoxedFuture<(), io::Error>

@@ -192,7 +192,11 @@ where
         let _emitter = self.emitter.clone();
         let _event = event.clone();
 
+        trace!("Save event {}", event.id);
+
         _store.save(event).unwrap();
+
+        trace!("Event {} saved", event.id);
 
         Box::new(self.emitter.emit(event))
     }
@@ -232,15 +236,13 @@ where
                     ED::event_type()
                 );
 
-                // _self2.emitter.emit(&Event::from_data(EventReplayRequested {
-                //     requested_event_type: ED::event_type().to_string(),
-                //     requested_event_namespace: ED::event_namespace().to_string(),
-                //     since: last_event.map(|e| e.context.time).unwrap_or_else(|| {
-                //         DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
-                //     }),
-                // }))
-
-                FutOk(())
+                _self2.emitter.emit(&Event::from_data(EventReplayRequested {
+                    requested_event_type: ED::event_type().to_string(),
+                    requested_event_namespace: ED::event_namespace().to_string(),
+                    since: last_event.map(|e| e.context.time).unwrap_or_else(|| {
+                        DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+                    }),
+                }))
             });
 
         Box::new(fut)
