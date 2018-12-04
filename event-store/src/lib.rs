@@ -7,14 +7,15 @@ extern crate event_store_derive;
 #[macro_use]
 extern crate log;
 
-mod event;
-mod event_context;
-
 pub mod amqp;
+pub mod event;
+pub mod event_context;
+pub mod event_saver;
 pub mod pg;
 
 pub use crate::amqp::*;
 pub use crate::event::Event;
+pub use crate::event_saver::*;
 pub use crate::pg::*;
 
 #[cfg(test)]

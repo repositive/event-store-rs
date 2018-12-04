@@ -8,6 +8,7 @@ use postgres::Connection;
 use r2d2::{self, Pool, PooledConnection};
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use serde_json::to_value;
 use std::io::{self, ErrorKind};
 use std::net::SocketAddr;
 use std::str;
@@ -29,8 +30,8 @@ pub fn pg_connect() -> Pool<PostgresConnectionManager> {
 
 /// Save an event into PG
 pub fn pg_save<ED>(
-    conn: &PooledConnection<PostgresConnectionManager>,
-    _event: Event<ED>,
+    conn: PooledConnection<PostgresConnectionManager>,
+    event: &Event<ED>,
 ) -> impl Future<Item = (), Error = io::Error>
 where
     ED: EventData,
@@ -41,8 +42,14 @@ where
         ED::event_type()
     );
 
-    conn.prepare("insert into events (id) values (DEFAULT)")
-        .and_then(|stmt| stmt.execute(&[]))
+    conn.prepare("insert into events (id, data, context) values ($1, $2, $3)")
+        .and_then(|stmt| {
+            stmt.execute(&[
+                &event.id,
+                &to_value(&event.data).expect("Unable to convert event data to value"),
+                &to_value(&event.context).expect("Cannot convert event context"),
+            ])
+        })
         .map(|_| future::ok(()))
         .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could not save")))
 }
