@@ -148,10 +148,10 @@ pub fn amqp_emit_event<ED>(
     channel: Channel<TcpStream>,
     queue_name: String,
     exchange: String,
-    event: &ED,
+    event: &Event<ED>,
 ) -> impl Future<Item = (), Error = io::Error>
 where
-    ED: EventData + Serialize,
+    ED: EventData,
 {
     let payload: Vec<u8> = serde_json::to_string(&event)
         .expect("Cant serialise event")
@@ -163,15 +163,27 @@ where
 
     info!("Emitting event {} onto exchange {}", event_name, exchange);
 
-    amqp_bind_queue(channel, queue_name, exchange, event_name)
-        .and_then(move |(channel, _, queue_name, exchange, event_name)| {
-            debug!("Emit queue {} declared", queue_name);
+    amqp_emit_data(channel, queue_name, exchange, event_name, payload)
+}
 
-            debug!("Emit event {}", event_name);
+/// Emit an event onto a queue
+pub fn amqp_emit_data(
+    channel: Channel<TcpStream>,
+    queue_name: String,
+    exchange: String,
+    routing_key: String,
+    payload: Vec<u8>,
+) -> impl Future<Item = (), Error = io::Error> {
+    debug!(
+        "Emitting payload through routing key {} onto exchange {}",
+        routing_key, exchange
+    );
 
+    amqp_bind_queue(channel, queue_name, exchange, routing_key)
+        .and_then(move |(channel, _, _, exchange_name, routing_key)| {
             channel.basic_publish(
-                &exchange,
-                &event_name,
+                &exchange_name,
+                &routing_key,
                 payload,
                 BasicPublishOptions::default(),
                 BasicProperties::default(),
