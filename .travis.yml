@@ -8,7 +8,8 @@ sudo: required
 
 matrix:
   allow_failures:
-    - rust: nightly
+    # TODO: Remove when edition 2018 is stabilised
+    - rust: stable
   fast_finish: true
 
 services:
