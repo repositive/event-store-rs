@@ -14,6 +14,7 @@ pub mod amqp;
 pub mod pg;
 
 pub use crate::amqp::*;
+pub use crate::event::Event;
 pub use crate::pg::*;
 
 #[cfg(test)]

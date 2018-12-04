@@ -5,9 +5,9 @@ extern crate serde_derive;
 #[macro_use]
 extern crate event_store_derive;
 extern crate event_store;
-extern crate event_store_derive_internals;
 extern crate pretty_env_logger;
 
+use event_store::Event;
 use event_store::*;
 use futures::future::{self, Future};
 use std::net::SocketAddr;
@@ -28,19 +28,34 @@ fn save_and_emit() {
 
     trace!("Save and emit test");
 
-    let mut core = Core::new().unwrap();
-    let _handle = core.handle();
+    // let mut core = Core::new().unwrap();
+    // let _handle = core.handle();
 
-    let run = amqp_connect(addr, "test".into()).and_then(|channel| {
-        info!("AMQP connected");
+    let run = amqp_connect(addr, "test_exchange".into())
+        .and_then(move |channel| {
+            info!("AMQP connected");
 
-        amqp_emit_event(
-            channel.clone(),
-            "rando_queue".into(),
-            "test".into(),
-            &test_event,
-        )
-    });
+            let consumer = amqp_create_consumer(
+                channel.clone(),
+                "rando_queue".into(),
+                "test_exchange".into(),
+                |ev: Event<TestEvent>| {
+                    debug!("Received event {}", ev.id);
+                },
+            );
 
-    core.run(run).unwrap();
+            tokio::spawn(consumer.map_err(|_| ()));
+
+            amqp_emit_event(
+                channel.clone(),
+                "rando_queue".into(),
+                "test_exchange".into(),
+                &Event::from_data(test_event),
+            )
+        })
+        .map(|_| ())
+        .map_err(|_| ());
+
+    // core.run(run).unwrap();
+    tokio::run(run);
 }
