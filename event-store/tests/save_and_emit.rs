@@ -10,6 +10,8 @@ extern crate pretty_env_logger;
 use event_store::Event;
 use event_store::*;
 use futures::future::{self, Future};
+use r2d2::Pool;
+use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use std::net::SocketAddr;
 use tokio_core::reactor::Core;
 
@@ -28,6 +30,10 @@ fn save_and_emit() {
 
     trace!("Save and emit test");
 
+    let conn = pg_connect();
+
+    let event_saver = EventSaver::new(conn.clone());
+
     // let mut core = Core::new().unwrap();
     // let _handle = core.handle();
 
@@ -39,12 +45,18 @@ fn save_and_emit() {
                 channel.clone(),
                 "rando_queue".into(),
                 "test_exchange".into(),
-                |ev: Event<TestEvent>| {
+                move |ev: Event<TestEvent>| {
                     debug!("Received event {}", ev.id);
+
+                    event_saver.save(&ev);
                 },
             );
 
-            tokio::spawn(consumer.map_err(|_| ()));
+            tokio::spawn(consumer.map_err(|e| {
+                error!("Consumer error: {}", e);
+
+                ()
+            }));
 
             amqp_emit_event(
                 channel.clone(),
@@ -54,7 +66,11 @@ fn save_and_emit() {
             )
         })
         .map(|_| ())
-        .map_err(|_| ());
+        .map_err(|e| {
+            error!("Run error: {}", e);
+
+            ()
+        });
 
     // core.run(run).unwrap();
     tokio::run(run);
