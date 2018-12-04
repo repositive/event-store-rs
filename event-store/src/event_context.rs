@@ -4,7 +4,6 @@ use serde_json::Value as JsonValue;
 /// Event context
 ///
 /// Contains metadata for event and, most importantly, the creation time
-// TODO: Make `pub` -> `crate` when it's stabilised
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EventContext {
     /// TODO: What is this?
