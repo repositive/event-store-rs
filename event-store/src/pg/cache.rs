@@ -39,7 +39,13 @@ where
 pub fn pg_cache_read<T>(
     conn: PooledConnection<PostgresConnectionManager>,
     key: String,
-) -> impl Future<Item = Option<CacheResult<T>>, Error = io::Error>
+) -> impl Future<
+    Item = (
+        PooledConnection<PostgresConnectionManager>,
+        Option<CacheResult<T>>,
+    ),
+    Error = io::Error,
+>
 where
     T: DeserializeOwned,
 {
@@ -49,8 +55,8 @@ where
     )
     .map(|rows| {
         // `rows.get()` panics if index is out of bounds, hence this check
-        if rows.len() != 1 {
-            future::ok(None)
+        let res = if rows.len() != 1 {
+            None
         } else {
             let row = rows.get(0);
 
@@ -58,13 +64,15 @@ where
 
             let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
 
-            future::ok(Some((
+            Some((
                 from_value(row.get(0))
                     .map(|decoded: T| decoded)
                     .expect("Cant decode the cached entity"),
                 utc,
-            )))
-        }
+            ))
+        };
+
+        future::ok((conn, res))
     })
     .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could read cache")))
 }
