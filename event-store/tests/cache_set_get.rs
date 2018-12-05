@@ -24,5 +24,5 @@ fn cache_set_get() {
 
     let res = rt.block_on_all(run).unwrap();
 
-    assert_eq!(res.unwrap().0, test_entity);
+    assert_eq!(res.1.unwrap().0, test_entity);
 }
