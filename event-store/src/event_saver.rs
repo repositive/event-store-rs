@@ -20,7 +20,7 @@ impl EventSaver {
         Self { pool }
     }
 
-    pub fn save<ED>(&self, event: &Event<ED>) -> Box<dyn Future<Item = (), Error = io::Error>>
+    pub fn save<ED>(&self, event: &Event<ED>) -> impl Future<Item = (), Error = io::Error>
     where
         ED: EventData + 'static,
     {
