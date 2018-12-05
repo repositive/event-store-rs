@@ -1,20 +1,16 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate event_store_derive;
 extern crate event_store;
 extern crate pretty_env_logger;
 
 use event_store::Event;
 use event_store::*;
-use futures::future::{self, Future};
-use postgres::types::ToSql;
-use r2d2::Pool;
-use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use futures::future::Future;
+use std::io;
 use std::net::SocketAddr;
-use tokio_core::reactor::Core;
+use std::time::{Duration, Instant};
+use tokio::runtime::Runtime;
+use tokio::timer::Delay;
 
 #[test]
 fn save_and_emit() {
@@ -25,12 +21,11 @@ fn save_and_emit() {
 
     trace!("Save and emit test");
 
-    let conn = pg_connect();
+    let conn = pg_create_random_db();
 
     let event_saver = EventSaver::new(conn.clone());
 
-    // let mut core = Core::new().unwrap();
-    // let _handle = core.handle();
+    let mut rt = Runtime::new().unwrap();
 
     let run = amqp_connect(addr, "test_exchange".into())
         .and_then(move |channel| {
@@ -60,13 +55,15 @@ fn save_and_emit() {
                 &Event::from_data(test_event),
             )
         })
-        .map(|_| ())
+        .and_then(|_| {
+            Delay::new(Instant::now() + Duration::from_millis(100))
+                .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
+        })
         .map_err(|e| {
             error!("Run error: {}", e);
 
             ()
         });
 
-    // core.run(run).unwrap();
-    tokio::run(run);
+    rt.block_on(run).unwrap();
 }
