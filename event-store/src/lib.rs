@@ -11,21 +11,28 @@ pub mod aggregator;
 pub mod amqp;
 pub mod event;
 pub mod event_context;
+pub mod event_handler;
 pub mod event_saver;
 pub mod pg;
 pub mod store_query;
 #[doc(hidden)]
 pub mod test_helpers;
 
+use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
+use futures::future;
 use futures::prelude::*;
+use lapin_futures::channel::Channel;
 use r2d2::PooledConnection;
 use r2d2_postgres::PostgresConnectionManager;
 use std::io;
+use tokio::net::TcpStream;
+use tokio_core::reactor::Handle;
 
 pub use crate::aggregator::*;
 pub use crate::amqp::*;
 pub use crate::event::Event;
+pub use crate::event_handler::*;
 pub use crate::event_saver::*;
 pub use crate::pg::*;
 pub use crate::store_query::*;
@@ -58,4 +65,35 @@ where
             },
         )
         .map(|(events, initial_state)| events.iter().fold(initial_state, T::apply_event))
+}
+
+pub fn store_subscribe<ED>(
+    amqp_channel: Channel<TcpStream>,
+    saver: EventSaver,
+    handle: Handle,
+) -> impl Future<Item = (), Error = io::Error>
+where
+    ED: EventData + EventHandler + 'static,
+{
+    debug!("Create subscription");
+
+    amqp_create_consumer(
+        amqp_channel.clone(),
+        "rando_queue".into(),
+        "test_exchange".into(),
+        move |ev: Event<ED>| {
+            let fut = saver
+                .save(ev)
+                .and_then(|ev| {
+                    trace!("Handle event ID {}", ev.id);
+
+                    ED::handle_event(ev);
+
+                    future::ok(())
+                })
+                .map_err(|_| ());
+
+            handle.spawn(fut);
+        },
+    )
 }
