@@ -26,8 +26,8 @@ fn save_and_aggregate() {
     let mut core = Core::new().unwrap();
 
     let run = event_saver
-        .save(&Event::from_data(test_event))
-        .join(event_saver.save(&Event::from_data(test_event_2)))
+        .save(Event::from_data(test_event))
+        .join(event_saver.save(Event::from_data(test_event_2)))
         .and_then(|_| pg_read(conn, TestCounterEntity::query(String::new()), None))
         .and_then(|events: Vec<TestEvents>| {
             future::ok(
