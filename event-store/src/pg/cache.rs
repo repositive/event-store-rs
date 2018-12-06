@@ -47,8 +47,10 @@ pub fn pg_cache_read<T>(
     Error = io::Error,
 >
 where
-    T: DeserializeOwned,
+    T: DeserializeOwned + Debug,
 {
+    trace!("Cache read key {}", key);
+
     conn.query(
         "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
         &[&key],
@@ -71,6 +73,8 @@ where
                 utc,
             ))
         };
+
+        trace!("Cache read result {:?}", res);
 
         future::ok((conn, res))
     })
