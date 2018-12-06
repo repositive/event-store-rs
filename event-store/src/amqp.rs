@@ -27,7 +27,10 @@ pub fn amqp_connect(
     let exchange1 = exchange.clone();
 
     TcpStream::connect(&uri)
-        .and_then(|stream| Client::connect(stream, ConnectionOptions::default()))
+        .and_then(|stream| {
+            Client::connect(stream, ConnectionOptions::default())
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+        })
         .and_then(|(client, heartbeat)| {
             trace!("Start heartbeat");
 
@@ -39,7 +42,9 @@ pub fn amqp_connect(
         .and_then(move |client| {
             trace!("Set up channel");
 
-            client.create_channel()
+            client
+                .create_channel()
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
         })
         .and_then(move |channel| {
             trace!("Declare exchange {}", exchange1);
@@ -55,6 +60,7 @@ pub fn amqp_connect(
                     FieldTable::new(),
                 )
                 .map(|_| channel)
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
         })
 }
 
@@ -89,21 +95,24 @@ where
                     BasicConsumeOptions::default(),
                     FieldTable::new(),
                 )
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
                 .map(move |stream| (channel, stream))
         })
         .and_then(move |(channel, stream)| {
             info!("Got stream for consumer");
 
-            stream.for_each(move |message| {
-                let payload = str::from_utf8(&message.data).unwrap();
-                let data: Event<E> = serde_json::from_str(payload).unwrap();
+            stream
+                .for_each(move |message| {
+                    let payload = str::from_utf8(&message.data).unwrap();
+                    let data: Event<E> = serde_json::from_str(payload).unwrap();
 
-                trace!("Received message with ID {}: {}", data.id, payload);
+                    trace!("Received message with ID {}: {}", data.id, payload);
 
-                handler(data);
+                    handler(data);
 
-                channel.basic_ack(message.delivery_tag, false)
-            })
+                    channel.basic_ack(message.delivery_tag, false)
+                })
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
         })
         .map(|_| ())
 }
@@ -141,6 +150,7 @@ pub fn amqp_bind_queue(
                 )
                 .map(move |_| (channel, queue, queue_name, exchange_name, routing_key))
         })
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
 }
 
 /// Emit an event onto a queue
@@ -181,13 +191,15 @@ pub fn amqp_emit_data(
 
     amqp_bind_queue(channel, queue_name, exchange, routing_key)
         .and_then(move |(channel, _, _, exchange_name, routing_key)| {
-            channel.basic_publish(
-                &exchange_name,
-                &routing_key,
-                payload,
-                BasicPublishOptions::default(),
-                BasicProperties::default(),
-            )
+            channel
+                .basic_publish(
+                    &exchange_name,
+                    &routing_key,
+                    payload,
+                    BasicPublishOptions::default(),
+                    BasicProperties::default(),
+                )
+                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
         })
         .map(|_| {
             trace!("Data emitted",);
