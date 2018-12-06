@@ -61,10 +61,20 @@ where
                     .map(|res| (res.0, Some(res.1)))
                     .unwrap_or_else(|| (T::default(), None));
 
+                trace!(
+                    "Aggregate initial state {:?}, since {:?}",
+                    initial_state,
+                    since
+                );
+
                 pg_read(conn, store_query, since).map(|events: Vec<E>| (events, initial_state))
             },
         )
-        .map(|(events, initial_state)| events.iter().fold(initial_state, T::apply_event))
+        .map(|(events, initial_state)| {
+            trace!("Read {} events to aggregate", events.len());
+
+            events.iter().fold(initial_state, T::apply_event)
+        })
 }
 
 pub fn store_subscribe<ED>(
@@ -96,4 +106,26 @@ where
             handle.spawn(fut);
         },
     )
+}
+
+pub fn store_save<ED>(
+    saver: EventSaver,
+    amqp_channel: Channel<TcpStream>,
+    event: Event<ED>,
+) -> impl Future<Item = (), Error = io::Error>
+where
+    ED: EventData,
+{
+    // TODO: Domain namespace for queue name
+
+    saver.save(event).and_then(|event| {
+        amqp_emit_event(
+            amqp_channel,
+            // TODO: Dynamic queue name with domain namespace
+            "rando_queue".into(),
+            // TODO: Configurable string
+            "test_exchange".into(),
+            &event,
+        )
+    })
 }
