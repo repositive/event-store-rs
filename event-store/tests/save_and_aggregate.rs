@@ -6,7 +6,10 @@ extern crate pretty_env_logger;
 use event_store::*;
 use futures::future;
 use futures::prelude::*;
+use std::io;
 use std::net::SocketAddr;
+use std::time::{Duration, Instant};
+use tokio::timer::Delay;
 use tokio_core::reactor::Core;
 
 #[test]
@@ -27,6 +30,8 @@ fn save_and_aggregate() {
 
     let mut core = Core::new().unwrap();
 
+    let when = Instant::now() + Duration::from_millis(100);
+
     let run = amqp_connect(addr, "test_exchange".into())
         .and_then(move |channel| {
             store_save(
@@ -34,13 +39,16 @@ fn save_and_aggregate() {
                 channel.clone(),
                 Event::from_data(test_event),
             )
-            .map(|_| (channel, event_saver))
-        })
-        .and_then(move |(channel, event_saver)| {
-            store_save(
-                event_saver.clone(),
-                channel.clone(),
-                Event::from_data(test_event_2),
+            .join(
+                Delay::new(when)
+                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+                    .and_then(move |_| {
+                        store_save(
+                            event_saver.clone(),
+                            channel.clone(),
+                            Event::from_data(test_event_2),
+                        )
+                    }),
             )
         })
         .and_then(|_| store_aggregate(conn, String::new()))
