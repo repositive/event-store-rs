@@ -189,5 +189,9 @@ pub fn amqp_emit_data(
                 BasicProperties::default(),
             )
         })
-        .map(|_| ())
+        .map(|_| {
+            trace!("Data emitted",);
+
+            ()
+        })
 }
