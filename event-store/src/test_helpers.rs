@@ -1,5 +1,6 @@
 use crate::aggregator::Aggregator;
 use crate::event::Event;
+use crate::event_handler::EventHandler;
 use crate::pg::PgQuery;
 use postgres::types::ToSql;
 use r2d2::Pool;
@@ -44,6 +45,12 @@ impl Aggregator<TestEvents, String, PgQuery> for TestCounterEntity {
         let params: Vec<Box<ToSql>> = Vec::new();
 
         PgQuery::new("select * from events", params)
+    }
+}
+
+impl EventHandler for TestEvent {
+    fn handle_event(event: Event<Self>) {
+        trace!("Handle event {:?}", event);
     }
 }
 

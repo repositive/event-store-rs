@@ -17,8 +17,8 @@ use uuid::Uuid;
 /// Save an event into PG
 pub fn pg_save<ED>(
     conn: PooledConnection<PostgresConnectionManager>,
-    event: &Event<ED>,
-) -> impl Future<Item = (), Error = io::Error>
+    event: Event<ED>,
+) -> impl Future<Item = Event<ED>, Error = io::Error>
 where
     ED: EventData,
 {
@@ -36,7 +36,7 @@ where
                 &to_value(&event.context).expect("Cannot convert event context"),
             ])
         })
-        .map(|_| future::ok(()))
+        .map(|_| future::ok(event))
         .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could not save")))
 }
 

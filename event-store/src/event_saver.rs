@@ -20,9 +20,9 @@ impl EventSaver {
         Self { pool }
     }
 
-    pub fn save<ED>(&self, event: &Event<ED>) -> impl Future<Item = (), Error = io::Error>
+    pub fn save<ED>(&self, event: Event<ED>) -> impl Future<Item = Event<ED>, Error = io::Error>
     where
-        ED: EventData + 'static,
+        ED: EventData,
     {
         Box::new(pg_save(self.pool.get().unwrap(), event))
     }

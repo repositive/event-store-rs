@@ -11,9 +11,10 @@ use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::timer::Delay;
+use tokio_core::reactor::Core;
 
 #[test]
-fn save_and_emit() {
+fn subscribe_and_receive() {
     pretty_env_logger::init();
 
     let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
@@ -25,28 +26,22 @@ fn save_and_emit() {
 
     let event_saver = EventSaver::new(conn.clone());
 
-    let mut rt = Runtime::new().unwrap();
+    // let mut rt = Runtime::new().unwrap();
+    let mut core = Core::new().unwrap();
+    let handle = core.handle();
 
     let run = amqp_connect(addr, "test_exchange".into())
         .and_then(move |channel| {
             info!("AMQP connected");
 
-            let consumer = amqp_create_consumer(
-                channel.clone(),
-                "rando_queue".into(),
-                "test_exchange".into(),
-                move |ev: Event<TestEvent>| {
-                    debug!("Received event {}", ev.id);
+            let subscription =
+                store_subscribe::<TestEvent>(channel.clone(), event_saver, handle.clone()).map_err(
+                    |e| {
+                        error!("Subscription failed: {}", e);
+                    },
+                );
 
-                    event_saver.save(ev);
-                },
-            );
-
-            tokio::spawn(consumer.map_err(|e| {
-                error!("Consumer error: {}", e);
-
-                ()
-            }));
+            handle.spawn(subscription);
 
             amqp_emit_event(
                 channel.clone(),
@@ -65,5 +60,6 @@ fn save_and_emit() {
             ()
         });
 
-    rt.block_on(run).unwrap();
+    // rt.block_on(run).unwrap();
+    core.run(run).unwrap();
 }
