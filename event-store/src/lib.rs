@@ -84,12 +84,14 @@ where
         "rando_queue".into(),
         "test_exchange".into(),
         move |ev: Event<ED>| {
+            let _saver = saver.clone();
+
             let fut = saver
                 .save(ev)
                 .and_then(|ev| {
                     trace!("Handle event ID {}", ev.id);
 
-                    ED::handle_event(ev);
+                    ED::handle_event(ev, _saver);
 
                     future::ok(())
                 })
