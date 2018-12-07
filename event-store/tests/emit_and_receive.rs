@@ -1,11 +1,7 @@
-#[macro_use]
-extern crate log;
-extern crate event_store;
-extern crate pretty_env_logger;
-
 use event_store::Event;
 use event_store::*;
 use futures::future::Future;
+use log::{debug, error, info, trace};
 use std::io;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};

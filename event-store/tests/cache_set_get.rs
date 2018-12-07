@@ -1,10 +1,6 @@
-#[macro_use]
-extern crate log;
-extern crate event_store;
-extern crate pretty_env_logger;
-
 use event_store::*;
 use futures::future::Future;
+use log::trace;
 use tokio::runtime::Runtime;
 
 #[test]

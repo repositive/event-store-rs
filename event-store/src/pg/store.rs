@@ -6,11 +6,11 @@ use event_store_derive_internals::Events;
 use fallible_iterator::FallibleIterator;
 use futures::future;
 use futures::Future;
+use log::debug;
 use r2d2::{self, PooledConnection};
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::PostgresConnectionManager;
-use serde_json::to_value;
-use serde_json::{from_value, Value as JsonValue};
+use serde_json::{from_value, json, to_value, Value as JsonValue};
 use std::io;
 use uuid::Uuid;
 
