@@ -32,15 +32,6 @@ services:
     links:
       - redis
 
-  integration_setup:
-    image: postgres:11-alpine
-    command: psql -h postgres -U postgres -d eventstorerust -f /opt/integration-tests.sql
-    volumes:
-      - ".:/opt"
-    depends_on:
-      - postgres
-      - rabbit
-
   adminer:
     image: adminer
     ports:
