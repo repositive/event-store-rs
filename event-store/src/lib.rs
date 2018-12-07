@@ -1,12 +1,3 @@
-#[macro_use]
-extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate event_store_derive;
-#[macro_use]
-extern crate log;
-
 pub mod aggregator;
 pub mod amqp;
 pub mod event;
@@ -23,6 +14,7 @@ use event_store_derive_internals::Events;
 use futures::future;
 use futures::prelude::*;
 use lapin_futures::channel::Channel;
+use log::{debug, trace};
 use r2d2::PooledConnection;
 use r2d2_postgres::PostgresConnectionManager;
 use std::io;

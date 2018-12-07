@@ -1,6 +1,7 @@
 use crate::event_context::EventContext;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
+use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Event with `EventData`, `EventContext` and a `Uuid` ID

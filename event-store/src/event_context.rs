@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use serde_derive::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 /// Event context
