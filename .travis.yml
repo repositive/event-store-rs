@@ -19,15 +19,11 @@ before_install:
   - docker-compose up -d rabbit
   - docker-compose up -d postgres
   - docker-compose up -d redis
-  - rustup toolchain add nightly || true
-  - rustup self update
-  - rustup component add rustfmt-preview --toolchain nightly
+  - rustup component add rustfmt
   - docker-compose run integration_setup
-  - cargo +nightly fmt --version || true
 
 script:
-  - cargo +nightly fmt --all -- --check
-  - cargo build --all --release
+  - cargo fmt --all -- --check
   - cargo test --all --release
   - cargo bench --no-run
 
