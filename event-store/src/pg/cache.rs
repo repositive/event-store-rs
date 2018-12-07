@@ -1,6 +1,7 @@
 use chrono::prelude::*;
 use futures::future;
 use futures::Future;
+use log::{debug, trace};
 use r2d2::{self, PooledConnection};
 use r2d2_postgres::PostgresConnectionManager;
 use serde::de::DeserializeOwned;

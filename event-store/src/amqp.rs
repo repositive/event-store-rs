@@ -1,6 +1,5 @@
 use crate::event::Event;
 use event_store_derive_internals::EventData;
-use futures::future;
 use futures::future::IntoFuture;
 use futures::stream::Stream;
 use futures::Future;
@@ -11,13 +10,11 @@ use lapin_futures::channel::{
 use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
-use serde::Serialize;
-use std::collections::HashSet;
-use std::io::{self, ErrorKind};
+use log::{debug, info, trace};
+use std::io;
 use std::net::SocketAddr;
 use std::str;
 use tokio::net::TcpStream;
-use tokio_core::reactor::Core;
 
 /// Connect to AMQP
 pub fn amqp_connect(

@@ -2,9 +2,12 @@ use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::pg::PgQuery;
+use event_store_derive::*;
+use log::trace;
 use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use serde_derive::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Set of all events in the domain
