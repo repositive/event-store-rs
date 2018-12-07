@@ -1,6 +1,7 @@
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
+use crate::event_saver::EventSaver;
 use crate::pg::PgQuery;
 use event_store_derive::*;
 use log::trace;
@@ -52,7 +53,7 @@ impl Aggregator<TestEvents, String, PgQuery> for TestCounterEntity {
 }
 
 impl EventHandler for TestEvent {
-    fn handle_event(event: Event<Self>) {
+    fn handle_event(event: Event<Self>, saver: EventSaver) {
         trace!("Handle event {:?}", event);
     }
 }
