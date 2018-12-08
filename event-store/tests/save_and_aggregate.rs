@@ -1,9 +1,8 @@
 use event_store::*;
 use futures::future;
 use futures::prelude::*;
-use log::{error, info, trace};
+use log::{info, trace};
 use std::io;
-use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::timer::Delay;
 use tokio_core::reactor::Core;
@@ -17,46 +16,32 @@ fn save_and_aggregate() {
 
     trace!("Save and aggregate test");
 
-    let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
     let pool = pg_create_random_db();
-
-    let conn = pool.get().unwrap();
-
-    let event_saver = EventSaver::new(pool.clone());
 
     let mut core = Core::new().unwrap();
 
     let when = Instant::now() + Duration::from_millis(100);
 
-    let run = amqp_connect(addr, "test_exchange".into())
-        .and_then(move |channel| {
-            store_save(
-                event_saver.clone(),
-                channel.clone(),
-                Event::from_data(test_event),
-            )
-            .join(
-                Delay::new(when)
-                    .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                    .and_then(move |_| {
-                        store_save(
-                            event_saver.clone(),
-                            channel.clone(),
-                            Event::from_data(test_event_2),
-                        )
-                    }),
-            )
+    let run = Store::new("store_namespace".into(), pool)
+        .and_then(|store| {
+            let save_again = store.save(Event::from_data(test_event_2));
+
+            store
+                .save(Event::from_data(test_event))
+                .join(
+                    // FIXME: Due to internal issues with lapin_futures, it's not currently possible to
+                    // save two events at the same time, hence the delay.
+                    Delay::new(when)
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+                        .and_then(|_| save_again),
+                )
+                .map(|_| store)
         })
-        .and_then(|_| store_aggregate(conn, String::new()))
+        .and_then(|store| store.aggregate(String::new()))
         .and_then(|aggregate: TestCounterEntity| {
             info!("Aggregate result {:?}", aggregate);
 
             future::ok(())
-        })
-        .map_err(|e| {
-            error!("Run error: {}", e);
-
-            ()
         });
 
     core.run(run).unwrap();

@@ -1,9 +1,8 @@
 use event_store::Event;
 use event_store::*;
 use futures::future::Future;
-use log::{debug, error, info, trace};
+use log::trace;
 use std::io;
-use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::timer::Delay;
@@ -12,53 +11,20 @@ use tokio::timer::Delay;
 fn save_and_emit() {
     pretty_env_logger::init();
 
-    let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
     let test_event = TestEvent { num: 100 };
 
     trace!("Save and emit test");
 
-    let conn = pg_create_random_db();
-
-    let event_saver = EventSaver::new(conn.clone());
+    let pool = pg_create_random_db();
 
     let mut rt = Runtime::new().unwrap();
 
-    let run = amqp_connect(addr, "test_exchange".into())
-        .and_then(move |channel| {
-            info!("AMQP connected");
-
-            let consumer = amqp_create_consumer(
-                channel.clone(),
-                "rando_queue".into(),
-                "test_exchange".into(),
-                move |ev: Event<TestEvent>| {
-                    debug!("Received event {}", ev.id);
-
-                    event_saver.save(ev);
-                },
-            );
-
-            tokio::spawn(consumer.map_err(|e| {
-                error!("Consumer error: {}", e);
-
-                ()
-            }));
-
-            amqp_emit_event(
-                channel.clone(),
-                "rando_queue".into(),
-                "test_exchange".into(),
-                &Event::from_data(test_event),
-            )
-        })
+    let run = Store::new("store_namespace".into(), pool)
+        .and_then(|store| store.subscribe::<TestEvent>().map(|_| store))
+        .and_then(|store| store.save(Event::from_data(test_event)).map(|_| store))
         .and_then(|_| {
             Delay::new(Instant::now() + Duration::from_millis(100))
                 .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
-        })
-        .map_err(|e| {
-            error!("Run error: {}", e);
-
-            ()
         });
 
     rt.block_on(run).unwrap();
