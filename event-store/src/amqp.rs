@@ -155,8 +155,8 @@ pub fn amqp_emit_event<ED>(
     channel: Channel<TcpStream>,
     queue_name: String,
     exchange: String,
-    event: &Event<ED>,
-) -> impl Future<Item = (), Error = io::Error>
+    event: Event<ED>,
+) -> impl Future<Item = (Event<ED>, Channel<TcpStream>), Error = io::Error>
 where
     ED: EventData,
 {
@@ -171,6 +171,7 @@ where
     info!("Emitting event {} onto exchange {}", event_name, exchange);
 
     amqp_emit_data(channel, queue_name, exchange, event_name, payload)
+        .map(|channel| (event, channel))
 }
 
 /// Emit an event onto a queue
@@ -180,7 +181,7 @@ pub fn amqp_emit_data(
     exchange: String,
     routing_key: String,
     payload: Vec<u8>,
-) -> impl Future<Item = (), Error = io::Error> {
+) -> impl Future<Item = Channel<TcpStream>, Error = io::Error> {
     debug!(
         "Emitting payload through routing key {} onto exchange {}",
         routing_key, exchange
@@ -197,10 +198,11 @@ pub fn amqp_emit_data(
                     BasicProperties::default(),
                 )
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+                .map(|_| channel)
         })
-        .map(|_| {
+        .map(|channel| {
             trace!("Data emitted",);
 
-            ()
+            channel
         })
 }
