@@ -104,7 +104,7 @@ impl Store {
 
     pub fn subscribe<ED>(&self) -> impl Future<Item = (), Error = io::Error>
     where
-        ED: EventData + EventHandler + 'static,
+        ED: EventHandler + 'static,
     {
         // TODO: Dedupe this
         let queue_name = format!(
