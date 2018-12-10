@@ -2,6 +2,7 @@ use crate::aggregator::Aggregator;
 use crate::amqp::*;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
+use crate::event_replay::EventReplayRequested;
 use crate::pg::*;
 use crate::store_query::StoreQuery;
 use event_store_derive_internals::EventData;
@@ -38,14 +39,14 @@ impl Store {
     ) -> impl Future<Item = Self, Error = io::Error> {
         let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
-        // TODO: Subscribe to event replay requested events
-
         // TODO: Pass in an AMQP adapter inside a promise instead of doing this here
-        amqp_connect(addr, "test_exchange".into()).map(|channel| Self {
-            channel,
-            store_namespace,
-            pool,
-        })
+        amqp_connect(addr, "test_exchange".into())
+            .map(|channel| Self {
+                channel,
+                store_namespace,
+                pool,
+            })
+            .and_then(|store| store.subscribe::<EventReplayRequested>().map(|_| store))
     }
 
     pub fn aggregate<T, QA, E>(&self, query_args: QA) -> impl Future<Item = T, Error = io::Error>
