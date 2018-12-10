@@ -4,8 +4,8 @@ use futures::prelude::*;
 use log::{info, trace};
 use std::io;
 use std::time::{Duration, Instant};
+use tokio::runtime::Runtime;
 use tokio::timer::Delay;
-use tokio_core::reactor::Core;
 
 #[test]
 fn save_and_aggregate() {
@@ -18,19 +18,19 @@ fn save_and_aggregate() {
 
     let pool = pg_create_random_db();
 
-    let mut core = Core::new().unwrap();
+    let mut rt = Runtime::new().unwrap();
 
     let when = Instant::now() + Duration::from_millis(100);
 
     let run = Store::new("store_namespace".into(), pool)
-        .and_then(|store| {
+        .and_then(move |store| {
             let save_again = store.save(Event::from_data(test_event_2));
 
             store
                 .save(Event::from_data(test_event))
                 .join(
-                    // FIXME: Due to internal issues with lapin_futures, it's not currently possible to
-                    // save two events at the same time, hence the delay.
+                    // FIXME: Due to internal issues with lapin_futures, it's not currently possible
+                    // to save two events at the same time, hence the delay.
                     Delay::new(when)
                         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
                         .and_then(|_| save_again),
@@ -41,8 +41,10 @@ fn save_and_aggregate() {
         .and_then(|aggregate: TestCounterEntity| {
             info!("Aggregate result {:?}", aggregate);
 
-            future::ok(())
+            future::ok(aggregate)
         });
 
-    core.run(run).unwrap();
+    let result = rt.block_on(run).unwrap();
+
+    assert_eq!(result, TestCounterEntity { counter: 300i32 });
 }
