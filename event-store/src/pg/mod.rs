@@ -16,12 +16,12 @@ pub struct PgQuery {
     pub query: String,
 
     /// Arguments to use for the query
-    pub args: Vec<Box<ToSql>>,
+    pub args: Vec<Box<ToSql + Send>>,
 }
 
 impl PgQuery {
     /// Create a new query from a query string and arguments
-    pub fn new(query: &str, args: Vec<Box<ToSql>>) -> Self {
+    pub fn new(query: &str, args: Vec<Box<ToSql + Send>>) -> Self {
         Self {
             query: query.into(),
             args,
