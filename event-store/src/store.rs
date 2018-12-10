@@ -5,9 +5,11 @@ use crate::event_handler::EventHandler;
 use crate::event_replay::EventReplayRequested;
 use crate::pg::*;
 use crate::store_query::StoreQuery;
+use chrono::naive::NaiveDateTime;
+use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
-use futures::{future, Future};
+use futures::Future;
 use lapin_futures::channel::Channel;
 use log::{error, trace};
 use r2d2::Pool;
@@ -102,17 +104,20 @@ impl Store {
         ED: EventHandler + 'static,
     {
         let queue_name = self.event_queue_name::<ED>();
+        let queue_name_2 = queue_name.clone();
 
-        let _self = self.clone();
+        let inner_self = self.clone();
+        let inner_channel = self.channel.clone();
+        let inner_channel_2 = inner_channel.clone();
 
         let consumer = amqp_create_consumer(
-            self.channel.clone(),
+            inner_channel,
             queue_name,
             "test_exchange".into(),
             move |event: Event<ED>| {
                 // TODO: Save event in this closure somewhere
 
-                ED::handle_event(event, &_self);
+                ED::handle_event(event, &inner_self);
             },
         );
 
@@ -122,9 +127,21 @@ impl Store {
             ()
         }));
 
-        // TODO: Send an event replay requested event
-
-        future::ok(())
+        pg_last_event::<ED>(self.pool.get().unwrap())
+            .map(|last_event| {
+                last_event.map(|ev| ev.context.time).unwrap_or_else(|| {
+                    DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+                })
+            })
+            .and_then(move |since| {
+                amqp_emit_event(
+                    inner_channel_2,
+                    queue_name_2,
+                    "test_exchange".into(),
+                    EventReplayRequested::from_event::<ED>(since),
+                )
+            })
+            .map(|_| ())
     }
 
     fn event_queue_name<ED>(&self) -> String
