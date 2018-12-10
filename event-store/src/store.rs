@@ -87,13 +87,7 @@ impl Store {
     where
         ED: EventData,
     {
-        // TODO: Dedupe this
-        let queue_name = format!(
-            "{}-{}.{}",
-            self.store_namespace,
-            ED::event_namespace(),
-            ED::event_type()
-        );
+        let queue_name = self.event_queue_name::<ED>();
 
         let _channel = self.channel.clone();
 
@@ -106,13 +100,7 @@ impl Store {
     where
         ED: EventHandler + 'static,
     {
-        // TODO: Dedupe this
-        let queue_name = format!(
-            "{}-{}.{}",
-            self.store_namespace,
-            ED::event_namespace(),
-            ED::event_type()
-        );
+        let queue_name = self.event_queue_name::<ED>();
 
         let _self = self.clone();
 
@@ -136,5 +124,17 @@ impl Store {
         // TODO: Send an event replay requested event
 
         future::ok(())
+    }
+
+    fn event_queue_name<ED>(&self) -> String
+    where
+        ED: EventData,
+    {
+        format!(
+            "{}-{}.{}",
+            self.store_namespace,
+            ED::event_namespace(),
+            ED::event_type()
+        )
     }
 }
