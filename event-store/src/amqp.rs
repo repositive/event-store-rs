@@ -77,18 +77,21 @@ where
     let event_name = format!("{}.{}", event_namespace, event_type);
 
     info!(
-        "Creating consumer for event {} on exchange {}",
-        event_name, exchange
+        "Creating consumer for event {} on queue {} on exchange {}",
+        event_name, queue_name, exchange
     );
 
     amqp_bind_queue(channel, queue_name, exchange, event_name)
-        .and_then(move |(channel, queue, _, exchange, _)| {
-            info!("Create consumer on exchange {}", exchange);
+        .and_then(move |(channel, queue, _, exchange, consumer_tag)| {
+            info!(
+                "Create consumer on exchange {} with consumer tag {}",
+                exchange, consumer_tag
+            );
 
             channel
                 .basic_consume(
                     &queue,
-                    &exchange,
+                    &consumer_tag,
                     BasicConsumeOptions::default(),
                     FieldTable::new(),
                 )
