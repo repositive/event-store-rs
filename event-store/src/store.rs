@@ -1,27 +1,20 @@
 use crate::aggregator::Aggregator;
 use crate::amqp::*;
 use crate::event::Event;
-use crate::event_handler::EventHandler;
-use crate::event_replay::EventReplayRequested;
 use crate::pg::*;
 use crate::store_query::StoreQuery;
-use chrono::naive::NaiveDateTime;
-use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use futures::Future;
 use lapin_futures::channel::Channel;
-use log::{debug, error, trace};
+use log::{debug, trace};
 use r2d2::Pool;
 use r2d2::PooledConnection;
 use r2d2_postgres::PostgresConnectionManager;
 use std::fmt;
 use std::fmt::Debug;
 use std::io;
-use std::net::SocketAddr;
-use std::time::{Duration, Instant};
 use tokio::net::tcp::TcpStream;
-use tokio::timer::Delay;
 
 #[derive(Clone)]
 pub struct Store {
@@ -40,29 +33,13 @@ impl Store {
     pub fn new(
         store_namespace: String,
         pool: Pool<PostgresConnectionManager>,
-    ) -> impl Future<Item = Self, Error = io::Error> {
-        let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
-
-        // TODO: Pass in an AMQP adapter inside a promise instead of doing this here
-        amqp_connect(addr, "test_exchange".into())
-            .map(|channel| Self {
-                channel,
-                store_namespace,
-                pool,
-            })
-            .and_then(|store| {
-                debug!("Begin listening for event replay requests");
-
-                // TODO: Change to use code that doesn't emit a replay request when subscribing
-                store.subscribe::<EventReplayRequested>().map(|_| store)
-            })
-            // FIXME: Remove this delay
-            .and_then(|store| {
-                // Give the replay consumer some time to settle
-                Delay::new(Instant::now() + Duration::from_millis(100))
-                    .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
-                    .map(|_| store)
-            })
+        channel: Channel<TcpStream>,
+    ) -> Self {
+        Self {
+            store_namespace,
+            pool,
+            channel,
+        }
     }
 
     pub fn aggregate<T, QA, E>(&self, query_args: QA) -> impl Future<Item = T, Error = io::Error>
@@ -124,74 +101,22 @@ impl Store {
             .map(|_| ())
     }
 
-    pub fn subscribe<ED>(&self) -> impl Future<Item = (), Error = io::Error>
+    pub fn last_event<ED>(&self) -> impl Future<Item = Option<Event<ED>>, Error = io::Error>
     where
-        ED: EventHandler + Debug + 'static,
+        ED: EventData,
     {
-        let queue_name = self.namespaced_event_queue_name::<ED>();
-        let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
-
-        let inner_self = self.clone();
-        let inner_channel = self.channel.clone();
-        let inner_channel_2 = inner_channel.clone();
-
-        debug!("Begin listening for events on queue {}", queue_name);
-
-        let consumer = amqp_create_consumer(
-            inner_channel,
-            queue_name,
-            "test_exchange".into(),
-            move |event: Event<ED>| {
-                // TODO: Save event in this closure somewhere
-
-                ED::handle_event(event, &inner_self);
-            },
-        );
-
-        tokio::spawn(consumer.map_err(|e| {
-            error!("Consumer error: {}", e);
-
-            ()
-        }));
-
         pg_last_event::<ED>(self.pool.get().unwrap())
-            .map(|last_event| {
-                trace!("Fetched last event {:?}", last_event);
-
-                last_event.map(|ev| ev.context.time).unwrap_or_else(|| {
-                    DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
-                })
-            })
-            .and_then(move |since| {
-                trace!("Emit replay request for events since {:?}", since);
-
-                amqp_emit_event(
-                    inner_channel_2,
-                    replay_queue_name,
-                    "test_exchange".into(),
-                    EventReplayRequested::from_event::<ED>(since),
-                )
-            })
-            // FIXME: Remove this delay
-            .and_then(|_| {
-                // Give the consumer some time to settle
-                Delay::new(Instant::now() + Duration::from_millis(100))
-                    .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
-                    .map(|_| ())
-            })
     }
 
     fn namespaced_event_queue_name<ED>(&self) -> String
     where
         ED: EventData,
     {
-        format!("{}-{}", self.store_namespace, self.event_queue_name::<ED>())
-    }
-
-    fn event_queue_name<ED>(&self) -> String
-    where
-        ED: EventData,
-    {
-        format!("{}.{}", ED::event_namespace(), ED::event_type())
+        format!(
+            "{}-{}.{}",
+            self.store_namespace,
+            ED::event_namespace(),
+            ED::event_type()
+        )
     }
 }

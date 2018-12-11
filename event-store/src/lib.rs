@@ -7,6 +7,7 @@ pub mod event_replay;
 pub mod pg;
 pub mod store;
 pub mod store_query;
+pub mod subscribable_store;
 #[doc(hidden)]
 pub mod test_helpers;
 
@@ -18,5 +19,6 @@ pub use crate::event_replay::*;
 pub use crate::pg::*;
 pub use crate::store::*;
 pub use crate::store_query::*;
+pub use crate::subscribable_store::*;
 #[doc(hidden)]
 pub use crate::test_helpers::*;
