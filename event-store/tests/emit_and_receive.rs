@@ -19,7 +19,7 @@ fn save_and_emit() {
 
     let mut rt = Runtime::new().unwrap();
 
-    let run = Store::new("store_namespace".into(), pool)
+    let run = SubscribableStore::new("store_namespace".into(), pool)
         .and_then(|store| {
             debug!("Store created");
 
