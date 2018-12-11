@@ -19,7 +19,9 @@ use std::fmt;
 use std::fmt::Debug;
 use std::io;
 use std::net::SocketAddr;
+use std::time::{Duration, Instant};
 use tokio::net::tcp::TcpStream;
+use tokio::timer::Delay;
 
 #[derive(Clone)]
 pub struct Store {
@@ -51,7 +53,15 @@ impl Store {
             .and_then(|store| {
                 debug!("Begin listening for event replay requests");
 
+                // TODO: Change to use code that doesn't emit a replay request when subscribing
                 store.subscribe::<EventReplayRequested>().map(|_| store)
+            })
+            // FIXME: Remove this delay
+            .and_then(|store| {
+                // Give the replay consumer some time to settle
+                Delay::new(Instant::now() + Duration::from_millis(100))
+                    .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
+                    .map(|_| store)
             })
     }
 
@@ -105,7 +115,7 @@ impl Store {
     {
         debug!("Save event {:?}", event);
 
-        let queue_name = self.event_queue_name::<ED>();
+        let queue_name = self.namespaced_event_queue_name::<ED>();
 
         let _channel = self.channel.clone();
 
@@ -118,8 +128,8 @@ impl Store {
     where
         ED: EventHandler + Debug + 'static,
     {
-        let queue_name = self.event_queue_name::<ED>();
-        let queue_name_2 = queue_name.clone();
+        let queue_name = self.namespaced_event_queue_name::<ED>();
+        let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
 
         let inner_self = self.clone();
         let inner_channel = self.channel.clone();
@@ -157,23 +167,31 @@ impl Store {
 
                 amqp_emit_event(
                     inner_channel_2,
-                    queue_name_2,
+                    replay_queue_name,
                     "test_exchange".into(),
                     EventReplayRequested::from_event::<ED>(since),
                 )
             })
-            .map(|_| ())
+            // FIXME: Remove this delay
+            .and_then(|_| {
+                // Give the consumer some time to settle
+                Delay::new(Instant::now() + Duration::from_millis(100))
+                    .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
+                    .map(|_| ())
+            })
+    }
+
+    fn namespaced_event_queue_name<ED>(&self) -> String
+    where
+        ED: EventData,
+    {
+        format!("{}-{}", self.store_namespace, self.event_queue_name::<ED>())
     }
 
     fn event_queue_name<ED>(&self) -> String
     where
         ED: EventData,
     {
-        format!(
-            "{}-{}.{}",
-            self.store_namespace,
-            ED::event_namespace(),
-            ED::event_type()
-        )
+        format!("{}.{}", ED::event_namespace(), ED::event_type())
     }
 }

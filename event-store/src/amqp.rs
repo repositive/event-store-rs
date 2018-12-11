@@ -82,7 +82,9 @@ where
     );
 
     amqp_bind_queue(channel, queue_name, exchange, event_name)
-        .and_then(move |(channel, queue, _, exchange, consumer_tag)| {
+        .and_then(move |(channel, queue, _, exchange, event_name)| {
+            let consumer_tag = format!("consumer-{}-{}", exchange, event_name);
+
             info!(
                 "Create consumer on exchange {} with consumer tag {}",
                 exchange, consumer_tag
@@ -138,7 +140,10 @@ pub fn amqp_bind_queue(
         )
         .map(|queue| (queue, channel))
         .and_then(move |(queue, channel)| {
-            debug!("Queue {} declared", queue_name);
+            debug!(
+                "Queue {} declared, binding with routing key {}",
+                queue_name, routing_key
+            );
 
             channel
                 .queue_bind(
@@ -171,7 +176,10 @@ where
     let event_type = ED::event_type();
     let event_name = format!("{}.{}", event_namespace, event_type);
 
-    info!("Emitting event {} onto exchange {}", event_name, exchange);
+    info!(
+        "Emitting event {} onto exchange {} through queue {}",
+        event_name, exchange, queue_name
+    );
 
     amqp_emit_data(channel, queue_name, exchange, event_name, payload)
         .map(|channel| (event, channel))
