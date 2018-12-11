@@ -22,7 +22,7 @@ fn save_and_aggregate() {
 
     let when = Instant::now() + Duration::from_millis(100);
 
-    let run = Store::new("store_namespace".into(), pool)
+    let run = SubscribableStore::new("store_namespace".into(), pool)
         .and_then(move |store| {
             let save_again = store.save(Event::from_data(test_event_2));
 
