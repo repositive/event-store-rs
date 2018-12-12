@@ -74,16 +74,26 @@ impl SubscribableStore {
         self.inner_store.aggregate(query_args)
     }
 
-    pub fn save<ED>(&self, event: Event<ED>) -> impl Future<Item = (), Error = io::Error>
+    pub fn save<ED>(&self, event: Event<ED>) -> impl Future<Item = Event<ED>, Error = io::Error>
     where
         ED: EventData + Debug,
     {
         self.inner_store.save(event)
     }
 
+    pub fn save_no_emit<ED>(
+        &self,
+        event: Event<ED>,
+    ) -> impl Future<Item = Event<ED>, Error = io::Error>
+    where
+        ED: EventData + Debug,
+    {
+        self.inner_store.save_no_emit(event)
+    }
+
     fn subscribe_no_replay<ED>(&self) -> impl Future<Item = (), Error = io::Error>
     where
-        ED: EventHandler + Debug + 'static,
+        ED: EventHandler + Debug + Send + 'static,
     {
         let queue_name = self.namespaced_event_queue_name::<ED>();
         let inner_store = self.inner_store.clone();
@@ -112,7 +122,7 @@ impl SubscribableStore {
 
     pub fn subscribe<ED>(&self) -> impl Future<Item = (), Error = io::Error>
     where
-        ED: EventHandler + Debug + 'static,
+        ED: EventHandler + Debug + Send + 'static,
     {
         let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
         let inner_channel = self.channel.clone();
