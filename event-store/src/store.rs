@@ -86,7 +86,7 @@ impl Store {
             })
     }
 
-    pub fn save<ED>(&self, event: Event<ED>) -> impl Future<Item = (), Error = io::Error>
+    pub fn save<ED>(&self, event: Event<ED>) -> impl Future<Item = Event<ED>, Error = io::Error>
     where
         ED: EventData + Debug,
     {
@@ -96,9 +96,21 @@ impl Store {
 
         let _channel = self.channel.clone();
 
-        pg_save(self.pool.get().unwrap(), event)
+        self.save_no_emit(event)
             .and_then(|event| amqp_emit_event(_channel, queue_name, "test_exchange".into(), event))
-            .map(|_| ())
+            .map(|(event, _channel)| event)
+    }
+
+    pub fn save_no_emit<ED>(
+        &self,
+        event: Event<ED>,
+    ) -> impl Future<Item = Event<ED>, Error = io::Error>
+    where
+        ED: EventData + Debug,
+    {
+        debug!("Save event {:?}", event);
+
+        pg_save(self.pool.get().unwrap(), event)
     }
 
     pub fn last_event<ED>(&self) -> impl Future<Item = Option<Event<ED>>, Error = io::Error>
