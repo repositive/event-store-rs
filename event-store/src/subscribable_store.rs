@@ -9,7 +9,7 @@ use chrono::naive::NaiveDateTime;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
-use futures::Future;
+use futures::{future, Future};
 use lapin_futures::channel::Channel;
 use log::{debug, error, trace};
 use r2d2::Pool;
@@ -52,8 +52,9 @@ impl SubscribableStore {
             .and_then(|store| {
                 debug!("Begin listening for event replay requests");
 
-                // TODO: Change to use code that doesn't emit a replay request when subscribing
-                store.subscribe::<EventReplayRequested>().map(|_| store)
+                store
+                    .subscribe_no_replay::<EventReplayRequested>()
+                    .map(|_| store)
             })
             // FIXME: Remove this delay
             .and_then(|store| {
@@ -80,27 +81,23 @@ impl SubscribableStore {
         self.inner_store.save(event)
     }
 
-    pub fn subscribe<ED>(&self) -> impl Future<Item = (), Error = io::Error>
+    fn subscribe_no_replay<ED>(&self) -> impl Future<Item = (), Error = io::Error>
     where
         ED: EventHandler + Debug + 'static,
     {
         let queue_name = self.namespaced_event_queue_name::<ED>();
-        let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
-
-        let inner_self = self.inner_store.clone();
-        let inner_channel = self.channel.clone();
-        let inner_channel_2 = inner_channel.clone();
+        let inner_store = self.inner_store.clone();
 
         debug!("Begin listening for events on queue {}", queue_name);
 
         let consumer = amqp_create_consumer(
-            inner_channel,
+            self.channel.clone(),
             queue_name,
             "test_exchange".into(),
             move |event: Event<ED>| {
                 // TODO: Save event in this closure somewhere
 
-                ED::handle_event(event, &inner_self);
+                ED::handle_event(event, &inner_store);
             },
         );
 
@@ -109,6 +106,18 @@ impl SubscribableStore {
 
             ()
         }));
+
+        future::ok(())
+    }
+
+    pub fn subscribe<ED>(&self) -> impl Future<Item = (), Error = io::Error>
+    where
+        ED: EventHandler + Debug + 'static,
+    {
+        let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
+        let inner_channel = self.channel.clone();
+
+        self.subscribe_no_replay::<ED>();
 
         self.inner_store
             .last_event::<ED>()
@@ -123,7 +132,7 @@ impl SubscribableStore {
                 trace!("Emit replay request for events since {:?}", since);
 
                 amqp_emit_event(
-                    inner_channel_2,
+                    inner_channel,
                     replay_queue_name,
                     "test_exchange".into(),
                     EventReplayRequested::from_event::<ED>(since),
