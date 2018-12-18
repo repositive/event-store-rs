@@ -9,7 +9,8 @@ sudo: required
 matrix:
   fast_finish: true
   allow_failures:
-    - rust: nightly
+    - rust: stable
+    - rust: beta
 
 services:
   - docker
