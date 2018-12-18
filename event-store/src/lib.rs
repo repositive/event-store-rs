@@ -1,3 +1,15 @@
+// enable the await! macro, async support, and the new std::Futures api.
+#![feature(await_macro, async_await, futures_api)]
+// only needed if we want to manually write a method to go forward from 0.1 to 0.3 future,
+// or manually implement a std future (it provides Pin and Unpin):
+#![feature(pin)]
+// only needed to manually implement a std future:
+#![feature(arbitrary_self_types)]
+
+// Bring tokio's shimmed await!() into scope
+#[macro_use]
+extern crate tokio;
+
 pub mod aggregator;
 pub mod amqp;
 pub mod event;
