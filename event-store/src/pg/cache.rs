@@ -1,6 +1,4 @@
 use chrono::prelude::*;
-use futures::future;
-use futures::Future;
 use log::{debug, trace};
 use r2d2::{self, PooledConnection};
 use r2d2_postgres::PostgresConnectionManager;
@@ -9,17 +7,18 @@ use serde::Serialize;
 use serde_json::from_value;
 use serde_json::to_value;
 use std::fmt::Debug;
+use std::future::Future;
 use std::io;
 
 /// Result of a cache search
 pub type CacheResult<T> = (T, DateTime<Utc>);
 
 /// Save an event into PG
-pub fn pg_cache_save<V>(
+pub async fn pg_cache_save<V>(
     conn: PooledConnection<PostgresConnectionManager>,
     key: String,
     value: &V,
-) -> impl Future<Item = (), Error = io::Error>
+) -> Result<(), io::Error>
 where
     V: Serialize + Debug,
 {
@@ -32,21 +31,17 @@ where
                 DO UPDATE SET data = EXCLUDED.data, time = now() RETURNING data"#,
         &[&key, &to_value(value).expect("To value")],
     )
-    .map(|_| future::ok(()))
-    .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could read cache")))
+    .map(|_| ())
+    .map_err(|e| e.into())
+    // .map(|_| future::ok(()))
+    // .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could read cache")))
 }
 
 /// Read a cache item
-pub fn pg_cache_read<T>(
+pub async fn pg_cache_read<T>(
     conn: PooledConnection<PostgresConnectionManager>,
     key: String,
-) -> impl Future<
-    Item = (
-        PooledConnection<PostgresConnectionManager>,
-        Option<CacheResult<T>>,
-    ),
-    Error = io::Error,
->
+) -> Result<Option<CacheResult<T>>, io::Error>
 where
     T: DeserializeOwned + Debug,
 {
@@ -77,7 +72,10 @@ where
 
         trace!("Cache read result {:?}", res);
 
-        future::ok((conn, res))
+        // future::ok((conn, res))
+
+        res
     })
-    .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could read cache")))
+    .map_err(|e| e.into())
+    // .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could read cache")))
 }

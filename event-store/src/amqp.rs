@@ -1,4 +1,5 @@
 use crate::event::Event;
+use crate::forward;
 use event_store_derive_internals::EventData;
 use futures::future::IntoFuture;
 use futures::stream::Stream;
@@ -13,64 +14,95 @@ use lapin_futures::types::FieldTable;
 use log::{debug, info, trace};
 use std::io;
 use std::net::SocketAddr;
+use std::pin::Unpin;
 use std::str;
 use tokio::net::TcpStream;
+use tokio::prelude::*;
 
 /// Connect to AMQP
-pub fn amqp_connect(
+pub async fn amqp_connect(
     uri: SocketAddr,
     exchange: String,
-) -> impl Future<Item = Channel<TcpStream>, Error = io::Error> {
+) -> Result<Channel<TcpStream>, io::Error> {
     let exchange1 = exchange.clone();
 
-    TcpStream::connect(&uri)
-        .and_then(|stream| {
-            Client::connect(stream, ConnectionOptions::default())
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
-        })
-        .and_then(|(client, heartbeat)| {
-            trace!("Start heartbeat");
+    let stream: TcpStream = await!(forward(TcpStream::connect(&uri)))?;
 
-            tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
-                .into_future()
-                .map(|_| client)
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
-        })
-        .and_then(move |client| {
-            trace!("Set up channel");
+    let (client, heartbeat) = await!(forward(Client::connect(
+        stream,
+        ConnectionOptions::default()
+    )))
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    // .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string())));
 
-            client
-                .create_channel()
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
-        })
-        .and_then(move |channel| {
-            trace!("Declare exchange {}", exchange1);
+    tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
+        .into_future()
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"));
 
-            channel
-                .exchange_declare(
-                    &exchange1,
-                    &"topic",
-                    ExchangeDeclareOptions {
-                        durable: true,
-                        ..ExchangeDeclareOptions::default()
-                    },
-                    FieldTable::new(),
-                )
-                .map(|_| channel)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
-        })
+    let channel = await!(forward(client.create_channel()))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+    await!(forward(channel.exchange_declare(
+        &exchange1,
+        &"topic",
+        ExchangeDeclareOptions {
+            durable: true,
+            ..ExchangeDeclareOptions::default()
+        },
+        FieldTable::new(),
+    )))
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()));
+
+    Ok(channel)
+
+    // TcpStream::connect(&uri)
+    //     .and_then(|stream| {
+    //         Client::connect(stream, ConnectionOptions::default())
+    //             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    //     })
+    //     .and_then(|(client, heartbeat)| {
+    //         trace!("Start heartbeat");
+
+    //         tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
+    //             .into_future()
+    //             .map(|_| client)
+    //             .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"))
+    //     })
+    //     .and_then(move |client| {
+    //         trace!("Set up channel");
+
+    //         client
+    //             .create_channel()
+    //             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    //     })
+    //     .and_then(move |channel| {
+    //         trace!("Declare exchange {}", exchange1);
+
+    //         channel
+    //             .exchange_declare(
+    //                 &exchange1,
+    //                 &"topic",
+    //                 ExchangeDeclareOptions {
+    //                     durable: true,
+    //                     ..ExchangeDeclareOptions::default()
+    //                 },
+    //                 FieldTable::new(),
+    //             )
+    //             .map(|_| channel)
+    //             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    //     })
 }
 
 /// Create a consumer for an AMQP queue
-pub fn amqp_create_consumer<H, E>(
+pub async fn amqp_create_consumer<H, E>(
     channel: Channel<TcpStream>,
     queue_name: String,
     exchange: String,
     handler: H,
-) -> impl Future<Item = (), Error = io::Error>
+) -> Result<(), io::Error>
 where
     E: EventData,
-    H: Fn(Event<E>) -> (),
+    H: Fn(Event<E>) -> () + Unpin,
 {
     let event_namespace = E::event_namespace();
     let event_type = E::event_type();
@@ -81,90 +113,119 @@ where
         event_name, queue_name, exchange
     );
 
-    amqp_bind_queue(channel, queue_name, exchange, event_name)
-        .and_then(move |(channel, queue, _, exchange, event_name)| {
-            let consumer_tag = format!("consumer-{}-{}", exchange, event_name);
+    let queue = await!(amqp_bind_queue(
+        &channel,
+        &queue_name,
+        &exchange,
+        &event_name
+    ))?;
 
-            info!(
-                "Create consumer on exchange {} with consumer tag {}",
-                exchange, consumer_tag
-            );
+    let consumer_tag = format!("consumer-{}-{}", exchange, event_name);
 
-            channel
-                .basic_consume(
-                    &queue,
-                    &consumer_tag,
-                    BasicConsumeOptions::default(),
-                    FieldTable::new(),
-                )
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
-                .map(move |stream| (channel, stream))
-        })
-        .and_then(move |(channel, stream)| {
-            info!("Got stream for consumer");
+    info!(
+        "Create consumer on exchange {} with consumer tag {}",
+        exchange, consumer_tag
+    );
 
-            stream
-                .for_each(move |message| {
-                    let payload = str::from_utf8(&message.data).unwrap();
-                    let data: Event<E> = serde_json::from_str(payload).unwrap();
+    let mut stream = await!(forward(
+        channel
+            .basic_consume(
+                &queue,
+                &consumer_tag,
+                BasicConsumeOptions::default(),
+                FieldTable::new(),
+            )
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string())),
+    ))?;
 
-                    trace!("Received message with ID {}: {}", data.id, payload);
+    info!("Got stream for consumer");
 
-                    handler(data);
+    while let Some(Ok(message)) = await!(stream.next()) {
+        let payload = str::from_utf8(&message.data).unwrap();
+        let data: Event<E> = serde_json::from_str(payload).unwrap();
 
-                    channel.basic_ack(message.delivery_tag, false)
-                })
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
-        })
-        .map(|_| ())
+        trace!("Received message with ID {}: {}", data.id, payload);
+
+        handler(data);
+
+        channel.basic_ack(message.delivery_tag, false);
+    }
+
+    // stream
+    //     .for_each(move |message| {
+    //         let payload = str::from_utf8(&message.data).unwrap();
+    //         let data: Event<E> = serde_json::from_str(payload).unwrap();
+
+    //         trace!("Received message with ID {}: {}", data.id, payload);
+
+    //         handler(data);
+
+    //         channel.basic_ack(message.delivery_tag, false)
+    //     })
+    //     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()));
+
+    Ok(())
 }
 
 /// Declare and bind an AMQP queue to an exchange
 // TODO: Pass in/out options struct instead of magic strings
-pub fn amqp_bind_queue(
-    channel: Channel<TcpStream>,
-    queue_name: String,
-    exchange_name: String,
-    routing_key: String,
-) -> impl Future<Item = (Channel<TcpStream>, Queue, String, String, String), Error = io::Error> {
-    channel
-        .queue_declare(
-            &queue_name,
-            QueueDeclareOptions {
-                durable: true,
-                exclusive: false,
-                auto_delete: false,
-                ..QueueDeclareOptions::default()
-            },
-            FieldTable::new(),
-        )
-        .map(|queue| (queue, channel))
-        .and_then(move |(queue, channel)| {
-            debug!(
-                "Queue {} declared, binding with routing key {}",
-                queue_name, routing_key
-            );
+pub async fn amqp_bind_queue<'a>(
+    channel: &'a Channel<TcpStream>,
+    queue_name: &'a String,
+    exchange_name: &'a String,
+    routing_key: &'a String,
+    // ) -> impl Future<Item = (Channel<TcpStream>, Queue, String, String, String), Error = io::Error> {
+) -> Result<Queue, io::Error> {
+    let queue = await!(forward(channel.queue_declare(
+        &queue_name,
+        QueueDeclareOptions {
+            durable: true,
+            exclusive: false,
+            auto_delete: false,
+            ..QueueDeclareOptions::default()
+        },
+        FieldTable::new(),
+    )))
+    .unwrap();
 
-            channel
-                .queue_bind(
-                    &queue_name,
-                    &exchange_name,
-                    &routing_key,
-                    QueueBindOptions::default(),
-                    FieldTable::new(),
-                )
-                .map(move |_| (channel, queue, queue_name, exchange_name, routing_key))
-        })
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    await!(forward(channel.queue_bind(
+        &queue_name,
+        &exchange_name,
+        &routing_key,
+        QueueBindOptions::default(),
+        FieldTable::new(),
+    )));
+
+    Ok(queue)
+
+    // .map(|queue| (queue, channel))
+    // .and_then(move |(queue, channel)| {
+    //     debug!(
+    //         "Queue {} declared, binding with routing key {}",
+    //         queue_name, routing_key
+    //     );
+
+    //     channel
+    //         .queue_bind(
+    //             &queue_name,
+    //             &exchange_name,
+    //             &routing_key,
+    //             QueueBindOptions::default(),
+    //             FieldTable::new(),
+    //         )
+    //         .map(move |_| (channel, queue, queue_name, exchange_name, routing_key))
+    // })
+    // .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
 }
 
 /// Emit an event onto a queue
-pub fn amqp_emit_event<ED>(
+pub async fn amqp_emit_event<ED>(
     channel: Channel<TcpStream>,
     queue_name: String,
     exchange: String,
-    event: Event<ED>,
-) -> impl Future<Item = (Event<ED>, Channel<TcpStream>), Error = io::Error>
+    event: &Event<ED>,
+    // ) -> impl Future<Item = (Event<ED>, Channel<TcpStream>), Error = io::Error>
+) -> Result<(), io::Error>
 where
     ED: EventData,
 {
@@ -181,39 +242,41 @@ where
         event_name, exchange, queue_name
     );
 
-    amqp_emit_data(channel, queue_name, exchange, event_name, payload)
-        .map(|channel| (event, channel))
+    await!(amqp_emit_data(
+        channel, queue_name, exchange, event_name, payload
+    ));
+
+    Ok(())
 }
 
 /// Emit an event onto a queue
-pub fn amqp_emit_data(
+pub async fn amqp_emit_data(
     channel: Channel<TcpStream>,
     queue_name: String,
     exchange: String,
     routing_key: String,
     payload: Vec<u8>,
-) -> impl Future<Item = Channel<TcpStream>, Error = io::Error> {
+    // ) -> impl Future<Item = Channel<TcpStream>, Error = io::Error> {
+) -> Result<(), io::Error> {
     debug!(
         "Emitting payload through routing key {} onto exchange {}",
         routing_key, exchange
     );
 
-    amqp_bind_queue(channel, queue_name, exchange, routing_key)
-        .and_then(move |(channel, _, _, exchange_name, routing_key)| {
-            channel
-                .basic_publish(
-                    &exchange_name,
-                    &routing_key,
-                    payload,
-                    BasicPublishOptions::default(),
-                    BasicProperties::default(),
-                )
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
-                .map(|_| channel)
-        })
-        .map(|channel| {
-            trace!("Data emitted",);
+    await!(amqp_bind_queue(
+        &channel,
+        &queue_name,
+        &exchange,
+        &routing_key
+    ));
 
-            channel
-        })
+    await!(forward(channel.basic_publish(
+        &exchange,
+        &routing_key,
+        payload,
+        BasicPublishOptions::default(),
+        BasicProperties::default(),
+    )));
+
+    Ok(())
 }

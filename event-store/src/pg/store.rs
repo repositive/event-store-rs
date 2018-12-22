@@ -5,21 +5,20 @@ use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use fallible_iterator::FallibleIterator;
-use futures::future;
-use futures::Future;
 use log::debug;
 use r2d2::{self, PooledConnection};
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::PostgresConnectionManager;
 use serde_json::{from_value, json, to_value, Value as JsonValue};
+use std::future::Future;
 use std::io;
 use uuid::Uuid;
 
 /// Save an event into PG
-pub fn pg_save<ED>(
+pub async fn pg_save<ED>(
     conn: PooledConnection<PostgresConnectionManager>,
-    event: Event<ED>,
-) -> impl Future<Item = Event<ED>, Error = io::Error>
+    event: &Event<ED>,
+) -> Result<(), io::Error>
 where
     ED: EventData,
 {
@@ -37,8 +36,9 @@ where
                 &to_value(&event.context).expect("Cannot convert event context"),
             ])
         })
-        .map(|_| future::ok(event))
-        .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could not save")))
+        .map(|_| ())
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, "Could not save"))
+    // .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could not save")))
 }
 
 fn generate_query(initial_query: &PgQuery, since: Option<DateTime<Utc>>) -> String {
@@ -56,11 +56,11 @@ fn generate_query(initial_query: &PgQuery, since: Option<DateTime<Utc>>) -> Stri
 }
 
 /// Read a list of events
-pub fn pg_read<E>(
+pub async fn pg_read<E>(
     conn: PooledConnection<PostgresConnectionManager>,
-    query: PgQuery,
+    query: &PgQuery,
     since: Option<DateTime<Utc>>,
-) -> impl Future<Item = Vec<E>, Error = io::Error>
+) -> Result<Vec<E>, io::Error>
 where
     E: Events,
 {
@@ -105,12 +105,12 @@ where
 
     trans.finish().expect("Could not finish transaction");
 
-    Box::new(future::ok(results))
+    Ok(results)
 }
 
 pub fn pg_last_event<ED>(
     conn: PooledConnection<PostgresConnectionManager>,
-) -> impl Future<Item = Option<Event<ED>>, Error = io::Error>
+) -> Result<Option<Event<ED>>, io::Error>
 where
     ED: EventData,
 {
@@ -133,8 +133,8 @@ where
         let data: ED = from_value(data_json).unwrap();
         let context: EventContext = from_value(context_json).unwrap();
 
-        future::ok(Some(Event { id, data, context }))
+        Ok(Some(Event { id, data, context }))
     } else {
-        future::ok(None)
+        Ok(None)
     }
 }
