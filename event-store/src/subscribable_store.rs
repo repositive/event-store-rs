@@ -1,27 +1,20 @@
-use crate::aggregator::Aggregator;
 use crate::amqp::*;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::event_replay::EventReplayRequested;
-use crate::forward;
-use crate::pg::*;
 use crate::store::Store;
 use chrono::naive::NaiveDateTime;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
-use event_store_derive_internals::Events;
-use futures::{future, Future};
 use lapin_futures::channel::Channel;
-use log::{debug, error, trace};
+use log::{debug, trace};
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
 use std::fmt;
 use std::fmt::Debug;
 use std::io;
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
 use tokio::net::tcp::TcpStream;
-use tokio::timer::Delay;
 
 #[derive(Clone)]
 pub struct SubscribableStore {
@@ -145,7 +138,7 @@ impl SubscribableStore {
             replay_queue_name,
             "test_exchange".into(),
             &replay_event,
-        ));
+        ))?;
 
         // .and_then(move |since| {
         //     trace!("Emit replay request for events since {:?}", since);

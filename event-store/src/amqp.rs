@@ -1,8 +1,6 @@
 use crate::event::Event;
 use crate::forward;
 use event_store_derive_internals::EventData;
-use futures::future::IntoFuture;
-use futures::stream::Stream;
 use futures::Future;
 use lapin_futures::channel::{
     BasicConsumeOptions, BasicProperties, BasicPublishOptions, Channel, ExchangeDeclareOptions,
@@ -35,9 +33,7 @@ pub async fn amqp_connect(
     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
     // .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string())));
 
-    tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)))
-        .into_future()
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "spawn error"));
+    tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)));
 
     let channel = await!(forward(client.create_channel()))
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
@@ -51,7 +47,7 @@ pub async fn amqp_connect(
         },
         FieldTable::new(),
     )))
-    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()));
+    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
     Ok(channel)
 
@@ -188,13 +184,17 @@ pub async fn amqp_bind_queue<'a>(
     )))
     .unwrap();
 
-    await!(forward(channel.queue_bind(
-        &queue_name,
-        &exchange_name,
-        &routing_key,
-        QueueBindOptions::default(),
-        FieldTable::new(),
-    )));
+    await!(forward(
+        channel
+            .queue_bind(
+                &queue_name,
+                &exchange_name,
+                &routing_key,
+                QueueBindOptions::default(),
+                FieldTable::new(),
+            )
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    ))?;
 
     Ok(queue)
 
@@ -244,7 +244,7 @@ where
 
     await!(amqp_emit_data(
         channel, queue_name, exchange, event_name, payload
-    ));
+    ))?;
 
     Ok(())
 }
@@ -268,15 +268,19 @@ pub async fn amqp_emit_data(
         &queue_name,
         &exchange,
         &routing_key
-    ));
+    ))?;
 
-    await!(forward(channel.basic_publish(
-        &exchange,
-        &routing_key,
-        payload,
-        BasicPublishOptions::default(),
-        BasicProperties::default(),
-    )));
+    await!(forward(
+        channel
+            .basic_publish(
+                &exchange,
+                &routing_key,
+                payload,
+                BasicPublishOptions::default(),
+                BasicProperties::default(),
+            )
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    ))?;
 
     Ok(())
 }
