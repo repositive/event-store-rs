@@ -8,11 +8,9 @@ use event_store_derive_internals::Events;
 use lapin_futures::channel::Channel;
 use log::{debug, trace};
 use r2d2::Pool;
-use r2d2::PooledConnection;
 use r2d2_postgres::PostgresConnectionManager;
 use std::fmt;
 use std::fmt::Debug;
-use std::future::Future;
 use std::io;
 use tokio::net::tcp::TcpStream;
 
@@ -89,14 +87,14 @@ impl Store {
 
         let _channel = self.channel.clone();
 
-        await!(self.save_no_emit(&event));
+        await!(self.save_no_emit(&event))?;
 
         await!(amqp_emit_event(
             _channel,
             queue_name,
             "test_exchange".into(),
             event
-        ));
+        ))?;
 
         Ok(())
 
@@ -111,7 +109,7 @@ impl Store {
     {
         debug!("Save event {:?}", event);
 
-        await!(pg_save(self.pool.get().unwrap(), event));
+        await!(pg_save(self.pool.get().unwrap(), event))?;
 
         Ok(())
     }
