@@ -40,7 +40,7 @@ impl Store {
         }
     }
 
-    pub async fn aggregate<'a, T, QA, E>(&'a self, query_args: QA) -> Result<T, io::Error>
+    pub async fn aggregate<'a, T, QA, E>(&'a self, query_args: &'a QA) -> Result<T, io::Error>
     where
         E: Events,
         T: Aggregator<E, QA, PgQuery>,

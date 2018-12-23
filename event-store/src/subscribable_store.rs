@@ -1,11 +1,14 @@
+use crate::aggregator::Aggregator;
 use crate::amqp::*;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::event_replay::EventReplayRequested;
+use crate::pg::PgQuery;
 use crate::store::Store;
 use chrono::naive::NaiveDateTime;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
+use event_store_derive_internals::Events;
 use lapin_futures::channel::Channel;
 use log::{debug, trace};
 use r2d2::Pool;
@@ -64,14 +67,16 @@ impl SubscribableStore {
         //     })
     }
 
-    //  pub async fn aggregate<'a, T, QA, E>(&'a self, query_args: QA) ->  Result<T, io::Error>
-    // where
-    //     E: Events,
-    //     T: Aggregator<E, QA, PgQuery>,
-    //     QA: Clone + Debug + 'a,
-    // {
-    //     self.inner_store.aggregate(query_args)
-    // }
+    pub async fn aggregate<'a, T, QA, E>(&'a self, query_args: &'a QA) -> Result<T, io::Error>
+    where
+        E: Events,
+        T: Aggregator<E, QA, PgQuery>,
+        QA: Clone + Debug + 'a,
+    {
+        let res: T = await!(self.inner_store.aggregate::<'a, T, QA, E>(&query_args))?;
+
+        Ok(res)
+    }
 
     pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
