@@ -37,7 +37,8 @@ pub fn backward<I, E>(
 }
 
 // converts from an old style Future to a new style one:
-fn forward<I, E>(
+// TODO: No pub
+pub fn forward<I, E>(
     f: impl OldFuture<Item = I, Error = E> + Unpin,
 ) -> impl NewFuture<Output = Result<I, E>> {
     use tokio_async_await::compat::forward::IntoAwaitable;

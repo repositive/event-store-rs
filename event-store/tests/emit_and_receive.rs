@@ -5,14 +5,14 @@
 use event_store::Event;
 use event_store::*;
 use futures::future::Future;
-use log::{debug, info};
+use log::info;
 use std::io;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::timer::Delay;
 
 #[test]
-fn save_and_emit() {
+fn emit_and_receive() {
     pretty_env_logger::init();
 
     let fut = backward(
@@ -23,11 +23,16 @@ fn save_and_emit() {
 
             let pool = pg_create_random_db();
 
-            let store = await!(SubscribableStore::new("store_namespace".into(), pool)).unwrap();
+            let store = await!(SubscribableStore::new("store_namespace".into(), pool))?;
 
-            store.subscribe::<TestEvent>();
+            await!(forward(Delay::new(
+                Instant::now() + Duration::from_millis(100)
+            )))
+            .unwrap();
 
-            await!(store.save(&test_event)).unwrap();
+            await!(store.subscribe::<TestEvent>())?;
+
+            await!(store.save(&test_event))?;
 
             Ok(())
         },
