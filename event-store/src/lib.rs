@@ -27,6 +27,15 @@ use futures::Future as OldFuture;
 use std::future::Future as NewFuture;
 use std::pin::Unpin;
 
+// converts from a new style Future to an old style one:
+// TODO: No pub
+pub fn backward<I, E>(
+    f: impl NewFuture<Output = Result<I, E>>,
+) -> impl OldFuture<Item = I, Error = E> {
+    use tokio_async_await::compat::backward;
+    backward::Compat::new(f)
+}
+
 // converts from an old style Future to a new style one:
 fn forward<I, E>(
     f: impl OldFuture<Item = I, Error = E> + Unpin,

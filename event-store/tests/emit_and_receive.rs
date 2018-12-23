@@ -1,3 +1,7 @@
+#![feature(await_macro, async_await, futures_api)]
+#![feature(pin)]
+#![feature(arbitrary_self_types)]
+
 use event_store::Event;
 use event_store::*;
 use futures::future::Future;
@@ -11,30 +15,25 @@ use tokio::timer::Delay;
 fn save_and_emit() {
     pretty_env_logger::init();
 
-    let test_event = TestEvent { num: 100 };
+    let fut = backward(
+        async {
+            let test_event = Event::from_data(TestEvent { num: 100 });
 
-    info!("Save and emit test");
+            info!("Save and emit test");
 
-    let pool = pg_create_random_db();
+            let pool = pg_create_random_db();
 
-    let mut rt = Runtime::new().unwrap();
+            let store = await!(SubscribableStore::new("store_namespace".into(), pool)).unwrap();
 
-    let run = SubscribableStore::new("store_namespace".into(), pool)
-        .and_then(|store| {
-            debug!("Store created");
+            store.subscribe::<TestEvent>();
 
-            store.subscribe::<TestEvent>().map(|_| store)
-        })
-        .and_then(|store| {
-            debug!("Subscription created");
-            store.save(Event::from_data(test_event)).map(|_| store)
-        })
-        .and_then(|_| {
-            debug!("Store saved");
-            Delay::new(Instant::now() + Duration::from_millis(100))
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
-        })
-        .map(|_| debug!("Chain complete"));
+            await!(store.save(&test_event)).unwrap();
 
-    rt.block_on(run).unwrap();
+            Ok(())
+        },
+    )
+    // Required so Rust can figure out what type `E` is
+    .map_err(|e: io::Error| e);
+
+    Runtime::new().unwrap().block_on(fut).unwrap();
 }

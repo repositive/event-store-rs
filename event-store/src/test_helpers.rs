@@ -46,7 +46,7 @@ impl Aggregator<TestEvents, String, PgQuery> for TestCounterEntity {
     }
 
     fn query(_query_args: String) -> PgQuery {
-        let params: Vec<Box<ToSql + Send>> = Vec::new();
+        let params: Vec<Box<ToSql + Send + Sync>> = Vec::new();
 
         PgQuery::new("select * from events", params)
     }

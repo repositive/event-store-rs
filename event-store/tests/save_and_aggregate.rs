@@ -1,3 +1,7 @@
+#![feature(await_macro, async_await, futures_api)]
+#![feature(pin)]
+#![feature(arbitrary_self_types)]
+
 use event_store::*;
 use futures::future;
 use futures::prelude::*;
@@ -11,40 +15,35 @@ use tokio::timer::Delay;
 fn save_and_aggregate() {
     pretty_env_logger::init();
 
-    let test_event = TestEvent { num: 100 };
-    let test_event_2 = TestEvent { num: 200 };
+    let fut = backward(
+        async {
+            let test_event = Event::from_data(TestEvent { num: 100 });
+            let test_event_2 = Event::from_data(TestEvent { num: 200 });
 
-    trace!("Save and aggregate test");
+            trace!("Save and aggregate test");
 
-    let pool = pg_create_random_db();
+            let pool = pg_create_random_db();
 
-    let mut rt = Runtime::new().unwrap();
+            let mut rt = Runtime::new().unwrap();
 
-    let when = Instant::now() + Duration::from_millis(100);
+            let when = Instant::now() + Duration::from_millis(100);
 
-    let run = SubscribableStore::new("store_namespace".into(), pool)
-        .and_then(move |store| {
-            let save_again = store.save(Event::from_data(test_event_2));
+            let store = await!(SubscribableStore::new("store_namespace".into(), pool)).unwrap();
 
-            store
-                .save(Event::from_data(test_event))
-                .join(
-                    // FIXME: Due to internal issues with lapin_futures, it's not currently possible
-                    // to save two events at the same time, hence the delay.
-                    Delay::new(when)
-                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
-                        .and_then(|_| save_again),
-                )
-                .map(|_| store)
-        })
-        .and_then(|store| store.aggregate(String::new()))
-        .and_then(|aggregate: TestCounterEntity| {
-            info!("Aggregate result {:?}", aggregate);
+            await!(store.save(&test_event)).unwrap();
+            await!(store.save(&test_event_2)).unwrap();
 
-            future::ok(aggregate)
-        });
+            let arg = &String::new();
 
-    let result = rt.block_on(run).unwrap();
+            let result: TestCounterEntity = await!(store.aggregate(arg)).unwrap();
+
+            Ok(result)
+        },
+    )
+    // Required so Rust can figure out what type `E` is
+    .map_err(|e: io::Error| e);
+
+    let result = Runtime::new().unwrap().block_on(fut).unwrap();
 
     assert_eq!(result, TestCounterEntity { counter: 300i32 });
 }
