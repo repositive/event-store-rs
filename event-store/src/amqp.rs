@@ -95,7 +95,7 @@ pub async fn amqp_create_consumer<H, E>(
     queue_name: String,
     exchange: String,
     handler: H,
-) -> Result<(), io::Error>
+) -> ()
 where
     E: EventData,
     H: Fn(Event<E>) -> () + Unpin,
@@ -114,7 +114,8 @@ where
         &queue_name,
         &exchange,
         &event_name
-    ))?;
+    ))
+    .expect("Could not bind queue");
 
     let consumer_tag = format!("consumer-{}-{}", exchange, event_name);
 
@@ -132,7 +133,8 @@ where
                 FieldTable::new(),
             )
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string())),
-    ))?;
+    ))
+    .expect("Could not create consumer");
 
     info!("Got stream for consumer");
 
@@ -159,8 +161,6 @@ where
     //         channel.basic_ack(message.delivery_tag, false)
     //     })
     //     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()));
-
-    Ok(())
 }
 
 /// Declare and bind an AMQP queue to an exchange

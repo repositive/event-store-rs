@@ -48,7 +48,7 @@ impl SubscribableStore {
             inner_store: Store::new(store_namespace, pool, channel),
         };
 
-        store.subscribe_no_replay::<EventReplayRequested>();
+        await!(store.subscribe_no_replay::<EventReplayRequested>())?;
 
         Ok(store)
 
@@ -101,7 +101,7 @@ impl SubscribableStore {
 
         debug!("Begin listening for events on queue {}", queue_name);
 
-        amqp_create_consumer(
+        let consumer = amqp_create_consumer(
             self.channel.clone(),
             queue_name,
             "test_exchange".into(),
@@ -111,6 +111,8 @@ impl SubscribableStore {
                 ED::handle_event(event, &inner_store);
             },
         );
+
+        tokio::spawn_async(consumer);
 
         Ok(())
     }
@@ -122,7 +124,7 @@ impl SubscribableStore {
         let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
         let inner_channel = self.channel.clone();
 
-        self.subscribe_no_replay::<ED>();
+        await!(self.subscribe_no_replay::<ED>())?;
 
         let since = await!(self.inner_store.last_event::<ED>())
             .map(|last_event| {

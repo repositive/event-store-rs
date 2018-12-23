@@ -3,9 +3,8 @@
 #![feature(arbitrary_self_types)]
 
 use event_store::*;
-use futures::future;
 use futures::prelude::*;
-use log::{info, trace};
+use log::trace;
 use std::io;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
@@ -24,18 +23,19 @@ fn save_and_aggregate() {
 
             let pool = pg_create_random_db();
 
-            let mut rt = Runtime::new().unwrap();
+            let store = await!(SubscribableStore::new("store_namespace".into(), pool))?;
 
-            let when = Instant::now() + Duration::from_millis(100);
+            await!(forward(Delay::new(
+                Instant::now() + Duration::from_millis(100)
+            )))
+            .unwrap();
 
-            let store = await!(SubscribableStore::new("store_namespace".into(), pool)).unwrap();
-
-            await!(store.save(&test_event)).unwrap();
-            await!(store.save(&test_event_2)).unwrap();
+            await!(store.save(&test_event))?;
+            await!(store.save(&test_event_2))?;
 
             let arg = &String::new();
 
-            let result: TestCounterEntity = await!(store.aggregate(arg)).unwrap();
+            let result: TestCounterEntity = await!(store.aggregate(arg))?;
 
             Ok(result)
         },
