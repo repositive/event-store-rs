@@ -10,7 +10,8 @@ use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use lapin_futures::channel::Channel;
-use log::{debug, trace};
+use lapin_futures::consumer::Consumer;
+use log::{debug, info, trace};
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
 use std::fmt;
@@ -18,6 +19,7 @@ use std::fmt::Debug;
 use std::io;
 use std::net::SocketAddr;
 use tokio::net::tcp::TcpStream;
+use tokio::prelude::*;
 
 #[derive(Clone)]
 pub struct SubscribableStore {
@@ -48,7 +50,8 @@ impl SubscribableStore {
             inner_store: Store::new(store_namespace, pool, channel),
         };
 
-        await!(store.subscribe_no_replay::<EventReplayRequested>())?;
+        await!(store.subscribe_no_replay::<EventReplayRequested>());
+        // tokio::spawn_async(store.subscribe_no_replay::<EventReplayRequested>());
 
         Ok(store)
 
@@ -92,29 +95,56 @@ impl SubscribableStore {
         await!(self.inner_store.save_no_emit(event))
     }
 
-    async fn subscribe_no_replay<ED>(&self) -> Result<(), io::Error>
+    async fn subscribe_no_replay<ED>(&self)
     where
         ED: EventHandler + Debug + Send + 'static,
     {
         let queue_name = self.namespaced_event_queue_name::<ED>();
-        let inner_store = self.inner_store.clone();
+        // let inner_store = self.inner_store.clone();
 
         debug!("Begin listening for events on queue {}", queue_name);
 
-        let consumer = amqp_create_consumer(
-            self.channel.clone(),
-            queue_name,
-            "test_exchange".into(),
-            move |event: Event<ED>| {
-                // TODO: Save event in this closure somewhere
+        let channel = self.channel.clone();
+        let inner_store = self.inner_store.clone();
 
-                ED::handle_event(event, &inner_store);
+        tokio::spawn_async(
+            async {
+                let ch = channel.clone();
+                // let i_s = inner_store.clone();
+
+                let mut stream: Consumer<TcpStream> = await!(amqp_create_consumer::<ED>(
+                    channel,
+                    queue_name,
+                    "test_exchange".into(),
+                    // move |event: Event<ED>| {
+                    //     // TODO: Save event in this closure somewhere
+
+                    //     ED::handle_event(event, &inner_store);
+                    // },
+                ))
+                .expect("Subscribe failed");
+
+                trace!("Before while loop");
+
+                // Oh my dog Rust why
+                let inner_inner_store = inner_store;
+
+                while let Some(Ok(message)) = await!(stream.next()) {
+                    let payload = std::str::from_utf8(&message.data).unwrap();
+                    let event: Event<ED> = serde_json::from_str(payload).unwrap();
+
+                    trace!("Received event {:?}", event);
+
+                    // TODO: Save event in here somewhere
+
+                    ED::handle_event(event, &inner_inner_store);
+
+                    ch.basic_ack(message.delivery_tag, false);
+                }
             },
         );
 
-        tokio::spawn_async(consumer);
-
-        Ok(())
+        // Ok(())
     }
 
     pub async fn subscribe<ED>(&self) -> Result<(), io::Error>
@@ -124,7 +154,15 @@ impl SubscribableStore {
         let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
         let inner_channel = self.channel.clone();
 
-        await!(self.subscribe_no_replay::<ED>())?;
+        info!(
+            "Starting subscription to {}",
+            ED::event_namespace_and_type()
+        );
+
+        await!(self.subscribe_no_replay::<ED>());
+        // tokio::spawn_async(self2.subscribe_no_replay::<ED>());
+
+        trace!("Subscription started, emitting replay request");
 
         let since = await!(self.inner_store.last_event::<ED>())
             .map(|last_event| {
@@ -146,6 +184,8 @@ impl SubscribableStore {
             "test_exchange".into(),
             &replay_event,
         ))?;
+
+        trace!("Replay request emitted");
 
         // .and_then(move |since| {
         //     trace!("Emit replay request for events since {:?}", since);
