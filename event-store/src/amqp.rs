@@ -7,6 +7,7 @@ use lapin_futures::channel::{
     QueueBindOptions, QueueDeclareOptions,
 };
 use lapin_futures::client::{Client, ConnectionOptions};
+use lapin_futures::consumer::Consumer;
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
 use log::{debug, info, trace};
@@ -90,18 +91,18 @@ pub async fn amqp_connect(
 }
 
 /// Create a consumer for an AMQP queue
-pub async fn amqp_create_consumer<H, E>(
+pub async fn amqp_create_consumer<ED>(
     channel: Channel<TcpStream>,
     queue_name: String,
     exchange: String,
-    handler: H,
-) -> ()
+    // handler: H,
+) -> Result<Consumer<TcpStream>, io::Error>
 where
-    E: EventData,
-    H: Fn(Event<E>) -> () + Unpin,
+    ED: EventData,
+    // H: Fn(Event<E>) -> () + Unpin,
 {
-    let event_namespace = E::event_namespace();
-    let event_type = E::event_type();
+    let event_namespace = ED::event_namespace();
+    let event_type = ED::event_type();
     let event_name = format!("{}.{}", event_namespace, event_type);
 
     info!(
@@ -114,8 +115,7 @@ where
         &queue_name,
         &exchange,
         &event_name
-    ))
-    .expect("Could not bind queue");
+    ))?;
 
     let consumer_tag = format!("consumer-{}-{}", exchange, event_name);
 
@@ -124,7 +124,7 @@ where
         exchange, consumer_tag
     );
 
-    let mut stream = await!(forward(
+    let stream = await!(forward(
         channel
             .basic_consume(
                 &queue,
@@ -133,21 +133,11 @@ where
                 FieldTable::new(),
             )
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string())),
-    ))
-    .expect("Could not create consumer");
+    ))?;
 
     info!("Got stream for consumer");
 
-    while let Some(Ok(message)) = await!(stream.next()) {
-        let payload = str::from_utf8(&message.data).unwrap();
-        let data: Event<E> = serde_json::from_str(payload).unwrap();
-
-        trace!("Received message with ID {}: {}", data.id, payload);
-
-        handler(data);
-
-        channel.basic_ack(message.delivery_tag, false);
-    }
+    Ok(stream)
 
     // stream
     //     .for_each(move |message| {
