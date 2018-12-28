@@ -79,7 +79,7 @@ impl Store {
 
     pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
-        ED: EventData + Debug,
+        ED: EventData + Debug + Send + Sync,
     {
         debug!("Save event {:?}", event);
 
@@ -105,11 +105,11 @@ impl Store {
 
     pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
-        ED: EventData + Debug,
+        ED: EventData + Debug + Send + Sync,
     {
         debug!("Save event {:?}", event);
 
-        await!(pg_save(self.pool.get().unwrap(), event))?;
+        await!(pg_save(self.pool.get().unwrap(), &event))?;
 
         Ok(())
     }

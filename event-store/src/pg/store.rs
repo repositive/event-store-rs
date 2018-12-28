@@ -10,7 +10,6 @@ use r2d2::{self, PooledConnection};
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::PostgresConnectionManager;
 use serde_json::{from_value, json, to_value, Value as JsonValue};
-use std::future::Future;
 use std::io;
 use uuid::Uuid;
 
@@ -37,7 +36,7 @@ where
             ])
         })
         .map(|_| ())
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, "Could not save"))
+        .map_err(|_e| io::Error::new(io::ErrorKind::Other, "Could not save"))
     // .unwrap_or_else(|_| future::err(io::Error::new(io::ErrorKind::Other, "Could not save")))
 }
 
