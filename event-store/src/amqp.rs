@@ -10,13 +10,10 @@ use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::consumer::Consumer;
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
-use log::{debug, info, trace};
+use log::{debug, info};
 use std::io;
 use std::net::SocketAddr;
-use std::pin::Unpin;
-use std::str;
 use tokio::net::TcpStream;
-use tokio::prelude::*;
 
 /// Connect to AMQP
 pub async fn amqp_connect(
