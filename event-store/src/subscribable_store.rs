@@ -69,23 +69,8 @@ impl SubscribableStore {
             replay_previous_events: false,
             save_on_receive: false
         }))?;
-        // tokio::spawn_async(store.subscribe_no_replay::<EventReplayRequested>());
 
         Ok(store)
-
-        // amqp_connect(addr, "test_exchange".into())
-        //     .map(|channel| )
-        //     .and_then(|store| {
-        //         debug!("Begin listening for event replay requests");
-
-        //     })
-        //     // FIXME: Remove this delay
-        //     .and_then(|store| {
-        //         // Give the replay consumer some time to settle
-        //         Delay::new(Instant::now() + Duration::from_millis(100))
-        //             .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
-        //             .map(|_| store)
-        //     })
     }
 
     pub async fn aggregate<'a, T, QA, E>(&'a self, query_args: &'a QA) -> Result<T, io::Error>
@@ -113,84 +98,19 @@ impl SubscribableStore {
         await!(self.inner_store.save_no_emit(event))
     }
 
-    // async fn subscribe<ED>(&self)
-    // where
-    //     ED: EventHandler + Debug + Send + Sync + 'static,
-    // {
-    //         let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
-    //     let inner_channel = self.channel.clone();
-    //     let queue_name = self.namespaced_event_queue_name::<ED>();
-    //     // let inner_store = self.inner_store.clone();
-
-    //     debug!("Begin listening for events on queue {}", queue_name);
-
-    //     let channel = self.channel.clone();
-    //     let inner_store = self.inner_store.clone();
-
-    //     tokio::spawn_async(
-    //         async {
-    //             let ch = channel.clone();
-    //             // let i_s = inner_store.clone();
-
-    //             let mut stream: Consumer<TcpStream> = await!(amqp_create_consumer::<ED>(
-    //                 channel,
-    //                 queue_name,
-    //                 "test_exchange".into(),
-    //                 // move |event: Event<ED>| {
-    //                 //     // TODO: Save event in this closure somewhere
-
-    //                 //     ED::handle_event(event, &inner_store);
-    //                 // },
-    //             ))
-    //             .expect("Subscribe failed");
-
-    //             trace!("Before while loop");
-
-    //             // Oh my dog Rust why
-    //             let inner_inner_store = inner_store;
-
-    //             while let Some(Ok(message)) = await!(stream.next()) {
-    //                 let payload = std::str::from_utf8(&message.data).unwrap();
-
-    //                 println!("BLAH {}", payload);
-
-    //                 let event: Event<ED> = serde_json::from_str(payload).unwrap();
-
-    //                 trace!("Received event {:?}", event);
-
-    //                 // TODO: Save event in here somewhere
-    //                 await!(inner_inner_store.save_no_emit(&event))
-    //                     .map(|_| {
-    //                         ED::handle_event(event, &inner_inner_store);
-
-    //                         ch.basic_ack(message.delivery_tag, false);
-    //                     })
-    //                     .expect("Could not save event");
-    //             }
-    //         },
-    //     );
-
-    //     // Ok(())
-    // }
-
     pub async fn subscribe<ED>(&self, options: SubscribeOptions) -> Result<(), io::Error>
     where
         ED: EventHandler + Debug + Send + Sync + 'static,
     {
         let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
-        // let inner_channel = self.channel.clone();
 
         info!(
             "Starting subscription to {}",
             ED::event_namespace_and_type()
         );
 
-        // await!(self.subscribe_no_replay::<ED>());
-        // tokio::spawn_async(self2.subscribe_no_replay::<ED>());
-
         let inner_channel = self.channel.clone();
         let queue_name = self.namespaced_event_queue_name::<ED>();
-        // let inner_store = self.inner_store.clone();
 
         debug!("Begin listening for events on queue {}", queue_name);
 
@@ -201,17 +121,10 @@ impl SubscribableStore {
         tokio::spawn_async(
             async {
                 let ch = channel.clone();
-                // let i_s = inner_store.clone();
-
                 let mut stream: Consumer<TcpStream> = await!(amqp_create_consumer::<ED>(
                     channel,
                     queue_name,
                     "test_exchange".into(),
-                    // move |event: Event<ED>| {
-                    //     // TODO: Save event in this closure somewhere
-
-                    //     ED::handle_event(event, &inner_store);
-                    // },
                 ))
                 .expect("Subscribe failed");
 
@@ -270,24 +183,6 @@ impl SubscribableStore {
 
             trace!("Replay request emitted");
         }
-
-        // .and_then(move |since| {
-        //     trace!("Emit replay request for events since {:?}", since);
-
-        //     amqp_emit_event(
-        //         inner_channel,
-        //         replay_queue_name,
-        //         "test_exchange".into(),
-        //         &EventReplayRequested::from_event::<ED>(since),
-        //     )
-        // })
-        // // FIXME: Remove this delay
-        // .and_then(|_| {
-        //     // Give the consumer some time to settle
-        //     Delay::new(Instant::now() + Duration::from_millis(100))
-        //         .map_err(|_| io::Error::new(io::ErrorKind::Other, "wait error"))
-        //         .map(|_| ())
-        // })
 
         Ok(())
     }

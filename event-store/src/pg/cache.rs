@@ -7,7 +7,6 @@ use serde::Serialize;
 use serde_json::from_value;
 use serde_json::to_value;
 use std::fmt::Debug;
-use std::future::Future;
 use std::io;
 
 /// Result of a cache search
