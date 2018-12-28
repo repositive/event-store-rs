@@ -21,6 +21,21 @@ use std::net::SocketAddr;
 use tokio::net::tcp::TcpStream;
 use tokio::prelude::*;
 
+#[derive(Debug, Clone)]
+pub struct SubscribeOptions {
+    replay_previous_events: bool,
+    save_on_receive: bool,
+}
+
+impl Default for SubscribeOptions {
+    fn default() -> Self {
+        Self {
+            replay_previous_events: true,
+            save_on_receive: true,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct SubscribableStore {
     store_namespace: String,
@@ -50,7 +65,10 @@ impl SubscribableStore {
             inner_store: Store::new(store_namespace, pool, channel),
         };
 
-        await!(store.subscribe_no_replay::<EventReplayRequested>());
+        await!(store.subscribe::<EventReplayRequested>(SubscribeOptions {
+            replay_previous_events: false,
+            save_on_receive: false
+        }))?;
         // tokio::spawn_async(store.subscribe_no_replay::<EventReplayRequested>());
 
         Ok(store)
@@ -83,22 +101,94 @@ impl SubscribableStore {
 
     pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
-        ED: EventData + Debug,
+        ED: EventData + Debug + Send + Sync,
     {
         await!(self.inner_store.save(event))
     }
 
     pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
-        ED: EventData + Debug,
+        ED: EventData + Debug + Send + Sync,
     {
         await!(self.inner_store.save_no_emit(event))
     }
 
-    async fn subscribe_no_replay<ED>(&self)
+    // async fn subscribe<ED>(&self)
+    // where
+    //     ED: EventHandler + Debug + Send + Sync + 'static,
+    // {
+    //         let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
+    //     let inner_channel = self.channel.clone();
+    //     let queue_name = self.namespaced_event_queue_name::<ED>();
+    //     // let inner_store = self.inner_store.clone();
+
+    //     debug!("Begin listening for events on queue {}", queue_name);
+
+    //     let channel = self.channel.clone();
+    //     let inner_store = self.inner_store.clone();
+
+    //     tokio::spawn_async(
+    //         async {
+    //             let ch = channel.clone();
+    //             // let i_s = inner_store.clone();
+
+    //             let mut stream: Consumer<TcpStream> = await!(amqp_create_consumer::<ED>(
+    //                 channel,
+    //                 queue_name,
+    //                 "test_exchange".into(),
+    //                 // move |event: Event<ED>| {
+    //                 //     // TODO: Save event in this closure somewhere
+
+    //                 //     ED::handle_event(event, &inner_store);
+    //                 // },
+    //             ))
+    //             .expect("Subscribe failed");
+
+    //             trace!("Before while loop");
+
+    //             // Oh my dog Rust why
+    //             let inner_inner_store = inner_store;
+
+    //             while let Some(Ok(message)) = await!(stream.next()) {
+    //                 let payload = std::str::from_utf8(&message.data).unwrap();
+
+    //                 println!("BLAH {}", payload);
+
+    //                 let event: Event<ED> = serde_json::from_str(payload).unwrap();
+
+    //                 trace!("Received event {:?}", event);
+
+    //                 // TODO: Save event in here somewhere
+    //                 await!(inner_inner_store.save_no_emit(&event))
+    //                     .map(|_| {
+    //                         ED::handle_event(event, &inner_inner_store);
+
+    //                         ch.basic_ack(message.delivery_tag, false);
+    //                     })
+    //                     .expect("Could not save event");
+    //             }
+    //         },
+    //     );
+
+    //     // Ok(())
+    // }
+
+    pub async fn subscribe<ED>(&self, options: SubscribeOptions) -> Result<(), io::Error>
     where
-        ED: EventHandler + Debug + Send + 'static,
+        ED: EventHandler + Debug + Send + Sync + 'static,
     {
+        let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
+        // let inner_channel = self.channel.clone();
+
+        info!(
+            "Starting subscription to {}",
+            ED::event_namespace_and_type()
+        );
+
+        // await!(self.subscribe_no_replay::<ED>());
+        // tokio::spawn_async(self2.subscribe_no_replay::<ED>());
+
+        let inner_channel = self.channel.clone();
         let queue_name = self.namespaced_event_queue_name::<ED>();
         // let inner_store = self.inner_store.clone();
 
@@ -106,6 +196,7 @@ impl SubscribableStore {
 
         let channel = self.channel.clone();
         let inner_store = self.inner_store.clone();
+        let inner_options = options.clone();
 
         tokio::spawn_async(
             async {
@@ -128,6 +219,7 @@ impl SubscribableStore {
 
                 // Oh my dog Rust why
                 let inner_inner_store = inner_store;
+                let inner_inner_options = inner_options;
 
                 while let Some(Ok(message)) = await!(stream.next()) {
                     let payload = std::str::from_utf8(&message.data).unwrap();
@@ -135,57 +227,49 @@ impl SubscribableStore {
 
                     trace!("Received event {:?}", event);
 
-                    // TODO: Save event in here somewhere
+                    let saved = if inner_inner_options.save_on_receive {
+                        await!(inner_inner_store.save_no_emit(&event))
+                    } else {
+                        Ok(())
+                    };
 
-                    ED::handle_event(event, &inner_inner_store);
+                    saved
+                        .map(|_| {
+                            ED::handle_event(event, &inner_inner_store);
 
-                    ch.basic_ack(message.delivery_tag, false);
+                            ch.basic_ack(message.delivery_tag, false);
+                        })
+                        .expect("Could not save event");
                 }
             },
         );
 
-        // Ok(())
-    }
+        if options.replay_previous_events {
+            trace!("Subscription started, emitting replay request");
 
-    pub async fn subscribe<ED>(&self) -> Result<(), io::Error>
-    where
-        ED: EventHandler + Debug + Send + 'static,
-    {
-        let replay_queue_name = self.event_queue_name::<EventReplayRequested>();
-        let inner_channel = self.channel.clone();
+            let since = await!(self.inner_store.last_event::<ED>())
+                .map(|last_event| {
+                    trace!("Fetched last event {:?}", last_event);
 
-        info!(
-            "Starting subscription to {}",
-            ED::event_namespace_and_type()
-        );
-
-        await!(self.subscribe_no_replay::<ED>());
-        // tokio::spawn_async(self2.subscribe_no_replay::<ED>());
-
-        trace!("Subscription started, emitting replay request");
-
-        let since = await!(self.inner_store.last_event::<ED>())
-            .map(|last_event| {
-                trace!("Fetched last event {:?}", last_event);
-
-                last_event.map(|ev| ev.context.time).unwrap_or_else(|| {
-                    DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+                    last_event.map(|ev| ev.context.time).unwrap_or_else(|| {
+                        DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+                    })
                 })
-            })
-            .unwrap_or_else(|_| {
-                DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
-            });
+                .unwrap_or_else(|_| {
+                    DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc)
+                });
 
-        let replay_event = EventReplayRequested::from_event::<ED>(since);
+            let replay_event = EventReplayRequested::from_event::<ED>(since);
 
-        await!(amqp_emit_event(
-            inner_channel,
-            replay_queue_name,
-            "test_exchange".into(),
-            &replay_event,
-        ))?;
+            await!(amqp_emit_event(
+                inner_channel,
+                replay_queue_name,
+                "test_exchange".into(),
+                &replay_event,
+            ))?;
 
-        trace!("Replay request emitted");
+            trace!("Replay request emitted");
+        }
 
         // .and_then(move |since| {
         //     trace!("Emit replay request for events since {:?}", since);

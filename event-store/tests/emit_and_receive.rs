@@ -30,7 +30,7 @@ fn emit_and_receive() {
             )))
             .unwrap();
 
-            await!(store.subscribe::<TestEvent>())?;
+            await!(store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
 
             await!(store.save(&test_event))?;
 
