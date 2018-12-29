@@ -3,7 +3,7 @@ language: rust
 rust:
   - stable
   - beta
-  - nightly
+  - nightly-2018-12-24
 sudo: required
 
 matrix:
