@@ -71,8 +71,12 @@ fn current_time_ms() -> u64 {
 }
 
 /// Create a new database with a random name, returning the connection
-pub fn pg_create_random_db() -> Pool<PostgresConnectionManager> {
-    let db_id = format!("eventstorerust-test-{}", current_time_ms());
+pub fn pg_create_random_db(suffix: Option<&str>) -> Pool<PostgresConnectionManager> {
+    let db_id = format!(
+        "eventstorerust-{}-{}",
+        current_time_ms(),
+        suffix.unwrap_or("test")
+    );
 
     println!("Create test DB {}", db_id);
 
