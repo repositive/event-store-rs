@@ -23,31 +23,45 @@ fn emit_and_receive() {
 
             info!("Save and emit test");
 
-            let pool = pg_create_random_db();
+            let sender_pool = pg_create_random_db(Some("sender"));
+            let receiver_pool = pg_create_random_db(Some("receiver"));
             let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
-            let store_adapter = await!(PgStoreAdapter::new(pool.clone()))?;
-            let cache_adapter = await!(PgCacheAdapter::new(pool.clone()))?;
-            let emitter_adapter = await!(AmqpEmitterAdapter::new(
-                addr,
-                "test_exchange".into(),
-                "save_and_aggregate".into()
+            let sender_store = await!(SubscribableStore::new(
+                await!(PgStoreAdapter::new(sender_pool.clone()))?,
+                await!(PgCacheAdapter::new(sender_pool.clone()))?,
+                await!(AmqpEmitterAdapter::new(
+                    addr,
+                    "test_exchange".into(),
+                    "save_and_aggregate_send".into()
+                ))?
             ))?;
 
-            let store = await!(SubscribableStore::new(
-                store_adapter,
-                cache_adapter,
-                emitter_adapter
+            let receiver_store = await!(SubscribableStore::new(
+                await!(PgStoreAdapter::new(receiver_pool.clone()))?,
+                await!(PgCacheAdapter::new(receiver_pool.clone()))?,
+                await!(AmqpEmitterAdapter::new(
+                    addr,
+                    "test_exchange".into(),
+                    "save_and_aggregate_receive".into()
+                ))?
             ))?;
 
+            await!(receiver_store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
+
+            // Give time for subscriber to settle
             await!(forward(Delay::new(
-                Instant::now() + Duration::from_millis(100)
+                Instant::now() + Duration::from_millis(500)
             )))
             .unwrap();
 
-            await!(store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
+            await!(sender_store.save(&test_event))?;
 
-            await!(store.save(&test_event))?;
+            // Wait for event to be received and stored before freeing everything
+            await!(forward(Delay::new(
+                Instant::now() + Duration::from_millis(500)
+            )))
+            .unwrap();
 
             Ok(())
         },
