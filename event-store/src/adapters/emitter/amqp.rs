@@ -247,12 +247,14 @@ async fn amqp_emit_data<'a>(
         routing_key, exchange
     );
 
-    await!(amqp_bind_queue(
-        &channel,
-        &queue_name,
-        &exchange,
-        &routing_key
-    ))?;
+    // TODO: Clarify if an _emit_ queue is required, or if it's enough to just have consumers of
+    // this event have their own queues.
+    // await!(amqp_bind_queue(
+    //     &channel,
+    //     &queue_name,
+    //     &exchange,
+    //     &routing_key
+    // ))?;
 
     await!(forward(
         channel
