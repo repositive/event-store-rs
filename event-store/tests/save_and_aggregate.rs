@@ -23,7 +23,7 @@ fn save_and_aggregate() {
 
             trace!("Save and aggregate test");
 
-            let pool = pg_create_random_db();
+            let pool = pg_create_random_db(None);
             let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
             let store_adapter = await!(PgStoreAdapter::new(pool.clone()))?;

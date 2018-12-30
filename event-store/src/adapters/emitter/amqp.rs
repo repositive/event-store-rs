@@ -91,8 +91,6 @@ impl AmqpEmitterAdapter {
         ))
         .unwrap();
 
-        trace!("Before while loop");
-
         // TODO: Move this logic out into subscribable_store to dedupe it from backing stores
         tokio::spawn_async(
             async move {

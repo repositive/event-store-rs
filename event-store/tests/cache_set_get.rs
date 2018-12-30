@@ -19,7 +19,7 @@ fn cache_set_get() {
 
             trace!("Save and emit test");
 
-            let conn = pg_create_random_db();
+            let conn = pg_create_random_db(None);
 
             let cache = await!(PgCacheAdapter::new(conn.clone()))?;
 
