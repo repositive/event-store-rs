@@ -51,7 +51,7 @@ fn emit_and_receive() {
 
             // Give time for subscriber to settle
             await!(forward(Delay::new(
-                Instant::now() + Duration::from_millis(500)
+                Instant::now() + Duration::from_millis(100)
             )))
             .unwrap();
 
@@ -59,9 +59,14 @@ fn emit_and_receive() {
 
             // Wait for event to be received and stored before freeing everything
             await!(forward(Delay::new(
-                Instant::now() + Duration::from_millis(500)
+                Instant::now() + Duration::from_millis(100)
             )))
             .unwrap();
+
+            let arg = &String::new();
+            let result: TestCounterEntity = await!(receiver_store.aggregate(arg))?;
+
+            assert_eq!(result, TestCounterEntity { counter: 100 });
 
             Ok(())
         },
