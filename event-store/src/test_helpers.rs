@@ -1,7 +1,7 @@
+use crate::adapters::PgQuery;
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
-use crate::pg::PgQuery;
 use crate::store::Store;
 use event_store_derive::*;
 use log::trace;

@@ -1,42 +1,26 @@
+use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter};
 use crate::aggregator::Aggregator;
-use crate::amqp::*;
 use crate::event::Event;
-use crate::pg::*;
 use crate::store_query::StoreQuery;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
-use lapin_futures::channel::Channel;
 use log::{debug, trace};
-use r2d2::Pool;
-use r2d2_postgres::PostgresConnectionManager;
-use std::fmt;
 use std::fmt::Debug;
 use std::io;
-use tokio::net::tcp::TcpStream;
 
 #[derive(Clone)]
 pub struct Store {
-    store_namespace: String,
-    channel: Channel<TcpStream>,
-    pool: Pool<PostgresConnectionManager>,
-}
-
-impl Debug for Store {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Store namespace {}", self.store_namespace)
-    }
+    store: PgStoreAdapter,
+    cache: PgCacheAdapter,
+    emitter: AmqpEmitterAdapter,
 }
 
 impl Store {
-    pub fn new(
-        store_namespace: String,
-        pool: Pool<PostgresConnectionManager>,
-        channel: Channel<TcpStream>,
-    ) -> Self {
+    pub fn new(store: PgStoreAdapter, cache: PgCacheAdapter, emitter: AmqpEmitterAdapter) -> Self {
         Self {
-            store_namespace,
-            pool,
-            channel,
+            store,
+            cache,
+            emitter,
         }
     }
 
@@ -52,7 +36,7 @@ impl Store {
         let cache_key = store_query.unique_id();
         let debug_cache_key = cache_key.clone();
 
-        let cache_result = await!(pg_cache_read(self.pool.get().unwrap(), cache_key)).unwrap();
+        let cache_result = await!(self.cache.read(cache_key))?;
 
         trace!(
             "Aggregate cache key {} result {:?}",
@@ -70,7 +54,7 @@ impl Store {
             since
         );
 
-        let events = await!(pg_read(self.pool.get().unwrap(), &store_query, since)).unwrap();
+        let events = await!(self.store.read(&store_query, since))?;
 
         trace!("Read {} events to aggregate", events.len());
 
@@ -83,24 +67,11 @@ impl Store {
     {
         debug!("Save event {:?}", event);
 
-        let queue_name = self.namespaced_event_queue_name::<ED>();
-
-        let _channel = self.channel.clone();
-
         await!(self.save_no_emit(&event))?;
 
-        await!(amqp_emit_event(
-            _channel,
-            queue_name,
-            "test_exchange".into(),
-            event
-        ))?;
+        await!(self.emitter.emit(&event))?;
 
         Ok(())
-
-        // self.save_no_emit(event)
-        //     .and_then(|event| amqp_emit_event(_channel, queue_name, "test_exchange".into(), event))
-        //     .map(|(event, _channel)| event)
     }
 
     pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
@@ -109,7 +80,7 @@ impl Store {
     {
         debug!("Save event {:?}", event);
 
-        await!(pg_save(self.pool.get().unwrap(), &event))?;
+        await!(self.store.save(&event))?;
 
         Ok(())
     }
@@ -118,18 +89,6 @@ impl Store {
     where
         ED: EventData,
     {
-        pg_last_event::<ED>(self.pool.get().unwrap())
-    }
-
-    fn namespaced_event_queue_name<ED>(&self) -> String
-    where
-        ED: EventData,
-    {
-        format!(
-            "{}-{}.{}",
-            self.store_namespace,
-            ED::event_namespace(),
-            ED::event_type()
-        )
+        self.store.last_event::<ED>()
     }
 }

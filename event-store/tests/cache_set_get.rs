@@ -2,6 +2,7 @@
 #![feature(pin)]
 #![feature(arbitrary_self_types)]
 
+use event_store::adapters::{CacheResult, PgCacheAdapter};
 use event_store::*;
 use futures::future::Future as OldFuture;
 use log::trace;
@@ -20,16 +21,11 @@ fn cache_set_get() {
 
             let conn = pg_create_random_db();
 
-            await!(pg_cache_save(
-                conn.get().unwrap(),
-                "_test".into(),
-                &test_entity
-            ))?;
+            let cache = await!(PgCacheAdapter::new(conn.clone()))?;
 
-            let res = await!(pg_cache_read::<TestCounterEntity>(
-                conn.get().unwrap(),
-                "_test".into()
-            ))?;
+            await!(cache.save("_test".into(), &test_entity))?;
+
+            let res = await!(cache.read::<TestCounterEntity>("_test".into()))?;
 
             Ok(res)
         },
