@@ -96,8 +96,7 @@ impl AmqpEmitterAdapter {
         tokio::spawn_async(
             async move {
                 while let Some(Ok(message)) = await!(stream.next()) {
-                    let payload = std::str::from_utf8(&message.data).unwrap();
-                    let event: Event<ED> = serde_json::from_str(payload).unwrap();
+                    let event: Event<ED> = serde_json::from_slice(&message.data).unwrap();
 
                     trace!("Received event {:?}", event);
 
