@@ -93,6 +93,7 @@ impl AmqpEmitterAdapter {
 
         trace!("Before while loop");
 
+        // TODO: Move this logic out into subscribable_store to dedupe it from backing stores
         tokio::spawn_async(
             async move {
                 while let Some(Ok(message)) = await!(stream.next()) {
@@ -106,13 +107,17 @@ impl AmqpEmitterAdapter {
                         Ok(())
                     };
 
-                    saved
-                        .map(|_| {
-                            ED::handle_event(event, &store);
+                    // Can't do an `await` inside a .map() closure, so it's down here for now
+                    if saved.is_ok() {
+                        trace!("Event saved, handling...");
 
-                            self_channel.basic_ack(message.delivery_tag, false);
-                        })
-                        .expect("Could not save event");
+                        ED::handle_event(event, &store);
+
+                        trace!("Ack event {}", message.delivery_tag);
+
+                        await!(forward(self_channel.basic_ack(message.delivery_tag, false)))
+                            .expect("Could not ack message");
+                    }
                 }
             },
         );
@@ -200,6 +205,11 @@ async fn amqp_bind_queue<'a>(
     exchange_name: &'a String,
     routing_key: &'a String,
 ) -> Result<Queue, io::Error> {
+    debug!(
+        "Bind queue {} to exchange {} through routing key {}",
+        queue_name, exchange_name, routing_key
+    );
+
     let queue = await!(forward(channel.queue_declare(
         &queue_name,
         QueueDeclareOptions {

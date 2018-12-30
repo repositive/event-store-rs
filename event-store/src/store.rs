@@ -65,7 +65,7 @@ impl Store {
     where
         ED: EventData + Debug + Send + Sync,
     {
-        debug!("Save event {:?}", event);
+        debug!("Save and emit event {:?}", event);
 
         await!(self.save_no_emit(&event))?;
 
@@ -78,7 +78,7 @@ impl Store {
     where
         ED: EventData + Debug + Send + Sync,
     {
-        debug!("Save event {:?}", event);
+        debug!("Save (no emit) event {:?}", event);
 
         await!(self.store.save(&event))?;
 

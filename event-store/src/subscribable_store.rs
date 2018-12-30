@@ -78,6 +78,8 @@ impl SubscribableStore {
 
         await!(self.emitter.subscribe::<ED>(inner_store, options))?;
 
+        // TODO: Event replay requested
+
         Ok(())
     }
 }
