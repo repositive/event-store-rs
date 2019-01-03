@@ -6,6 +6,9 @@
 // only needed to manually implement a std future:
 #![feature(arbitrary_self_types)]
 
+#[macro_use]
+extern crate serde_derive;
+
 pub mod adapters;
 pub mod aggregator;
 pub mod event;
