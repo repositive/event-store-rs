@@ -76,10 +76,10 @@ impl StoreAdapter<PgQuery> for PgStoreAdapter {
                 let context_json: JsonValue = row.get("context");
 
                 let thing = json!({
-                            "id": id,
-                            "data": data_json,
-                            "context": context_json,
-                        });
+                    "id": id,
+                    "data": data_json,
+                    "context": context_json,
+                });
 
                 let evt: E = from_value(thing).expect("Could not decode row");
 
