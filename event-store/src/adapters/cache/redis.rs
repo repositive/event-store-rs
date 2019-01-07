@@ -1,14 +1,14 @@
 // TODO: Remove when Redis cache is usable
 #![allow(unused)]
 
-use super::{ CacheResult};
+use super::CacheResult;
+use chrono::{DateTime, Utc};
+use log::error;
 use redis::{Client, Commands, Connection};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::{from_str, to_string};
-use chrono::{DateTime, Utc};
 use std::io;
-use log::error;
 
 #[derive(Serialize, Deserialize)]
 pub struct RedisCacheItem<D> {

@@ -1,3 +1,4 @@
+use chrono::prelude::*;
 use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter};
 use crate::aggregator::Aggregator;
 use crate::event::Event;
@@ -90,5 +91,28 @@ impl Store {
         ED: EventData,
     {
         self.store.last_event::<ED>()
+    }
+
+    pub async fn emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
+    where
+        ED: EventData,
+    {
+        await!(self.emitter.emit(event))?;
+
+        Ok(())
+    }
+
+    pub async fn read_events_since<'a, ED>(
+        &'a self,
+        event_namespace: &'a str,
+        event_type: &'a str,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<Event<ED>>, io::Error>
+    where
+        ED: EventData,
+    {
+        let events = await!(self.store.read_events_since::<ED>(event_namespace, event_type, since))?;
+
+        Ok(events)
     }
 }
