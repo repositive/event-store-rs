@@ -6,6 +6,8 @@ use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::{debug, trace};
+use serde::Serialize;
+use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
 
@@ -102,19 +104,29 @@ impl Store {
         Ok(())
     }
 
-    pub async fn read_events_since<'a, ED>(
+    pub(crate) async fn emit_value<'a, V>(
+        &'a self,
+        event_type: &'a str,
+        event_namespace: &'a str,
+        data: &'a V,
+    ) -> Result<(), io::Error>
+    where
+        V: Serialize,
+    {
+        await!(self.emitter.emit_value(event_type, event_namespace, data))?;
+
+        Ok(())
+    }
+
+    pub async fn read_events_since<'a>(
         &'a self,
         event_namespace: &'a str,
         event_type: &'a str,
         since: DateTime<Utc>,
-    ) -> Result<Vec<Event<ED>>, io::Error>
-    where
-        ED: EventData,
-    {
-        let events =
-            await!(self
-                .store
-                .read_events_since::<ED>(event_namespace, event_type, since))?;
+    ) -> Result<Vec<JsonValue>, io::Error> {
+        let events = await!(self
+            .store
+            .read_events_since(event_namespace, event_type, since))?;
 
         Ok(events)
     }

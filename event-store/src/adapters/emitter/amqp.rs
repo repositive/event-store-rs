@@ -13,6 +13,7 @@ use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
 use log::{debug, info, trace};
+use serde::Serialize;
 use std::fmt::Debug;
 use std::io;
 use std::net::SocketAddr;
@@ -97,11 +98,15 @@ impl AmqpEmitterAdapter {
                 while let Some(Ok(message)) = await!(stream.next()) {
                     let event: Event<ED> = serde_json::from_slice(&message.data).unwrap();
 
-                    trace!("Received event {:?}", event);
+                    trace!("Received event {}", event.id);
 
                     let saved = if options.save_on_receive {
+                        trace!("Save event {} ({}.{})", event.id, ED::event_namespace(), ED::event_type());
+
                         await!(store.save_no_emit(&event))
                     } else {
+                        trace!("Skip saving event {} ({}.{})", event.id, ED::event_namespace(), ED::event_type());
+
                         Ok(())
                     };
 
@@ -138,6 +143,37 @@ impl AmqpEmitterAdapter {
 
         info!(
             "Emitting event {} onto exchange {} through queue {}",
+            event_name, self.exchange, queue_name
+        );
+
+        await!(amqp_emit_data(
+            &self.channel,
+            &self.exchange,
+            &event_name,
+            payload
+        ))?;
+
+        Ok(())
+    }
+
+    pub(crate) async fn emit_value<'a, V>(
+        &'a self,
+        event_type: &'a str,
+        event_namespace: &'a str,
+        data: &'a V,
+    ) -> Result<(), io::Error>
+    where
+        V: Serialize,
+    {
+        let payload: Vec<u8> = serde_json::to_string(&data)
+            .expect("Cant serialise data")
+            .into();
+
+        let event_name = format!("{}.{}", event_namespace, event_type);
+        let queue_name = format!("{}-{}", self.store_namespace, event_name);
+
+        info!(
+            "Emitting data {} onto exchange {} through queue {}",
             event_name, self.exchange, queue_name
         );
 
