@@ -1,5 +1,4 @@
 #![feature(await_macro, async_await, futures_api)]
-#![feature(pin)]
 #![feature(arbitrary_self_types)]
 
 use event_store::adapters::{CacheResult, PgCacheAdapter};
