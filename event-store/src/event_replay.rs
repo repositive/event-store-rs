@@ -1,4 +1,3 @@
-use event_store_derive_internals::Events;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::store::Store;
@@ -29,29 +28,27 @@ impl EventReplayRequested {
     }
 }
 
-async fn test() -> Result<u32, String> {
-    debug!("TEST FN");
-    Ok(100)
-}
-
 impl EventHandler for EventReplayRequested {
-    fn handle_event(event: Event<Self>, _store: Store){
+    fn handle_event(event: Event<Self>, store: &Store) {
         debug!("HANDLER");
         debug!("Event replay received {:?}", event);
 
-        // TODO: Implement replay logic
-
-        let store = _store.clone();
+        let store = store.clone();
 
         tokio::spawn_async(
-            async {
-                await!(test()).unwrap();
-
+            async move {
                 let since = event.context.time;
                 let ns = event.data.requested_event_namespace;
                 let ty = event.data.requested_event_type;
 
-                let _events = await!(store.read_events_since::<Self>(&ns, &ty, since)).expect("Could not read events to replay");
+                let events = await!(store.read_events_since::<Self>(&ns, &ty, since))
+                    .expect("Could not read events to replay");
+
+                for event in events {
+                    debug!("Replay event {}", event.id);
+
+                    await!(store.emit(&event)).unwrap();
+                }
             },
         );
     }
