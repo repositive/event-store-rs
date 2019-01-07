@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["James Waples <jamwaffles@gmail.com>"]
 
 [dependencies]
-syn = { version = "0.15.23", features = [ "extra-traits" ] }
+syn = { version = "0.15.24", features = [ "extra-traits" ] }
 quote = "0.6.10"
 proc-macro2 = "0.4.24"
 serde = "1.0.84"
