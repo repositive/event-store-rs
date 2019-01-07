@@ -6,6 +6,7 @@ use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::event_replay::EventReplayRequested;
 use crate::store::Store;
+use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::info;
@@ -78,7 +79,14 @@ impl SubscribableStore {
 
         await!(self.emitter.subscribe::<ED>(inner_store, options))?;
 
-        // TODO: Event replay requested
+        let last = await!(self.inner_store.last_event::<ED>())?;
+
+        let replay = EventReplayRequested::from_event::<ED>(
+            last.map(|e| e.context.time)
+                .unwrap_or_else(|| Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
+        );
+
+        await!(self.inner_store.emit(&replay))?;
 
         Ok(())
     }

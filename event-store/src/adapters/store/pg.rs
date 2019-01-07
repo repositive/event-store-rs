@@ -156,8 +156,7 @@ impl PgStoreAdapter {
     {
         let rows = self.conn.get().unwrap()
                 .query(
-                    r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1
-                    "#,
+                    r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1"#,
                     &[
                         &ED::event_namespace(),
                         &ED::event_type()
@@ -177,5 +176,53 @@ impl PgStoreAdapter {
         } else {
             Ok(None)
         }
+    }
+
+    /// Fetch events of a given type starting from a timestamp going forward
+    pub async fn read_events_since<'a, ED>(
+        &'a self,
+        event_namespace: &'a str,
+        event_type: &'a str,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<Event<ED>>, io::Error>
+    where
+        ED: EventData,
+    {
+        let query_string = "SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' asc";
+
+                let conn = self.conn.get().unwrap();
+
+                let trans = conn
+                    .transaction()
+                    .expect("Unable to initialise transaction");
+
+                let stmt = trans
+                    .prepare(&query_string)
+                    .expect("Unable to prepare read statement");
+
+                let results = stmt
+                    .lazy_query(&trans, &[&event_namespace, &event_type, &since], 1000)
+                    .unwrap()
+                    .map(|row| {
+                        let id: Uuid = row.get("id");
+                        let data_json: JsonValue = row.get("data");
+                        let context_json: JsonValue = row.get("context");
+
+                        let thing = json!({
+                            "id": id,
+                            "data": data_json,
+                            "context": context_json,
+                        });
+
+                        let evt: Event<ED> = from_value(thing).expect("Could not decode row");
+
+                        evt
+                    })
+                    .collect()
+                    .expect("ain't no collec");
+
+                trans.finish().expect("Could not finish transaction");
+
+                Ok(results)
     }
 }
