@@ -201,7 +201,7 @@ impl PgStoreAdapter {
             .expect("Unable to prepare read statement");
 
         let results = stmt
-            .lazy_query(&trans, &[&event_namespace, &event_type, &since], 1000)
+            .lazy_query(&trans, &[&event_namespace, &event_type, &since.to_rfc3339()], 1000)
             .unwrap()
             .map(|row| {
                 let id: Uuid = row.get("id");
