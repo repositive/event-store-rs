@@ -101,11 +101,21 @@ impl AmqpEmitterAdapter {
                     trace!("Received event {}", event.id);
 
                     let saved = if options.save_on_receive {
-                        trace!("Save event {} ({}.{})", event.id, ED::event_namespace(), ED::event_type());
+                        trace!(
+                            "Save event {} ({}.{})",
+                            event.id,
+                            ED::event_namespace(),
+                            ED::event_type()
+                        );
 
                         await!(store.save_no_emit(&event))
                     } else {
-                        trace!("Skip saving event {} ({}.{})", event.id, ED::event_namespace(), ED::event_type());
+                        trace!(
+                            "Skip saving event {} ({}.{})",
+                            event.id,
+                            ED::event_namespace(),
+                            ED::event_type()
+                        );
 
                         Ok(())
                     };
