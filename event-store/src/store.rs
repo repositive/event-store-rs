@@ -1,8 +1,8 @@
-use chrono::prelude::*;
 use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter};
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::store_query::StoreQuery;
+use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::{debug, trace};
@@ -111,7 +111,10 @@ impl Store {
     where
         ED: EventData,
     {
-        let events = await!(self.store.read_events_since::<ED>(event_namespace, event_type, since))?;
+        let events =
+            await!(self
+                .store
+                .read_events_since::<ED>(event_namespace, event_type, since))?;
 
         Ok(events)
     }
