@@ -23,7 +23,6 @@ pub mod test_helpers;
 
 use futures::Future as OldFuture;
 use std::future::Future as NewFuture;
-use std::pin::Unpin;
 
 // converts from a new style Future to an old style one:
 // TODO: No pub
