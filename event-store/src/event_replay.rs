@@ -30,24 +30,25 @@ impl EventReplayRequested {
 
 impl EventHandler for EventReplayRequested {
     fn handle_event(event: Event<Self>, store: &Store) {
-        debug!("HANDLER");
         debug!("Event replay received {:?}", event);
 
         let store = store.clone();
 
         tokio::spawn_async(
             async move {
-                let since = event.context.time;
+                let since = event.data.since;
                 let ns = event.data.requested_event_namespace;
                 let ty = event.data.requested_event_type;
 
-                let events = await!(store.read_events_since::<Self>(&ns, &ty, since))
+                let events = await!(store.read_events_since(&ns, &ty, since))
                     .expect("Could not read events to replay");
 
-                for event in events {
-                    debug!("Replay event {}", event.id);
+                debug!("Found {} events to replay", events.len());
 
-                    await!(store.emit(&event)).unwrap();
+                for event in events {
+                    debug!("Replay event {}", event["id"]);
+
+                    await!(store.emit_value(&ns, &ty, &event)).unwrap();
                 }
             },
         );
