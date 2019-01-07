@@ -143,7 +143,6 @@ impl AmqpEmitterAdapter {
 
         await!(amqp_emit_data(
             &self.channel,
-            &queue_name,
             &self.exchange,
             &event_name,
             payload
@@ -237,7 +236,6 @@ async fn amqp_bind_queue<'a>(
 
 async fn amqp_emit_data<'a>(
     channel: &'a Channel<TcpStream>,
-    queue_name: &'a String,
     exchange: &'a String,
     routing_key: &'a String,
     payload: Vec<u8>,
