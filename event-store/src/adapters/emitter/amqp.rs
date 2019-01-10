@@ -12,7 +12,7 @@ use lapin_futures::channel::{
 use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 use serde::Serialize;
 use std::fmt::Debug;
 use std::io;
@@ -120,17 +120,16 @@ impl AmqpEmitterAdapter {
                         Ok(())
                     };
 
-                    // Can't do an `await` inside a .map() closure, so it's down here for now
-                    if saved.is_ok() {
-                        trace!("Event saved, handling...");
+                    saved.map(|_| {
+                        trace!("Event processed, calling handler");
 
                         ED::handle_event(event, &store);
+                    });
 
-                        trace!("Ack event {}", message.delivery_tag);
+                    trace!("Ack event {}", message.delivery_tag);
 
-                        await!(forward(self_channel.basic_ack(message.delivery_tag, false)))
-                            .expect("Could not ack message");
-                    }
+                    await!(forward(self_channel.basic_ack(message.delivery_tag, false)))
+                        .expect("Could not ack message");
                 }
             },
         );
@@ -168,8 +167,8 @@ impl AmqpEmitterAdapter {
 
     pub(crate) async fn emit_value<'a, V>(
         &'a self,
-        event_type: &'a str,
         event_namespace: &'a str,
+        event_type: &'a str,
         data: &'a V,
     ) -> Result<(), io::Error>
     where
