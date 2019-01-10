@@ -18,6 +18,7 @@ pub mod subscribable_store;
 #[doc(hidden)]
 pub mod test_helpers;
 
+pub use crate::adapters::SubscribeOptions;
 use futures::Future as OldFuture;
 use std::future::Future as NewFuture;
 
