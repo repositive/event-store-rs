@@ -72,9 +72,7 @@ impl Store {
 
         await!(self.save_no_emit(&event))?;
 
-        await!(self.emitter.emit(&event))?;
-
-        Ok(())
+        await!(self.emitter.emit(&event))
     }
 
     pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
@@ -83,9 +81,7 @@ impl Store {
     {
         debug!("Save (no emit) event {:?}", event);
 
-        await!(self.store.save(&event))?;
-
-        Ok(())
+        await!(self.store.save(&event))
     }
 
     pub async fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
@@ -99,9 +95,7 @@ impl Store {
     where
         ED: EventData,
     {
-        await!(self.emitter.emit(event))?;
-
-        Ok(())
+        await!(self.emitter.emit(event))
     }
 
     pub(crate) async fn emit_value<'a, V>(
@@ -113,9 +107,7 @@ impl Store {
     where
         V: Serialize,
     {
-        await!(self.emitter.emit_value(event_type, event_namespace, data))?;
-
-        Ok(())
+        await!(self.emitter.emit_value(event_type, event_namespace, data))
     }
 
     pub async fn read_events_since<'a>(
@@ -124,10 +116,8 @@ impl Store {
         event_type: &'a str,
         since: DateTime<Utc>,
     ) -> Result<Vec<JsonValue>, io::Error> {
-        let events = await!(self
+        await!(self
             .store
-            .read_events_since(event_namespace, event_type, since))?;
-
-        Ok(events)
+            .read_events_since(event_namespace, event_type, since))
     }
 }

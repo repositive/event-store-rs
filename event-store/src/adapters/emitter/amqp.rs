@@ -10,9 +10,10 @@ use lapin_futures::channel::{
     QueueBindOptions, QueueDeclareOptions,
 };
 use lapin_futures::client::{Client, ConnectionOptions};
+use lapin_futures::consumer::Consumer;
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
-use log::{debug, error, info, trace};
+use log::{debug, info, trace};
 use serde::Serialize;
 use std::fmt::Debug;
 use std::io;
@@ -25,6 +26,7 @@ pub struct AmqpEmitterAdapter {
     channel: Channel<TcpStream>,
     exchange: String,
     store_namespace: String,
+    uri: SocketAddr,
 }
 
 impl AmqpEmitterAdapter {
@@ -39,6 +41,7 @@ impl AmqpEmitterAdapter {
             channel,
             exchange,
             store_namespace,
+            uri,
         })
     }
 
@@ -50,8 +53,7 @@ impl AmqpEmitterAdapter {
     where
         ED: EventData + EventHandler + Debug + Send + Sync + Sized,
     {
-        let self_channel = self.channel.clone();
-        let self_exchange = self.exchange.clone();
+        let channel = await!(amqp_connect(self.uri, &self.exchange))?;
 
         let event_namespace = ED::event_namespace();
         let event_type = ED::event_type();
@@ -60,31 +62,24 @@ impl AmqpEmitterAdapter {
 
         trace!("Subscribe queue {}", queue_name);
 
-        info!(
-            "Creating consumer for event {} on queue {} on exchange {}",
-            event_name, queue_name, self_exchange
-        );
-
         let queue = await!(amqp_bind_queue(
-            &self_channel,
+            &channel,
             &queue_name,
-            &self_exchange,
+            &self.exchange,
             &event_name
         ))
         .unwrap();
 
-        let consumer_tag = format!("consumer-{}-{}", self_exchange, event_name);
-
         info!(
-            "Create consumer on exchange {} with consumer tag {}",
-            self_exchange, consumer_tag
+            "Creating consumer for event {} on queue {} on exchange {}",
+            event_name, queue_name, self.exchange
         );
 
-        let mut stream = await!(forward(
-            self_channel
+        let mut stream: Consumer<TcpStream> = await!(forward(
+            channel
                 .basic_consume(
                     &queue,
-                    &consumer_tag,
+                    &"",
                     BasicConsumeOptions::default(),
                     FieldTable::new(),
                 )
@@ -120,15 +115,17 @@ impl AmqpEmitterAdapter {
                         Ok(())
                     };
 
-                    saved.map(|_| {
-                        trace!("Event processed, calling handler");
+                    saved
+                        .map(|_| {
+                            trace!("Event processed, calling handler");
 
-                        ED::handle_event(event, &store);
-                    });
+                            ED::handle_event(event, &store);
+                        })
+                        .expect("Failed to handle event");
 
                     trace!("Ack event {}", message.delivery_tag);
 
-                    await!(forward(self_channel.basic_ack(message.delivery_tag, false)))
+                    await!(forward(channel.basic_ack(message.delivery_tag, false)))
                         .expect("Could not ack message");
                 }
             },
@@ -218,7 +215,11 @@ async fn amqp_connect(uri: SocketAddr, exchange: &String) -> Result<Channel<TcpS
 
     let (client, heartbeat) = await!(forward(Client::connect(
         stream,
-        ConnectionOptions::default()
+        ConnectionOptions {
+            frame_max: 65535,
+            heartbeat: 20,
+            ..ConnectionOptions::default()
+        }
     )))
     .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
