@@ -83,7 +83,8 @@ impl PgStoreAdapter {
         self.conn
             .get()
             .unwrap()
-            .prepare("insert into events (id, data, context) values ($1, $2, $3)")
+            // TODO: Capture duplicate errors and turn them into a "do nothing" result. Currently, the event handler is always called whether the event was newly stored or not
+            .prepare("insert into events (id, data, context) values ($1, $2, $3) on conflict (id) do nothing")
             .and_then(|stmt| {
                 stmt.execute(&[
                     &event.id,
@@ -92,7 +93,9 @@ impl PgStoreAdapter {
                 ])
             })
             .map(|_| ())
-            .map_err(|_e| io::Error::new(io::ErrorKind::Other, "Could not save"))
+            .map_err(|e| {
+                io::Error::new(io::ErrorKind::Other, format!("Could not save event: {}", e))
+            })
     }
 
     /// Read a list of events

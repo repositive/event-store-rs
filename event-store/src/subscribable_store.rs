@@ -86,8 +86,11 @@ impl SubscribableStore {
                 .unwrap_or_else(|| Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
         );
 
-        await!(self.inner_store.emit(&replay))?;
+        info!(
+            "Emit replay request for event {}",
+            ED::event_namespace_and_type()
+        );
 
-        Ok(())
+        await!(self.inner_store.emit(&replay))
     }
 }
