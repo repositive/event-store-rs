@@ -1,5 +1,5 @@
 use crate::adapters::{
-    AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SubscribeOptions,
+    AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult, SubscribeOptions,
 };
 use crate::aggregator::Aggregator;
 use crate::event::Event;
@@ -52,14 +52,14 @@ impl SubscribableStore {
         Ok(res)
     }
 
-    pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
+    pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug + Send + Sync,
     {
         await!(self.inner_store.save(event))
     }
 
-    pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
+    pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug + Send + Sync,
     {

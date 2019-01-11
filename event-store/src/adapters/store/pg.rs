@@ -6,6 +6,7 @@ use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use fallible_iterator::FallibleIterator;
 use log::debug;
+use postgres::error::UNIQUE_VIOLATION;
 use r2d2::Pool;
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::PostgresConnectionManager;
@@ -59,6 +60,12 @@ fn generate_query(initial_query: &PgQuery, since: Option<DateTime<Utc>>) -> Stri
     }
 }
 
+pub enum SaveStatus {
+    Ok,
+    Duplicate,
+}
+pub type SaveResult = Result<SaveStatus, io::Error>;
+
 #[derive(Clone)]
 pub struct PgStoreAdapter {
     conn: Pool<PostgresConnectionManager>,
@@ -70,7 +77,7 @@ impl PgStoreAdapter {
     }
 
     /// Save an event into PG
-    pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
+    pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData,
     {
@@ -83,8 +90,7 @@ impl PgStoreAdapter {
         self.conn
             .get()
             .unwrap()
-            // TODO: Capture duplicate errors and turn them into a "do nothing" result. Currently, the event handler is always called whether the event was newly stored or not
-            .prepare("insert into events (id, data, context) values ($1, $2, $3) on conflict (id) do nothing")
+            .prepare("insert into events (id, data, context) values ($1, $2, $3)")
             .and_then(|stmt| {
                 stmt.execute(&[
                     &event.id,
@@ -92,9 +98,18 @@ impl PgStoreAdapter {
                     &to_value(&event.context).expect("Cannot convert event context"),
                 ])
             })
-            .map(|_| ())
-            .map_err(|e| {
-                io::Error::new(io::ErrorKind::Other, format!("Could not save event: {}", e))
+            .map(|_| Ok(SaveStatus::Ok))
+            .unwrap_or_else(|err| {
+                let is_duplicate_error = err.code().unwrap() == &UNIQUE_VIOLATION;
+
+                if is_duplicate_error {
+                    Ok(SaveStatus::Duplicate)
+                } else {
+                    Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("Could not save event: {}", err),
+                    ))
+                }
             })
     }
 

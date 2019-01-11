@@ -4,7 +4,7 @@ mod store;
 
 pub use self::cache::{CacheResult, PgCacheAdapter};
 pub use self::emitter::AmqpEmitterAdapter;
-pub use self::store::{PgQuery, PgStoreAdapter};
+pub use self::store::{PgQuery, PgStoreAdapter, SaveResult, SaveStatus};
 
 #[derive(Debug, Clone)]
 pub struct SubscribeOptions {
