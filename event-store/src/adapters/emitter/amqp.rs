@@ -1,4 +1,4 @@
-use crate::adapters::SubscribeOptions;
+use crate::adapters::{SaveStatus, SubscribeOptions};
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::forward;
@@ -112,14 +112,18 @@ impl AmqpEmitterAdapter {
                             ED::event_type()
                         );
 
-                        Ok(())
+                        Ok(SaveStatus::Ok)
                     };
 
                     saved
-                        .map(|_| {
-                            trace!("Event processed, calling handler");
-
-                            ED::handle_event(event, &store);
+                        .map(|result| match result {
+                            SaveStatus::Ok => {
+                                trace!("Event saved, calling handler");
+                                ED::handle_event(event, &store);
+                            }
+                            SaveStatus::Duplicate => {
+                                debug!("Duplicate event {}, skipping handler", event.id);
+                            }
                         })
                         .expect("Failed to handle event");
 

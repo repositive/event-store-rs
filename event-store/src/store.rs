@@ -1,4 +1,4 @@
-use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter};
+use crate::adapters::{SaveStatus, AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult};
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::store_query::StoreQuery;
@@ -64,7 +64,7 @@ impl Store {
         Ok(events.iter().fold(initial_state, T::apply_event))
     }
 
-    pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
+    pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug + Send + Sync,
     {
@@ -72,10 +72,10 @@ impl Store {
 
         await!(self.save_no_emit(&event))?;
 
-        await!(self.emitter.emit(&event))
+        await!(self.emitter.emit(&event)).map(|_| SaveStatus::Ok)
     }
 
-    pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
+    pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug + Send + Sync,
     {
