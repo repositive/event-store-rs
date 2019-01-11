@@ -1,6 +1,7 @@
 use ns::StructInfo;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
+use syn::Fields;
 use syn::{DataStruct, DeriveInput};
 
 fn impl_serialize(info: &StructInfo) -> TokenStream {
@@ -16,7 +17,11 @@ fn impl_serialize(info: &StructInfo) -> TokenStream {
 
     let field_idents2 = field_idents.iter();
 
-    let body = struct_body.clone().fields.into_token_stream();
+    let body = if let Fields::Named(fields) = struct_body.clone().fields {
+        fields.named.into_token_stream()
+    } else {
+        panic!("Unnamed and unit structs are not supported");
+    };
 
     quote! {
         impl Serialize for #item_ident {
@@ -25,25 +30,19 @@ fn impl_serialize(info: &StructInfo) -> TokenStream {
                 S: Serializer,
             {
                 #[derive(Serialize)]
-                struct Output #body
-
-                #[derive(Serialize)]
                 struct Helper<'a> {
                     #[serde(rename = "type")]
                     event_namespace_and_type: &'a str,
                     event_type: &'a str,
                     event_namespace: &'a str,
-                    #[serde(flatten)]
-                    payload: &'a Output,
+                    #body
                 }
 
                 let out = Helper {
                     event_namespace_and_type: #renamed_namespace_and_type,
                     event_namespace: #struct_namespace_quoted,
                     event_type: #renamed_item_ident_quoted,
-                    payload: &Output {
-                        #(#field_idents: self.#field_idents2.clone(), )*
-                    }
+                    #(#field_idents: self.#field_idents2.clone(), )*
                 };
 
                 out.serialize(serializer).map_err(ser::Error::custom)
@@ -64,7 +63,11 @@ fn impl_deserialize(info: &StructInfo) -> TokenStream {
 
     let field_idents2 = field_idents.iter();
 
-    let body = struct_body.clone().fields.into_token_stream();
+    let body = if let Fields::Named(fields) = struct_body.clone().fields {
+        fields.named.into_token_stream()
+    } else {
+        panic!("Unnamed and unit structs are not supported");
+    };
 
     quote! {
         impl<'de> Deserialize<'de> for #item_ident {
@@ -73,9 +76,6 @@ fn impl_deserialize(info: &StructInfo) -> TokenStream {
                 D: Deserializer<'de>,
             {
                 use serde::de;
-
-                #[derive(Deserialize, Clone)]
-                struct Output #body
 
                 #[derive(Deserialize, Clone)]
                 struct EventIdent {
@@ -89,8 +89,7 @@ fn impl_deserialize(info: &StructInfo) -> TokenStream {
                     _event_namespace_and_type: Option<String>,
                     #[serde(flatten)]
                     _event_ident: Option<EventIdent>,
-                    #[serde(flatten)]
-                    _payload: Output
+                    #body
                 }
 
                 let helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
@@ -110,7 +109,7 @@ fn impl_deserialize(info: &StructInfo) -> TokenStream {
 
                 if ident.event_type == #renamed_item_ident_quoted && ident.event_namespace == #struct_namespace_quoted {
                     Ok(#item_ident {
-                        #(#field_idents: helper._payload.#field_idents2,)*
+                        #(#field_idents: helper.#field_idents2,)*
                     })
                 } else {
                     Err(de::Error::custom("Incorrect event identifier"))
@@ -143,6 +142,7 @@ pub fn derive_struct(parsed: &DeriveInput, struct_body: &DataStruct) -> TokenStr
         #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
         const #dummy_const: () = {
             extern crate serde;
+            extern crate serde_derive;
             extern crate event_store_derive_internals;
 
             use serde::ser;
