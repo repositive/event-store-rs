@@ -51,7 +51,7 @@ impl AmqpEmitterAdapter {
         options: SubscribeOptions,
     ) -> Result<(), io::Error>
     where
-        ED: EventData + EventHandler + Debug + Send + Sync + Sized,
+        ED: EventData + EventHandler + Debug + Send + Sync,
     {
         let channel = await!(amqp_connect(self.uri, &self.exchange))?;
 

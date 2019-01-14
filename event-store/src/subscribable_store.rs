@@ -54,14 +54,14 @@ impl SubscribableStore {
 
     pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
-        ED: EventData + Debug + Send + Sync,
+        ED: EventData + Debug,
     {
         await!(self.inner_store.save(event))
     }
 
     pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
-        ED: EventData + Debug + Send + Sync,
+        ED: EventData + Debug,
     {
         await!(self.inner_store.save_no_emit(event))
     }
