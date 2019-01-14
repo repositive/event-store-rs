@@ -22,13 +22,12 @@ pub struct PgQuery {
     pub query: String,
 
     /// Arguments to use for the query
-    // TODO: Remove `Sync` (and `Send`?) when we no longer need to use old futures
-    pub args: Vec<Box<ToSql + Send + Sync>>,
+    pub args: Vec<Box<ToSql>>,
 }
 
 impl PgQuery {
     /// Create a new query from a query string and arguments
-    pub fn new(query: &str, args: Vec<Box<ToSql + Send + Sync>>) -> Self {
+    pub fn new(query: &str, args: Vec<Box<ToSql>>) -> Self {
         Self {
             query: query.into(),
             args,

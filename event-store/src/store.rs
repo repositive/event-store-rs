@@ -66,7 +66,7 @@ impl Store {
 
     pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
-        ED: EventData + Debug + Send + Sync,
+        ED: EventData + Debug,
     {
         debug!("Save and emit event {:?}", event);
 
@@ -77,7 +77,7 @@ impl Store {
 
     pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
-        ED: EventData + Debug + Send + Sync,
+        ED: EventData + Debug,
     {
         debug!("Save (no emit) event {:?}", event);
 
