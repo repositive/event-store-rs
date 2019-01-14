@@ -1,4 +1,6 @@
-use crate::adapters::{SaveStatus, AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult};
+use crate::adapters::{
+    AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult, SaveStatus,
+};
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::store_query::StoreQuery;
