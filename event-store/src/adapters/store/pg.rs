@@ -76,7 +76,7 @@ impl PgStoreAdapter {
     }
 
     /// Save an event into PG
-    pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
+    pub fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData,
     {

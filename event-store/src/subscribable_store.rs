@@ -59,16 +59,16 @@ impl SubscribableStore {
         await!(self.inner_store.save(event))
     }
 
-    pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
+    pub fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug,
     {
-        await!(self.inner_store.save_no_emit(event))
+        self.inner_store.save_no_emit(event)
     }
 
     pub async fn subscribe<'a, ED>(&'a self, options: SubscribeOptions) -> Result<(), io::Error>
     where
-        ED: EventHandler + Debug + Send + Sync,
+        ED: EventHandler + Debug + Send,
     {
         info!(
             "Starting subscription to {}",
