@@ -12,6 +12,7 @@ use log::info;
 use std::fmt::Debug;
 use std::io;
 
+/// The main event store struct
 #[derive(Clone)]
 pub struct SubscribableStore {
     emitter: AmqpEmitterAdapter,
@@ -19,6 +20,7 @@ pub struct SubscribableStore {
 }
 
 impl SubscribableStore {
+    /// Create a new event store with the given store, cache and emitter adapters
     pub async fn new(
         store: PgStoreAdapter,
         cache: PgCacheAdapter,
@@ -40,6 +42,7 @@ impl SubscribableStore {
         Ok(store)
     }
 
+    /// Fetch an entity from the store by aggregating over matching events
     pub async fn aggregate<'a, T, QA, E>(&'a self, query_args: &'a QA) -> Result<T, io::Error>
     where
         E: Events,
@@ -51,6 +54,7 @@ impl SubscribableStore {
         Ok(res)
     }
 
+    /// Save an event to the store, emitting it to other listeners
     pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug,
@@ -58,6 +62,7 @@ impl SubscribableStore {
         await!(self.inner_store.save(event))
     }
 
+    /// Save an event without emitting it
     pub fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug,
@@ -65,6 +70,7 @@ impl SubscribableStore {
         self.inner_store.save_no_emit(event)
     }
 
+    /// Subscribe to incoming events matching the namespace and type in `ED`
     pub async fn subscribe<'a, ED>(&'a self, options: SubscribeOptions) -> Result<(), io::Error>
     where
         ED: EventHandler + Debug + Send,

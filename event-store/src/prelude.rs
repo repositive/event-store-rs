@@ -1,3 +1,5 @@
+//! Event store prelude
+
 pub use crate::aggregator::Aggregator;
 pub use crate::event::Event;
 pub use crate::event_context::EventContext;

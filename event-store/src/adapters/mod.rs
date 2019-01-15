@@ -1,3 +1,5 @@
+//! Backing store adapters for event storage, caching and subscriptions
+
 mod cache;
 mod emitter;
 mod store;

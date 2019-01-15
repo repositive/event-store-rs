@@ -1,3 +1,6 @@
+//! Event store
+
+#![deny(missing_docs)]
 // enable the await! macro, async support, and the new std::Futures api.
 #![feature(await_macro, async_await, futures_api)]
 // only needed to manually implement a std future:

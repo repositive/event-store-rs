@@ -22,6 +22,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpStream;
 use tokio_async_await::stream::StreamExt;
 
+/// AMQP-backed emitter/subscriber
 #[derive(Clone)]
 pub struct AmqpEmitterAdapter {
     channel: Channel<TcpStream>,
@@ -31,6 +32,7 @@ pub struct AmqpEmitterAdapter {
 }
 
 impl AmqpEmitterAdapter {
+    /// Create a new AMQP emitter/subscriber
     pub async fn new(
         uri: SocketAddr,
         exchange: String,
@@ -46,6 +48,7 @@ impl AmqpEmitterAdapter {
         })
     }
 
+    /// Subscribe to an event
     pub async fn subscribe<ED>(
         &self,
         store: Store,
@@ -140,6 +143,7 @@ impl AmqpEmitterAdapter {
         Ok(())
     }
 
+    /// Emit an event
     pub async fn emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
         ED: EventData,
