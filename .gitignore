@@ -3,3 +3,4 @@ target
 Cargo.lock
 postgres_data
 .DS_Store
+*.glade~
