@@ -1,7 +1,8 @@
 [package]
 name = "event-store-derive"
 version = "0.1.0"
-authors = ["James Waples <jamwaffles@gmail.com>"]
+authors = ["James Waples <james@wapl.es>"]
+edition = "2018"
 
 [dependencies]
 syn = { version = "0.15.25", features = [ "extra-traits" ] }
