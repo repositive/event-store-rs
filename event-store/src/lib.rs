@@ -6,46 +6,26 @@
 #[macro_use]
 extern crate serde_derive;
 
+mod aggregator;
+mod event;
+mod event_context;
+mod event_handler;
+mod event_replay;
+mod store;
+mod store_query;
+mod subscribable_store;
+
 pub mod adapters;
-pub mod aggregator;
-pub mod event;
-pub mod event_context;
-pub mod event_handler;
-pub mod event_replay;
-pub mod store;
-pub mod store_query;
-pub mod subscribable_store;
 #[doc(hidden)]
-pub mod test_helpers;
+pub mod internals;
+pub mod prelude;
 
 pub use crate::adapters::SubscribeOptions;
-use futures::Future as OldFuture;
-use std::future::Future as NewFuture;
-
-// converts from a new style Future to an old style one:
-// TODO: No pub
-pub fn backward<I, E>(
-    f: impl NewFuture<Output = Result<I, E>>,
-) -> impl OldFuture<Item = I, Error = E> {
-    use tokio_async_await::compat::backward;
-    backward::Compat::new(f)
-}
-
-// converts from an old style Future to a new style one:
-// TODO: No pub
-pub fn forward<I, E>(
-    f: impl OldFuture<Item = I, Error = E> + Unpin,
-) -> impl NewFuture<Output = Result<I, E>> {
-    use tokio_async_await::compat::forward::IntoAwaitable;
-    f.into_awaitable()
-}
-
-pub use crate::aggregator::*;
+pub use crate::aggregator::Aggregator;
 pub use crate::event::Event;
-pub use crate::event_handler::*;
-pub use crate::event_replay::*;
-pub use crate::store::*;
-pub use crate::store_query::*;
-pub use crate::subscribable_store::*;
-#[doc(hidden)]
-pub use crate::test_helpers::*;
+pub use crate::event_context::EventContext;
+pub use crate::event_handler::EventHandler;
+pub use crate::store::Store;
+pub use crate::store_query::StoreQuery;
+pub use crate::subscribable_store::SubscribableStore;
+pub use event_store_derive_internals::{EventData, Events};

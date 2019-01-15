@@ -2,8 +2,10 @@
 #![feature(arbitrary_self_types)]
 
 use event_store::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgStoreAdapter};
-use event_store::*;
-use futures::prelude::*;
+use event_store::internals::{backward, forward, test_helpers::*};
+use event_store::prelude::*;
+use event_store::SubscribableStore;
+use futures::future::Future;
 use log::trace;
 use std::io;
 use std::net::SocketAddr;
