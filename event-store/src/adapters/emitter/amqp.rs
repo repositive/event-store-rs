@@ -51,7 +51,7 @@ impl AmqpEmitterAdapter {
         options: SubscribeOptions,
     ) -> Result<(), io::Error>
     where
-        ED: EventData + EventHandler + Debug + Send + Sync,
+        ED: EventData + EventHandler + Debug + Send,
     {
         let channel = await!(amqp_connect(self.uri, &self.exchange))?;
 
@@ -103,7 +103,7 @@ impl AmqpEmitterAdapter {
                             ED::event_type()
                         );
 
-                        await!(store.save_no_emit(&event))
+                        store.save_no_emit(&event)
                     } else {
                         trace!(
                             "Skip saving event {} ({}.{})",

@@ -1,3 +1,4 @@
+use std::future::Future;
 use crate::adapters::{
     AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult, SaveStatus,
 };
@@ -72,18 +73,18 @@ impl Store {
     {
         debug!("Save and emit event {:?}", event);
 
-        await!(self.save_no_emit(&event))?;
+        self.save_no_emit(&event)?;
 
         await!(self.emitter.emit(&event)).map(|_| SaveStatus::Ok)
     }
 
-    pub async fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
+    pub fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug,
     {
         debug!("Save (no emit) event {:?}", event);
 
-        await!(self.store.save(&event))
+        self.store.save(&event)
     }
 
     pub async fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
