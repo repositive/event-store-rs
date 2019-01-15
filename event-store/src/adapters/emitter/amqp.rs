@@ -115,6 +115,7 @@ impl AmqpEmitterAdapter {
                         Ok(SaveStatus::Ok)
                     };
 
+                    // TODO: Check order of save/handle or handle/save based on TS event store
                     saved
                         .map(|result| match result {
                             SaveStatus::Ok => {
