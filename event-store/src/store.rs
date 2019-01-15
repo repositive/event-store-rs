@@ -13,6 +13,7 @@ use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
 
+/// Event store that does not support subscriptions. Passed to [`crate::event_handler::EventHandler`] implementations.
 #[derive(Clone)]
 pub struct Store {
     store: PgStoreAdapter,
@@ -21,6 +22,7 @@ pub struct Store {
 }
 
 impl Store {
+    /// Create a new non-subscribable store
     pub fn new(store: PgStoreAdapter, cache: PgCacheAdapter, emitter: AmqpEmitterAdapter) -> Self {
         Self {
             store,
@@ -29,6 +31,7 @@ impl Store {
         }
     }
 
+    /// Read events from the backing store, producing a reduced result
     pub async fn aggregate<'a, T, QA, E>(&'a self, query_args: &'a QA) -> Result<T, io::Error>
     where
         E: Events,
@@ -66,6 +69,7 @@ impl Store {
         Ok(events.iter().fold(initial_state, T::apply_event))
     }
 
+    /// Save an event and emit it to other subscribers
     pub async fn save<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug,
@@ -77,6 +81,7 @@ impl Store {
         await!(self.emitter.emit(&event)).map(|_| SaveStatus::Ok)
     }
 
+    /// Save an event without emitting it to other subscribers
     pub fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
     where
         ED: EventData + Debug,
@@ -86,6 +91,7 @@ impl Store {
         self.store.save(&event)
     }
 
+    /// Find the most recent occurrence of an event in the database
     pub async fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
     where
         ED: EventData,
@@ -93,6 +99,7 @@ impl Store {
         self.store.last_event::<ED>()
     }
 
+    /// Emit an event to subscribers
     pub async fn emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
         ED: EventData,
@@ -112,6 +119,7 @@ impl Store {
         await!(self.emitter.emit_value(event_type, event_namespace, data))
     }
 
+    /// Read all events since a given time
     pub async fn read_events_since<'a>(
         &'a self,
         event_namespace: &'a str,

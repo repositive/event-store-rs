@@ -59,12 +59,22 @@ fn generate_query(initial_query: &PgQuery, since: Option<DateTime<Utc>>) -> Stri
     }
 }
 
+/// Save result
 pub enum SaveStatus {
+    /// The save was successful
     Ok,
+
+    /// A duplicate item already exists in the backing store
     Duplicate,
 }
+
+/// The result of a save operation
+///
+/// If the save did not error but a duplicate was encountered, this should be equal to
+/// `Ok(SaveStatus::Ok)`
 pub type SaveResult = Result<SaveStatus, io::Error>;
 
+/// Postgres-backed store adapter
 #[derive(Clone)]
 pub struct PgStoreAdapter {
     conn: Pool<PostgresConnectionManager>,
@@ -72,6 +82,7 @@ pub struct PgStoreAdapter {
 
 impl PgStoreAdapter {
     // TODO: Create table on init
+    /// Create a new Postgres store
     pub async fn new(conn: Pool<PostgresConnectionManager>) -> Result<Self, io::Error> {
         Ok(Self { conn })
     }
@@ -168,6 +179,7 @@ impl PgStoreAdapter {
         Ok(results)
     }
 
+    /// Find the most recent event of a given type
     pub fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
     where
         ED: EventData,

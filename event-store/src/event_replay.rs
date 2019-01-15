@@ -9,14 +9,14 @@ use serde_derive::*;
 
 #[derive(EventData, Debug)]
 #[event_store(namespace = "_eventstore")]
-pub struct EventReplayRequested {
+pub(crate) struct EventReplayRequested {
     requested_event_namespace: String,
     requested_event_type: String,
     since: DateTime<Utc>,
 }
 
 impl EventReplayRequested {
-    pub fn from_event<ED>(since: DateTime<Utc>) -> Event<Self>
+    pub(crate) fn from_event<ED>(since: DateTime<Utc>) -> Event<Self>
     where
         ED: EventData,
     {

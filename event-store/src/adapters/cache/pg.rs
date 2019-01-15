@@ -10,6 +10,7 @@ use serde_json::to_value;
 use std::fmt::Debug;
 use std::io;
 
+/// Postgres-backed cache adapter
 #[derive(Clone)]
 pub struct PgCacheAdapter {
     conn: Pool<PostgresConnectionManager>,
@@ -17,10 +18,12 @@ pub struct PgCacheAdapter {
 
 impl PgCacheAdapter {
     // TODO: Create table on init
+    /// Create a new PG-backed cache adapter instance
     pub async fn new(conn: Pool<PostgresConnectionManager>) -> Result<Self, io::Error> {
         Ok(Self { conn })
     }
 
+    /// Read an item from the cache by key, parsing to type `T`
     pub async fn read<T>(&self, key: String) -> Result<Option<CacheResult<T>>, io::Error>
     where
         T: DeserializeOwned + Debug,
@@ -60,6 +63,7 @@ impl PgCacheAdapter {
             .map_err(|e| e.into())
     }
 
+    /// Save an event into the cache
     pub async fn save<'a, V>(&'a self, key: String, value: &'a V) -> Result<(), io::Error>
     where
         V: Serialize + Debug,
