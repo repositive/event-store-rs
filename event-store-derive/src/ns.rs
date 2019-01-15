@@ -1,11 +1,11 @@
 use crate::derive_enum::derive_enum;
 use crate::derive_struct::derive_struct;
+use crate::PROC_MACRO_NAME;
 use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use quote::__rt::TokenTree::Group;
 use std::string::ToString;
 use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed};
-use crate::PROC_MACRO_NAME;
 
 pub struct EnumInfo {
     pub item_ident: TokenStream,
