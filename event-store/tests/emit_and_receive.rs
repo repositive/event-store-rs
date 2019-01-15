@@ -1,7 +1,7 @@
 #![feature(await_macro, async_await, futures_api)]
 #![feature(arbitrary_self_types)]
 
-use event_store::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgStoreAdapter, SubscribeOptions};
+use event_store::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgStoreAdapter};
 use event_store::internals::{backward, forward, test_helpers::*};
 use event_store::prelude::*;
 use event_store::SubscribableStore;

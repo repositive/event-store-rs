@@ -14,13 +14,13 @@ mod event_replay;
 mod store;
 mod store_query;
 mod subscribable_store;
+mod subscribe_options;
 
 pub mod adapters;
 #[doc(hidden)]
 pub mod internals;
 pub mod prelude;
 
-pub use crate::adapters::SubscribeOptions;
 pub use crate::aggregator::Aggregator;
 pub use crate::event::Event;
 pub use crate::event_context::EventContext;
@@ -28,4 +28,5 @@ pub use crate::event_handler::EventHandler;
 pub use crate::store::Store;
 pub use crate::store_query::StoreQuery;
 pub use crate::subscribable_store::SubscribableStore;
+pub use crate::subscribe_options::SubscribeOptions;
 pub use event_store_derive_internals::{EventData, Events};

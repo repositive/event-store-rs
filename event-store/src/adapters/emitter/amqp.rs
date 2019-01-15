@@ -1,8 +1,9 @@
-use crate::adapters::{SaveStatus, SubscribeOptions};
+use crate::adapters::SaveStatus;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::internals::forward;
 use crate::store::Store;
+use crate::subscribe_options::SubscribeOptions;
 use event_store_derive_internals::EventData;
 use futures::Future;
 use lapin_futures::channel::{
