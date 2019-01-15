@@ -1,11 +1,10 @@
-use crate::adapters::{
-    AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult, SubscribeOptions,
-};
+use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult};
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::event_replay::EventReplayRequested;
 use crate::store::Store;
+use crate::subscribe_options::SubscribeOptions;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
