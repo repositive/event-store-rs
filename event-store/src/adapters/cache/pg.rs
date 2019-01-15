@@ -16,6 +16,7 @@ pub struct PgCacheAdapter {
 }
 
 impl PgCacheAdapter {
+    // TODO: Create table on init
     pub async fn new(conn: Pool<PostgresConnectionManager>) -> Result<Self, io::Error> {
         Ok(Self { conn })
     }

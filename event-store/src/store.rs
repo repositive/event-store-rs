@@ -1,4 +1,3 @@
-use std::future::Future;
 use crate::adapters::{
     AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult, SaveStatus,
 };
