@@ -1,4 +1,4 @@
-use ns::StructInfo;
+use crate::ns::StructInfo;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::ToTokens;
 use syn::Fields;

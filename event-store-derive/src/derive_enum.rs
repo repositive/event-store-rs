@@ -1,5 +1,5 @@
-use ns::get_enum_struct_names;
-use ns::EnumInfo;
+use crate::ns::get_enum_struct_names;
+use crate::ns::EnumInfo;
 use proc_macro2::{Ident, Span, TokenStream};
 use std::iter::repeat;
 use syn::{DataEnum, DeriveInput};
