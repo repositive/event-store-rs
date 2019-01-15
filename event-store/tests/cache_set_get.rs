@@ -2,8 +2,8 @@
 #![feature(arbitrary_self_types)]
 
 use event_store::adapters::{CacheResult, PgCacheAdapter};
-use event_store::*;
-use futures::future::Future as OldFuture;
+use event_store::internals::{backward, test_helpers::*};
+use futures::future::Future;
 use log::trace;
 use std::io;
 use tokio::runtime::Runtime;

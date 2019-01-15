@@ -1,7 +1,7 @@
 use crate::adapters::{SaveStatus, SubscribeOptions};
 use crate::event::Event;
 use crate::event_handler::EventHandler;
-use crate::forward;
+use crate::internals::forward;
 use crate::store::Store;
 use event_store_derive_internals::EventData;
 use futures::Future;

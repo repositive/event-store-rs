@@ -8,8 +8,8 @@ pub use self::store::{PgQuery, PgStoreAdapter, SaveResult, SaveStatus};
 
 #[derive(Debug, Clone)]
 pub struct SubscribeOptions {
-    pub(crate) replay_previous_events: bool,
-    pub(crate) save_on_receive: bool,
+    pub replay_previous_events: bool,
+    pub save_on_receive: bool,
 }
 
 impl Default for SubscribeOptions {
