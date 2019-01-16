@@ -16,7 +16,7 @@ use std::io;
 /// Event store that does not support subscriptions. Passed to [`crate::event_handler::EventHandler`] implementations.
 #[derive(Clone)]
 pub struct Store {
-    store: PgStoreAdapter,
+    pub(crate) store: PgStoreAdapter,
     cache: PgCacheAdapter,
     emitter: AmqpEmitterAdapter,
 }
