@@ -28,9 +28,10 @@ fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: i32) {
     let column = gtk::TreeViewColumn::new();
     let cell = gtk::CellRendererText::new();
 
+    column.set_fixed_width(250);
+    column.set_resizable(true);
     column.pack_start(&cell, true);
     column.set_title(title);
-    // Association of the view's column with the model's `id` column.
     column.add_attribute(&cell, ty, idx);
     list.append_column(&column);
 }
