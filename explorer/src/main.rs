@@ -24,9 +24,11 @@ fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: i32) {
 }
 
 async fn create_store() -> Result<SubscribableStore, io::Error> {
-    let manager =
-        PostgresConnectionManager::new("postgres://repositive:repositive@localhost:5432/organisations", TlsMode::None)
-            .unwrap();
+    let manager = PostgresConnectionManager::new(
+        "postgres://repositive:repositive@localhost:5432/organisations",
+        TlsMode::None,
+    )
+    .unwrap();
 
     let pool = r2d2::Pool::new(manager).unwrap();
 
@@ -78,6 +80,11 @@ fn main() {
             results_store.insert_with_values(None, &[0, 1, 2], &[&"TWO", &"Super", &"nice"]);
 
             window.show_all();
+
+            window.connect_delete_event(|_, _| {
+                gtk::main_quit();
+                Inhibit(false)
+            });
 
             gtk::main();
         },
