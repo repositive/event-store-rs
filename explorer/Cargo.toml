@@ -4,6 +4,17 @@ version = "0.1.0"
 authors = ["James Waples <james@wapl.es>"]
 edition = "2018"
 
+[dependencies]
+r2d2 = "0.8.3"
+r2d2_postgres = "0.14.0"
+postgres = "0.15.2"
+event-store = { path = "../event-store" }
+event-store-derive = { path = "../event-store-derive" }
+event-store-derive-internals = { path = "../event-store-derive-internals" }
+tokio = { version = "0.1.14", features = ["async-await-preview"] }
+tokio-async-await = "0.1.5"
+pretty_env_logger = "0.3.0"
+
 [dependencies.gtk]
 version = "0.5.0"
 features = ["v3_10"]
