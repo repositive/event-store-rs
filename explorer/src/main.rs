@@ -9,10 +9,10 @@ use event_store::{
     EventContext, SubscribableStore,
 };
 use gtk::prelude::*;
+use log::info;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
-use log::info;
 use std::io;
 use std::net::SocketAddr;
 use uuid::Uuid;
@@ -117,7 +117,15 @@ fn main() {
             results_list.set_model(Some(&results_store));
 
             for evt in test_events {
-                results_store.insert_with_values(None, &[0, 1, 2], &[&format!("{}", evt.id), &"Super", &"nice"]);
+                results_store.insert_with_values(
+                    None,
+                    &[0, 1, 2],
+                    &[
+                        &format!("{}", evt.id),
+                        &format!("{}", evt.data),
+                        &format!("{}", serde_json::to_string(&evt.context).unwrap()),
+                    ],
+                );
             }
 
             window.show_all();
