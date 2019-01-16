@@ -3,14 +3,26 @@
 // only needed to manually implement a std future:
 #![feature(arbitrary_self_types)]
 
+use chrono::prelude::*;
 use event_store::{
     adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgStoreAdapter},
-    SubscribableStore,
+    EventContext, SubscribableStore,
 };
 use gtk::prelude::*;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use serde_derive::Deserialize;
+use serde_json::Value as JsonValue;
+use log::info;
 use std::io;
 use std::net::SocketAddr;
+use uuid::Uuid;
+
+#[derive(Deserialize)]
+struct AnyEvent {
+    id: Uuid,
+    data: JsonValue,
+    context: EventContext,
+}
 
 fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: i32) {
     let column = gtk::TreeViewColumn::new();
@@ -52,9 +64,37 @@ async fn create_store() -> Result<SubscribableStore, io::Error> {
 fn main() {
     pretty_env_logger::init();
 
+    // MASSIVE issue with some timestamps currently in the DB: they're not valid! ISO8601 is
+    // somewhat lax, but Chrono tries to parse as either RFC2822 or RFC3339. We could attempt a
+    // custom parse with [parse_from_str](https://docs.rs/chrono/0.4.6/chrono/struct.DateTime.html#method.parse_from_str)
+    // but why not just fix the DB so it's correct? I think most cases are just missing the last two
+    // digits of a 4 digit timezone.
+    // let test: DateTime<Utc> = "2019-01-16T22:07:04.845Z".parse().expect("Could not parse test 1");
+    // let test2: DateTime<FixedOffset> = DateTime::parse_from_rfc2822("2018-10-10T19:52:21+00").expect("Could not parse test 2");
+    // let test2: DateTime<FixedOffset> = DateTime::parse_from_rfc3339("2018-10-10T19:52:21+00").expect("Could not parse test 3");
+    // let test3: DateTime<Utc> = "2018-10-10T19:52:21+00".parse().unwrap();
+
     tokio::run_async(
         async {
-            let _store = await!(create_store());
+            let store = await!(create_store()).unwrap();
+
+            let forever = Utc.ymd(1970, 1, 1).and_hms(0, 0, 0);
+
+            let test_events = await!(store.internals_get_store().read_events_since(
+                "organisations",
+                "PolicyUpdated",
+                forever
+            ))
+            .unwrap()
+            .into_iter()
+            .map(|res| {
+                let evt: AnyEvent = serde_json::from_value(res).unwrap();
+
+                evt
+            })
+            .collect::<Vec<AnyEvent>>();
+
+            info!("Collected {} events", test_events.len());
 
             if gtk::init().is_err() {
                 println!("Failed to initialize GTK.");
@@ -76,8 +116,9 @@ fn main() {
             results_list.set_headers_visible(true);
             results_list.set_model(Some(&results_store));
 
-            results_store.insert_with_values(None, &[0, 1, 2], &[&"ONE", &"Super", &"nice"]);
-            results_store.insert_with_values(None, &[0, 1, 2], &[&"TWO", &"Super", &"nice"]);
+            for evt in test_events {
+                results_store.insert_with_values(None, &[0, 1, 2], &[&format!("{}", evt.id), &"Super", &"nice"]);
+            }
 
             window.show_all();
 
