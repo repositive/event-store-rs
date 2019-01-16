@@ -98,4 +98,11 @@ impl SubscribableStore {
 
         await!(self.inner_store.emit(&replay))
     }
+
+    // TODO: Can I do something clever with a trait impl here?
+    /// Return a reference to the internal backing store. This is a dangerous method and should not
+    /// be used in production code.
+    pub fn internals_get_store(&self) -> &Store {
+        &self.inner_store
+    }
 }
