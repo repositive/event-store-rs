@@ -23,6 +23,7 @@ Postico, but for the event store
 * Run the SQL snippet described in [Timestamps](#timestamps) to condition the database.
 * Run with `cargo run -- <database> <event namespace> <event type>`, e.g. `cargo run -- organisations organisations PolicyUpdated`.
 * (optional) Debug with `RUST_LOG=level cargo run ...`
+* Run `cargo run -- --help` to view CLI options
 
 ## Timestamps
 
