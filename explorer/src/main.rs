@@ -34,7 +34,7 @@ struct CliOpts {
     event_type: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct AnyEvent {
     id: Uuid,
     data: JsonValue,
@@ -132,6 +132,8 @@ fn main() {
             results_list.set_headers_visible(true);
             results_list.set_model(Some(&results_store));
 
+            let first = test_events[0].clone();
+
             for evt in test_events {
                 trace!("Event {:?}", evt);
 
@@ -145,6 +147,25 @@ fn main() {
                     ],
                 );
             }
+
+            // --- Display events on click
+
+            let selected_event_data: gtk::TextView = builder
+                .get_object("selected-event-data")
+                .expect("selected-event-data");
+            let selected_event_context: gtk::TextView = builder
+                .get_object("selected-event-context")
+                .expect("selected-event-context");
+
+            let event_data_buf = gtk::TextBuffer::new(None);
+            let event_context_buf = gtk::TextBuffer::new(None);
+
+            event_data_buf.set_text(&serde_json::to_string_pretty(&first.data).unwrap());
+            event_context_buf.set_text(&serde_json::to_string_pretty(&first.context).unwrap());
+            selected_event_data.set_buffer(Some(&event_data_buf));
+            selected_event_context.set_buffer(Some(&event_context_buf));
+
+            // ---
 
             window.show_all();
 
