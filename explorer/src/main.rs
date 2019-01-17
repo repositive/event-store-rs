@@ -21,10 +21,15 @@ use uuid::Uuid;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "explorer")]
 struct CliOpts {
+    /// The database use. Connects to postgres://repositive:repositive@localhost:5432/<DATABASE>
     #[structopt(name = "DATABASE")]
     database: String,
+
+    /// The event namespace, e.g. `organisations` or `analysis`
     #[structopt(name = "NAMESPACE")]
     event_namespace: String,
+
+    /// Event type, e.g. `PolicyUpdated`, `AccountCreated`
     #[structopt(name = "EVENT")]
     event_type: String,
 }
