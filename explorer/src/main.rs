@@ -18,6 +18,24 @@ use std::net::SocketAddr;
 use structopt::StructOpt;
 use uuid::Uuid;
 
+// make moving clones into closures more convenient
+macro_rules! clone {
+    (@param _) => ( _ );
+    (@param $x:ident) => ( $x );
+    ($($n:ident),+ => move || $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move || $body
+        }
+    );
+    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
+        {
+            $( let $n = $n.clone(); )+
+            move |$(clone!(@param $p),)+| $body
+        }
+    );
+}
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "explorer")]
 struct CliOpts {
@@ -164,6 +182,18 @@ fn main() {
             event_context_buf.set_text(&serde_json::to_string_pretty(&first.context).unwrap());
             selected_event_data.set_buffer(Some(&event_data_buf));
             selected_event_context.set_buffer(Some(&event_context_buf));
+
+            let selected_result = results_list.get_selection();
+
+            selected_result.connect_changed(move |_selection| {
+                // let (model, path) = selection.get_selected().expect("Could not get selected");
+
+                // info!("Selected! {:?}", path.get_iter_first());
+
+                debug!("Selected");
+
+                // TODO: Get selected item
+            });
 
             // ---
 
