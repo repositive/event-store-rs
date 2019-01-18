@@ -150,9 +150,7 @@ fn main() {
             results_list.set_headers_visible(true);
             results_list.set_model(Some(&results_store));
 
-            let first = test_events[0].clone();
-
-            for evt in test_events {
+            for evt in test_events.iter().cloned() {
                 trace!("Event {:?}", evt);
 
                 results_store.insert_with_values(
@@ -178,22 +176,28 @@ fn main() {
             let event_data_buf = gtk::TextBuffer::new(None);
             let event_context_buf = gtk::TextBuffer::new(None);
 
-            event_data_buf.set_text(&serde_json::to_string_pretty(&first.data).unwrap());
-            event_context_buf.set_text(&serde_json::to_string_pretty(&first.context).unwrap());
             selected_event_data.set_buffer(Some(&event_data_buf));
             selected_event_context.set_buffer(Some(&event_context_buf));
 
             let selected_result = results_list.get_selection();
 
-            selected_result.connect_changed(move |_selection| {
-                // let (model, path) = selection.get_selected().expect("Could not get selected");
+            selected_result.connect_changed(clone!(test_events => move |_selection| {
+                let (_model, path) = _selection.get_selected().expect("Could not get selected");
 
-                // info!("Selected! {:?}", path.get_iter_first());
+                let selected_uuid: Uuid = results_store
+                    .get_value(&path, 0)
+                    .get::<&str>()
+                    .and_then(|uuid_str| Uuid::parse_str(uuid_str).ok())
+                    .expect("Could not parse value into UUID");
 
-                debug!("Selected");
 
-                // TODO: Get selected item
-            });
+                let selected = test_events.iter().find(|evt| evt.id == selected_uuid).expect(&format!("Could not event with UUID {}", selected_uuid));
+
+                trace!("Selected event {:?}", selected);
+
+                event_data_buf.set_text(&serde_json::to_string_pretty(&selected.data).unwrap());
+                event_context_buf.set_text(&serde_json::to_string_pretty(&selected.context).unwrap());
+            }));
 
             // ---
 
