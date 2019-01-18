@@ -5,7 +5,6 @@
   <object class="GtkApplicationWindow" id="window-main">
     <property name="can_focus">False</property>
     <property name="title" translatable="yes">Event Store Explorer</property>
-    <property name="resizable">False</property>
     <property name="default_width">800</property>
     <property name="default_height">500</property>
     <property name="has_resize_grip">True</property>
@@ -82,16 +81,25 @@
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <child>
-                          <object class="GtkTextView" id="selected-event-data">
+                          <object class="GtkScrolledWindow">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
-                            <property name="editable">False</property>
-                            <property name="left_margin">6</property>
-                            <property name="right_margin">6</property>
-                            <property name="top_margin">6</property>
-                            <property name="bottom_margin">6</property>
-                            <property name="cursor_visible">False</property>
-                            <property name="monospace">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="shadow_type">in</property>
+                            <property name="min_content_height">250</property>
+                            <child>
+                              <object class="GtkTextView" id="selected-event-data">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="editable">False</property>
+                                <property name="left_margin">6</property>
+                                <property name="right_margin">6</property>
+                                <property name="top_margin">6</property>
+                                <property name="bottom_margin">6</property>
+                                <property name="cursor_visible">False</property>
+                                <property name="monospace">True</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
@@ -121,16 +129,25 @@
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <child>
-                          <object class="GtkTextView" id="selected-event-context">
+                          <object class="GtkScrolledWindow">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
-                            <property name="editable">False</property>
-                            <property name="left_margin">6</property>
-                            <property name="right_margin">6</property>
-                            <property name="top_margin">6</property>
-                            <property name="bottom_margin">6</property>
-                            <property name="cursor_visible">False</property>
-                            <property name="monospace">True</property>
+                            <property name="vexpand">True</property>
+                            <property name="shadow_type">in</property>
+                            <property name="min_content_height">250</property>
+                            <child>
+                              <object class="GtkTextView" id="selected-event-context">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="editable">False</property>
+                                <property name="left_margin">6</property>
+                                <property name="right_margin">6</property>
+                                <property name="top_margin">6</property>
+                                <property name="bottom_margin">6</property>
+                                <property name="cursor_visible">False</property>
+                                <property name="monospace">True</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
