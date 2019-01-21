@@ -166,6 +166,16 @@ fn main() {
 
             // --- Display events on click
 
+            let selected_event_id_label: gtk::Label = builder
+                .get_object("label-current-event-id")
+                .expect("label-current-event-id");
+            let selected_event_namespace_label: gtk::Label = builder
+                .get_object("label-current-event-namespace")
+                .expect("label-current-event-namespace");
+            let selected_event_type_label: gtk::Label = builder
+                .get_object("label-current-event-type")
+                .expect("label-current-event-type");
+
             let selected_event_data: gtk::TextView = builder
                 .get_object("selected-event-data")
                 .expect("selected-event-data");
@@ -194,6 +204,10 @@ fn main() {
                 let selected = test_events.iter().find(|evt| evt.id == selected_uuid).expect(&format!("Could not event with UUID {}", selected_uuid));
 
                 trace!("Selected event {:?}", selected);
+
+                selected_event_id_label.set_label(&selected_uuid.to_string());
+                selected_event_namespace_label.set_label(&selected.data["event_namespace"].as_str().unwrap_or("(no namespace)"));
+                selected_event_type_label.set_label(&selected.data["event_type"].as_str().unwrap_or("(no type)"));
 
                 event_data_buf.set_text(&serde_json::to_string_pretty(&selected.data).unwrap());
                 event_context_buf.set_text(&serde_json::to_string_pretty(&selected.context).unwrap());
