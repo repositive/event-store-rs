@@ -17,21 +17,56 @@
         <property name="can_focus">True</property>
         <property name="orientation">vertical</property>
         <child>
-          <object class="GtkScrolledWindow">
+          <object class="GtkBox">
             <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="margin_bottom">12</property>
-            <property name="shadow_type">in</property>
+            <property name="can_focus">False</property>
+            <property name="orientation">vertical</property>
             <child>
-              <object class="GtkTreeView" id="list-results">
+              <object class="GtkSearchBar">
                 <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="rules_hint">True</property>
-                <property name="enable_grid_lines">horizontal</property>
-                <child internal-child="selection">
-                  <object class="GtkTreeSelection"/>
+                <property name="can_focus">False</property>
+                <property name="search_mode_enabled">True</property>
+                <child>
+                  <object class="GtkSearchEntry" id="query-input">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="width_chars">50</property>
+                    <property name="primary_icon_name">edit-find-symbolic</property>
+                    <property name="primary_icon_activatable">False</property>
+                    <property name="primary_icon_sensitive">False</property>
+                    <property name="placeholder_text" translatable="yes">namespace.EventType</property>
+                  </object>
                 </child>
               </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkScrolledWindow">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="margin_bottom">12</property>
+                <property name="shadow_type">in</property>
+                <child>
+                  <object class="GtkTreeView" id="list-results">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="rules_hint">True</property>
+                    <property name="enable_grid_lines">horizontal</property>
+                    <child internal-child="selection">
+                      <object class="GtkTreeSelection"/>
+                    </child>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
             </child>
           </object>
           <packing>
@@ -91,7 +126,6 @@
                               <object class="GtkImage">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="tooltip_text" translatable="yes">Copy the ID of the selected event</property>
                                 <property name="stock">gtk-copy</property>
                               </object>
                             </child>
@@ -141,7 +175,6 @@
                               <object class="GtkImage">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="tooltip_text" translatable="yes">Copy the namespace of the selected event</property>
                                 <property name="stock">gtk-copy</property>
                               </object>
                             </child>
@@ -186,7 +219,6 @@
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
-                            <property name="tooltip_text" translatable="yes">Copy the type of the current event</property>
                             <property name="always_show_image">True</property>
                             <child>
                               <object class="GtkImage">
