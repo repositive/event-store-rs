@@ -71,6 +71,18 @@ fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: i32) {
     list.append_column(&column);
 }
 
+fn connect_copy_button(source_label: &gtk::Label, button: &gtk::Button, window: &gtk::Window) {
+    button.connect_clicked(
+        clone!(source_label, window => move |_button| {
+            if let Some(value) = source_label.get_label() {
+                let clip = window.get_clipboard(&gdk::ATOM_NONE);
+
+                clip.set_text(&value);
+            }
+        }),
+    );
+}
+
 async fn create_store(db: &String) -> Result<SubscribableStore, io::Error> {
     let manager = PostgresConnectionManager::new(
         format!("postgres://repositive:repositive@localhost:5432/{}", db),
@@ -167,14 +179,29 @@ fn main() {
             // --- Display events on click
 
             let selected_event_id_label: gtk::Label = builder
-                .get_object("label-current-event-id")
-                .expect("label-current-event-id");
+                .get_object("current-event-id")
+                .expect("current-event-id");
+            let selected_event_id_copy: gtk::Button = builder
+                .get_object("copy-current-event-id")
+                .expect("copy-current-event-id");
+
             let selected_event_namespace_label: gtk::Label = builder
-                .get_object("label-current-event-namespace")
-                .expect("label-current-event-namespace");
+                .get_object("current-event-namespace")
+                .expect("current-event-namespace");
+            let selected_event_namespace_copy: gtk::Button = builder
+                .get_object("copy-current-event-namespace")
+                .expect("copy-current-event-namespace");
+
             let selected_event_type_label: gtk::Label = builder
-                .get_object("label-current-event-type")
-                .expect("label-current-event-type");
+                .get_object("current-event-type")
+                .expect("current-event-type");
+            let selected_event_type_copy: gtk::Button = builder
+                .get_object("copy-current-event-type")
+                .expect("copy-current-event-type");
+
+            connect_copy_button(&selected_event_id_label, &selected_event_id_copy, &window);
+            connect_copy_button(&selected_event_type_label, &selected_event_type_copy, &window);
+            connect_copy_button(&selected_event_namespace_label, &selected_event_namespace_copy, &window);
 
             let selected_event_data: gtk::TextView = builder
                 .get_object("selected-event-data")
