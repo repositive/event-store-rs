@@ -114,6 +114,48 @@ async fn create_store(db: &String) -> Result<SubscribableStore, io::Error> {
     ))
 }
 
+async fn do_search(query: String, store: &SubscribableStore) -> Result<Vec<AnyEvent>, io::Error> {
+    let parts: Vec<&str> = query.split('.').collect();
+
+    let forever = Utc.ymd(1970, 1, 1).and_hms(0, 0, 0);
+
+    await!(store
+        .internals_get_store()
+        .read_events_since(parts[0], parts[1], forever))
+    .map(|result| {
+        result
+            .into_iter()
+            .map(|res| {
+                trace!("Event ID {}", res["id"]);
+
+                let evt: AnyEvent = serde_json::from_value(res).expect("Failed to parse");
+
+                evt
+            })
+            .collect::<Vec<AnyEvent>>()
+    })
+}
+
+fn populate_results_store(results: &Vec<AnyEvent>, results_store: &gtk::ListStore) {
+    for evt in results.iter() {
+        trace!("Event {:?}", evt);
+
+        results_store.insert_with_values(
+            None,
+            &[
+                ResultColumn::Id as u32,
+                ResultColumn::Data as u32,
+                ResultColumn::Context as u32,
+            ],
+            &[
+                &format!("{}", evt.id),
+                &format!("{}", evt.data),
+                &format!("{}", serde_json::to_string(&evt.context).unwrap()),
+            ],
+        );
+    }
+}
+
 fn main() {
     pretty_env_logger::init();
 
@@ -125,25 +167,11 @@ fn main() {
 
             let store = await!(create_store(&opts.database)).expect("Could not get store");
 
-            let forever = Utc.ymd(1970, 1, 1).and_hms(0, 0, 0);
-
-            let test_events = await!(store.internals_get_store().read_events_since(
-                &opts.event_namespace,
-                &opts.event_type,
-                forever
+            let results = await!(do_search(
+                [opts.event_namespace, opts.event_type].join("."),
+                &store
             ))
-            .expect("Could not create store")
-            .into_iter()
-            .map(|res| {
-                trace!("Event ID {}", res["id"]);
-
-                let evt: AnyEvent = serde_json::from_value(res).expect("Failed to parse");
-
-                evt
-            })
-            .collect::<Vec<AnyEvent>>();
-
-            info!("Collected {} events", test_events.len());
+            .expect("Search failed");
 
             if gtk::init().is_err() {
                 println!("Failed to initialize GTK.");
@@ -166,23 +194,7 @@ fn main() {
             results_list.set_headers_visible(true);
             results_list.set_model(Some(&results_store));
 
-            for evt in test_events.iter().cloned() {
-                trace!("Event {:?}", evt);
-
-                results_store.insert_with_values(
-                    None,
-                    &[
-                        ResultColumn::Id as u32,
-                        ResultColumn::Data as u32,
-                        ResultColumn::Context as u32,
-                    ],
-                    &[
-                        &format!("{}", evt.id),
-                        &format!("{}", evt.data),
-                        &format!("{}", serde_json::to_string(&evt.context).unwrap()),
-                    ],
-                );
-            }
+            populate_results_store(&results, &results_store);
 
             // --- Search input
 
