@@ -5,11 +5,11 @@ authors = ["James Waples <james@wapl.es>"]
 edition = "2018"
 
 [dependencies]
-syn = { version = "0.15.25", features = [ "extra-traits" ] }
-quote = "0.6.10"
-proc-macro2 = "0.4.24"
-serde = "1.0.84"
-serde_derive = "1.0.84"
+syn = { version = "0.15.26", features = [ "extra-traits" ] }
+quote = "0.6.11"
+proc-macro2 = "0.4.26"
+serde = "1.0.85"
+serde_derive = "1.0.85"
 event-store-derive-internals = { path = "../event-store-derive-internals" }
 
 [lib]
