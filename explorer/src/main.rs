@@ -176,6 +176,18 @@ fn main() {
                 );
             }
 
+            // --- Search input
+
+            let query_input: gtk::Entry = builder.get_object("query-input").expect("query-input");
+
+            query_input.connect_activate(|input| {
+                if let Some(value) = input.get_text() {
+                    info!("Search for {}", value);
+                }
+            });
+
+            // ---
+
             // --- Display events on click
 
             let selected_event_id_label: gtk::Label = builder
