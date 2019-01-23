@@ -60,16 +60,48 @@
                     <property name="can_focus">False</property>
                     <property name="spacing">12</property>
                     <child>
-                      <object class="GtkLabel" id="label-current-event-id">
+                      <object class="GtkBox">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="halign">start</property>
-                        <property name="label" translatable="yes">Event ID</property>
-                        <property name="selectable">True</property>
-                        <property name="single_line_mode">True</property>
-                        <attributes>
-                          <attribute name="font-desc" value="Monospace 10"/>
-                        </attributes>
+                        <property name="spacing">6</property>
+                        <child>
+                          <object class="GtkLabel" id="current-event-id">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="label" translatable="yes">Event ID</property>
+                            <property name="selectable">True</property>
+                            <property name="single_line_mode">True</property>
+                            <attributes>
+                              <attribute name="font-desc" value="Monospace 10"/>
+                            </attributes>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="copy-current-event-id">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="receives_default">True</property>
+                            <property name="always_show_image">True</property>
+                            <child>
+                              <object class="GtkImage">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes">Copy the ID of the selected event</property>
+                                <property name="stock">gtk-copy</property>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -78,15 +110,48 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkLabel" id="label-current-event-namespace">
+                      <object class="GtkBox">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Event namespace</property>
-                        <property name="selectable">True</property>
-                        <property name="single_line_mode">True</property>
-                        <attributes>
-                          <attribute name="font-desc" value="Monospace 10"/>
-                        </attributes>
+                        <property name="spacing">6</property>
+                        <child>
+                          <object class="GtkLabel" id="current-event-namespace">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="label" translatable="yes">Event namespace</property>
+                            <property name="selectable">True</property>
+                            <property name="single_line_mode">True</property>
+                            <attributes>
+                              <attribute name="font-desc" value="Monospace 10"/>
+                            </attributes>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="copy-current-event-namespace">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="receives_default">True</property>
+                            <property name="always_show_image">True</property>
+                            <child>
+                              <object class="GtkImage">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes">Copy the namespace of the selected event</property>
+                                <property name="stock">gtk-copy</property>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -95,15 +160,48 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkLabel" id="label-current-event-type">
+                      <object class="GtkBox">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">Event type</property>
-                        <property name="selectable">True</property>
-                        <property name="single_line_mode">True</property>
-                        <attributes>
-                          <attribute name="font-desc" value="Monospace 10"/>
-                        </attributes>
+                        <property name="spacing">6</property>
+                        <child>
+                          <object class="GtkLabel" id="current-event-type">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="label" translatable="yes">Event type</property>
+                            <property name="selectable">True</property>
+                            <property name="single_line_mode">True</property>
+                            <attributes>
+                              <attribute name="font-desc" value="Monospace 10"/>
+                            </attributes>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="copy-current-event-type">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="receives_default">True</property>
+                            <property name="tooltip_text" translatable="yes">Copy the type of the current event</property>
+                            <property name="always_show_image">True</property>
+                            <child>
+                              <object class="GtkImage">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="stock">gtk-copy</property>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
                       </object>
                       <packing>
                         <property name="expand">False</property>
