@@ -18,6 +18,12 @@ use std::net::SocketAddr;
 use structopt::StructOpt;
 use uuid::Uuid;
 
+enum ResultColumn {
+    Id = 0,
+    Data = 1,
+    Context = 2
+}
+
 // make moving clones into closures more convenient
 macro_rules! clone {
     (@param _) => ( _ );
@@ -59,7 +65,7 @@ struct AnyEvent {
     context: EventContext,
 }
 
-fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: i32) {
+fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: ResultColumn) {
     let column = gtk::TreeViewColumn::new();
     let cell = gtk::CellRendererText::new();
 
@@ -67,7 +73,7 @@ fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: i32) {
     column.set_resizable(true);
     column.pack_start(&cell, true);
     column.set_title(title);
-    column.add_attribute(&cell, ty, idx);
+    column.add_attribute(&cell, ty, idx as i32);
     list.append_column(&column);
 }
 
@@ -153,9 +159,9 @@ fn main() {
             let results_store =
                 gtk::ListStore::new(&[gtk::Type::String, gtk::Type::String, gtk::Type::String]);
 
-            add_column(&results_list, "text", "ID", 0);
-            add_column(&results_list, "text", "Data", 1);
-            add_column(&results_list, "text", "Context", 2);
+            add_column(&results_list, "text", "ID", ResultColumn::Id);
+            add_column(&results_list, "text", "Data", ResultColumn::Data);
+            add_column(&results_list, "text", "Context", ResultColumn::Context);
 
             results_list.set_headers_visible(true);
             results_list.set_model(Some(&results_store));
@@ -165,7 +171,11 @@ fn main() {
 
                 results_store.insert_with_values(
                     None,
-                    &[0, 1, 2],
+                    &[
+                        ResultColumn::Id as u32,
+                        ResultColumn::Data as u32,
+                        ResultColumn::Context as u32,
+                    ],
                     &[
                         &format!("{}", evt.id),
                         &format!("{}", evt.data),
