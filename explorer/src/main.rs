@@ -21,7 +21,7 @@ use uuid::Uuid;
 enum ResultColumn {
     Id = 0,
     Data = 1,
-    Context = 2
+    Context = 2,
 }
 
 // make moving clones into closures more convenient
@@ -246,27 +246,38 @@ fn main() {
 
             let selected_result = results_list.get_selection();
 
-            selected_result.connect_changed(clone!(test_events => move |_selection| {
-                let (_model, path) = _selection.get_selected().expect("Could not get selected");
+            selected_result.connect_changed(move |selection| {
+                let (_model, path) = selection.get_selected().expect("Could not get selected");
 
-                let selected_uuid: Uuid = results_store
-                    .get_value(&path, 0)
+                let uuid: Uuid = results_store
+                    .get_value(&path, ResultColumn::Id as i32)
                     .get::<&str>()
                     .and_then(|uuid_str| Uuid::parse_str(uuid_str).ok())
                     .expect("Could not parse value into UUID");
 
+                let data: JsonValue = results_store
+                    .get_value(&path, ResultColumn::Data as i32)
+                    .get::<&str>()
+                    .and_then(|data| serde_json::from_str(data).ok())
+                    .expect("Could not parse data");
 
-                let selected = test_events.iter().find(|evt| evt.id == selected_uuid).expect(&format!("Could not event with UUID {}", selected_uuid));
+                let context: JsonValue = results_store
+                    .get_value(&path, ResultColumn::Context as i32)
+                    .get::<&str>()
+                    .and_then(|context| serde_json::from_str(context).ok())
+                    .expect("Could not parse context");
 
-                trace!("Selected event {:?}", selected);
+                trace!("Selected event ID {:?}", uuid);
 
-                selected_event_id_label.set_label(&selected_uuid.to_string());
-                selected_event_namespace_label.set_label(&selected.data["event_namespace"].as_str().unwrap_or("(no namespace)"));
-                selected_event_type_label.set_label(&selected.data["event_type"].as_str().unwrap_or("(no type)"));
+                selected_event_id_label.set_label(&uuid.to_string());
+                selected_event_namespace_label
+                    .set_label(&data["event_namespace"].as_str().unwrap_or("(no namespace)"));
+                selected_event_type_label
+                    .set_label(&data["event_type"].as_str().unwrap_or("(no type)"));
 
-                event_data_buf.set_text(&serde_json::to_string_pretty(&selected.data).unwrap());
-                event_context_buf.set_text(&serde_json::to_string_pretty(&selected.context).unwrap());
-            }));
+                event_data_buf.set_text(&serde_json::to_string_pretty(&data).unwrap());
+                event_context_buf.set_text(&serde_json::to_string_pretty(&context).unwrap());
+            });
 
             // ---
 
