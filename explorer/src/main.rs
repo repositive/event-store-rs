@@ -72,15 +72,13 @@ fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: i32) {
 }
 
 fn connect_copy_button(source_label: &gtk::Label, button: &gtk::Button, window: &gtk::Window) {
-    button.connect_clicked(
-        clone!(source_label, window => move |_button| {
-            if let Some(value) = source_label.get_label() {
-                let clip = window.get_clipboard(&gdk::ATOM_NONE);
+    button.connect_clicked(clone!(source_label, window => move |_button| {
+        if let Some(value) = source_label.get_label() {
+            let clip = window.get_clipboard(&gdk::ATOM_NONE);
 
-                clip.set_text(&value);
-            }
-        }),
-    );
+            clip.set_text(&value);
+        }
+    }));
 }
 
 async fn create_store(db: &String) -> Result<SubscribableStore, io::Error> {
@@ -212,8 +210,16 @@ fn main() {
                 .expect("copy-current-event-type");
 
             connect_copy_button(&selected_event_id_label, &selected_event_id_copy, &window);
-            connect_copy_button(&selected_event_type_label, &selected_event_type_copy, &window);
-            connect_copy_button(&selected_event_namespace_label, &selected_event_namespace_copy, &window);
+            connect_copy_button(
+                &selected_event_type_label,
+                &selected_event_type_copy,
+                &window,
+            );
+            connect_copy_button(
+                &selected_event_namespace_label,
+                &selected_event_namespace_copy,
+                &window,
+            );
 
             let selected_event_data: gtk::TextView = builder
                 .get_object("selected-event-data")
