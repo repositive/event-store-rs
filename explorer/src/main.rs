@@ -10,6 +10,7 @@ use event_store::{
 };
 use gtk::prelude::*;
 use log::{debug, info, trace};
+use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
@@ -65,6 +66,15 @@ struct AnyEvent {
     context: EventContext,
 }
 
+fn window() -> (gtk::Window, gtk::Builder) {
+    let glade_src = include_str!("glade/main.glade");
+    let builder = gtk::Builder::new_from_string(glade_src);
+
+    let window: gtk::Window = builder.get_object("window-main").expect("window-main");
+
+    (window, builder)
+}
+
 fn add_column(list: &gtk::TreeView, ty: &str, title: &str, idx: ResultColumn) {
     let column = gtk::TreeViewColumn::new();
     let cell = gtk::CellRendererText::new();
@@ -87,14 +97,21 @@ fn connect_copy_button(source_label: &gtk::Label, button: &gtk::Button, window: 
     }));
 }
 
-async fn create_store(db: &String) -> Result<SubscribableStore, io::Error> {
+fn connect(db: &String) -> Result<Pool<PostgresConnectionManager>, io::Error> {
     let manager = PostgresConnectionManager::new(
         format!("postgres://repositive:repositive@localhost:5432/{}", db),
         TlsMode::None,
     )?;
 
-    let pool = r2d2::Pool::new(manager).expect("Could not create pool");
+    let pool = r2d2::Pool::new(manager)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
+    Ok(pool)
+}
+
+async fn create_store(
+    pool: &Pool<PostgresConnectionManager>,
+) -> Result<SubscribableStore, io::Error> {
     let addr: SocketAddr = "127.0.0.1:5672"
         .parse()
         .expect("Could not parse RabbitMQ address");
@@ -136,6 +153,22 @@ async fn do_search(query: String, store: &SubscribableStore) -> Result<Vec<AnyEv
     })
 }
 
+fn get_databases(pool: &Pool<PostgresConnectionManager>) -> Result<Vec<String>, io::Error> {
+    let result = pool.get().unwrap().query(
+        "select datname as database from pg_database where datistemplate = false;",
+        &[],
+    )?;
+
+    let names = result
+        .iter()
+        .map(|row| row.get(0))
+        .collect();
+
+    debug!("Found databases: {:?}", names);
+
+    Ok(names)
+}
+
 fn populate_results_store(results: &Vec<AnyEvent>, results_store: &gtk::ListStore) {
     for evt in results.iter() {
         trace!("Event {:?}", evt);
@@ -156,6 +189,16 @@ fn populate_results_store(results: &Vec<AnyEvent>, results_store: &gtk::ListStor
     }
 }
 
+fn populate_databases_chooser(pool: &Pool<PostgresConnectionManager>, builder: &gtk::Builder) {
+    let databases = get_databases(&pool).expect("Could not fetch list of databases");
+
+    let dropdown: gtk::ComboBoxText = builder.get_object("database-chooser").expect("database-chooser");
+
+    for d in databases {
+        dropdown.append_text(&d);
+    }
+}
+
 fn main() {
     pretty_env_logger::init();
 
@@ -163,9 +206,11 @@ fn main() {
         async {
             let opts = CliOpts::from_args();
 
+            let pool = connect(&opts.database).expect("Failed to connect");
+
             debug!("{:?}", opts);
 
-            let store = await!(create_store(&opts.database)).expect("Could not get store");
+            let store = await!(create_store(&pool)).expect("Could not get store");
 
             let results = await!(do_search(
                 [opts.event_namespace, opts.event_type].join("."),
@@ -177,10 +222,9 @@ fn main() {
                 println!("Failed to initialize GTK.");
                 return;
             }
-            let glade_src = include_str!("glade/main.glade");
-            let builder = gtk::Builder::new_from_string(glade_src);
+            let (window, builder) = window();
 
-            let window: gtk::Window = builder.get_object("window-main").expect("window-main");
+            populate_databases_chooser(&pool, &builder);
 
             let results_list: gtk::TreeView =
                 builder.get_object("list-results").expect("list-results");
