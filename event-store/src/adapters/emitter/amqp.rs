@@ -141,6 +141,12 @@ impl AmqpEmitterAdapter {
                                 .expect("Could not ack message");
                         }
                         Err(e) => {
+                            trace!(
+                                "Failed event payload: {}",
+                                String::from_utf8(message.data.clone())
+                                    .unwrap_or(String::from("(failed to decode message)"))
+                            );
+
                             serde_json::from_slice::<JsonValue>(&message.data)
                                 .map(|evt| {
                                     error!(
