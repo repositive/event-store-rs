@@ -14,7 +14,7 @@ use lapin_futures::client::{Client, ConnectionOptions};
 use lapin_futures::consumer::Consumer;
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
-use log::{debug, info, trace};
+use log::{debug, error, info, trace};
 use serde::Serialize;
 use std::fmt::Debug;
 use std::io;
@@ -95,47 +95,56 @@ impl AmqpEmitterAdapter {
         tokio::spawn_async(
             async move {
                 while let Some(Ok(message)) = await!(stream.next()) {
-                    let event: Event<ED> = serde_json::from_slice(&message.data).unwrap();
+                    let parsed = serde_json::from_slice::<Event<ED>>(&message.data);
 
-                    trace!("Received event {}", event.id);
+                    match parsed {
+                        Ok(event) => {
+                            trace!("Received event {}", event.id);
 
-                    let saved = if options.save_on_receive {
-                        trace!(
-                            "Save event {} ({}.{})",
-                            event.id,
-                            ED::event_namespace(),
-                            ED::event_type()
-                        );
+                            let saved = if options.save_on_receive {
+                                trace!(
+                                    "Save event {} ({}.{})",
+                                    event.id,
+                                    ED::event_namespace(),
+                                    ED::event_type()
+                                );
 
-                        store.save_no_emit(&event)
-                    } else {
-                        trace!(
-                            "Skip saving event {} ({}.{})",
-                            event.id,
-                            ED::event_namespace(),
-                            ED::event_type()
-                        );
+                                store.save_no_emit(&event)
+                            } else {
+                                trace!(
+                                    "Skip saving event {} ({}.{})",
+                                    event.id,
+                                    ED::event_namespace(),
+                                    ED::event_type()
+                                );
 
-                        Ok(SaveStatus::Ok)
-                    };
+                                Ok(SaveStatus::Ok)
+                            };
 
-                    // TODO: Check order of save/handle or handle/save based on TS event store
-                    saved
-                        .map(|result| match result {
-                            SaveStatus::Ok => {
-                                trace!("Event saved, calling handler");
-                                ED::handle_event(event, &store);
-                            }
-                            SaveStatus::Duplicate => {
-                                debug!("Duplicate event {}, skipping handler", event.id);
-                            }
-                        })
-                        .expect("Failed to handle event");
+                            // TODO: Check order of save/handle or handle/save based on TS event store
+                            saved
+                                .map(|result| match result {
+                                    SaveStatus::Ok => {
+                                        trace!("Event saved, calling handler");
+                                        ED::handle_event(event, &store);
+                                    }
+                                    SaveStatus::Duplicate => {
+                                        debug!("Duplicate event {}, skipping handler", event.id);
+                                    }
+                                })
+                                .expect("Failed to handle event");
 
-                    trace!("Ack event {}", message.delivery_tag);
+                            trace!("Ack event {}", message.delivery_tag);
 
-                    await!(forward(channel.basic_ack(message.delivery_tag, false)))
-                        .expect("Could not ack message");
+                            await!(forward(channel.basic_ack(message.delivery_tag, false)))
+                                .expect("Could not ack message");
+                        }
+                        Err(e) => error!(
+                            "Failed to parse event {}: {}",
+                            ED::event_namespace_and_type(),
+                            e.to_string()
+                        ),
+                    }
                 }
             },
         );
