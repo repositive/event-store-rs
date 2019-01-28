@@ -16,6 +16,7 @@ use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
 use log::{debug, error, info, trace};
 use serde::Serialize;
+use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
 use std::net::SocketAddr;
@@ -139,11 +140,24 @@ impl AmqpEmitterAdapter {
                             await!(forward(channel.basic_ack(message.delivery_tag, false)))
                                 .expect("Could not ack message");
                         }
-                        Err(e) => error!(
-                            "Failed to parse event {}: {}",
-                            ED::event_namespace_and_type(),
-                            e.to_string()
-                        ),
+                        Err(e) => {
+                            serde_json::from_slice::<JsonValue>(&message.data)
+                                .map(|evt| {
+                                    error!(
+                                        "Failed to parse event {} (ID {}): {}",
+                                        ED::event_namespace_and_type(),
+                                        evt["id"],
+                                        e.to_string()
+                                    );
+                                })
+                                .unwrap_or_else(|_| {
+                                    error!(
+                                        "Failed to parse event {} (ID unknown): {}",
+                                        ED::event_namespace_and_type(),
+                                        e.to_string()
+                                    );
+                                });
+                        }
                     }
                 }
             },
