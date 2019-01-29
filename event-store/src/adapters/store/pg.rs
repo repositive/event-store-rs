@@ -23,15 +23,11 @@ create extension if not exists "uuid-ossp";
 create table if not exists events(
     id uuid default uuid_generate_v4() primary key,
     data jsonb not null,
-    context jsonb default '{}',
-    sequence_number bigserial
+    context jsonb default '{}'
 );
 
--- If events table exists but doesn't have an up to date structure, fix that by adding sequence_number
-alter table events add column if not exists sequence_number bigserial;
-
 -- Add index on sequence number and time to speed up ordering
-create index if not exists counter_time on events ((sequence_number) asc, (context->>'time') asc);
+create index if not exists counter_time on events ((context->>'time') asc);
 
 -- Create index to speed up queries by type
 create index if not exists event_type_legacy on events ((data->>'type') nulls last);
