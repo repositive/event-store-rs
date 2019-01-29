@@ -10,6 +10,21 @@ use serde_json::to_value;
 use std::fmt::Debug;
 use std::io;
 
+const INIT_QUERIES: &'static str = r#"
+-- Create UUID extension just in case
+create extension if not exists "uuid-ossp";
+
+-- Create cache table if it doesn't already exist
+create table if not exists aggregate_cache(
+    id varchar(64) not null,
+    data jsonb not null,
+    time timestamp with time zone,
+    primary key(id)
+);
+
+create index if not exists cache_time on aggregate_cache (time desc);
+"#;
+
 /// Postgres-backed cache adapter
 #[derive(Clone)]
 pub struct PgCacheAdapter {
@@ -17,9 +32,14 @@ pub struct PgCacheAdapter {
 }
 
 impl PgCacheAdapter {
-    // TODO: Create table on init
     /// Create a new PG-backed cache adapter instance
+    ///
+    /// This will attempt to create the cache table if it does not already exist
     pub async fn new(conn: Pool<PostgresConnectionManager>) -> Result<Self, io::Error> {
+        conn.get()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+            .batch_execute(INIT_QUERIES)?;
+
         Ok(Self { conn })
     }
 
@@ -43,10 +63,7 @@ impl PgCacheAdapter {
                     None
                 } else {
                     let row = rows.get(0);
-
-                    let time: NaiveDateTime = row.get(1);
-
-                    let utc: DateTime<Utc> = DateTime::from_utc(time, Utc);
+                    let utc: DateTime<Utc> = row.get(1);
 
                     Some((
                         from_value(row.get(0))
