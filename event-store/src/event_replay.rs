@@ -4,7 +4,7 @@ use crate::store::Store;
 use chrono::prelude::*;
 use event_store_derive::*;
 use event_store_derive_internals::EventData;
-use log::debug;
+use log::{debug, error};
 use serde_derive::*;
 
 #[derive(EventData, Debug)]
@@ -40,15 +40,21 @@ impl EventHandler for EventReplayRequested {
                 let ns = event.data.requested_event_namespace;
                 let ty = event.data.requested_event_type;
 
-                let events = await!(store.read_events_since(&ns, &ty, since))
-                    .expect("Could not read events to replay");
+                let events = await!(store.read_events_since(&ns, &ty, since));
 
-                debug!("Found {} events to replay", events.len());
+                match events {
+                    Ok(events) => {
+                        debug!("Found {} events to replay", events.len());
 
-                for event in events {
-                    debug!("Replay event {}", event["id"]);
+                        for event in events {
+                            debug!("Replay event {}", event["id"]);
 
-                    await!(store.emit_value(&ns, &ty, &event)).unwrap();
+                            await!(store.emit_value(&ns, &ty, &event)).unwrap();
+                        }
+                    }
+                    Err(e) => {
+                        error!("Failed to retrieve events to replay: {}", e.to_string());
+                    }
                 }
             },
         );
