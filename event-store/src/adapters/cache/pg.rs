@@ -44,7 +44,7 @@ impl PgCacheAdapter {
     }
 
     /// Read an item from the cache by key, parsing to type `T`
-    pub async fn read<T>(&self, key: String) -> Result<Option<CacheResult<T>>, io::Error>
+    pub async fn read<'a, T>(&'a self, key: &'a str) -> Result<Option<CacheResult<T>>, io::Error>
     where
         T: DeserializeOwned + Debug,
     {
@@ -54,7 +54,7 @@ impl PgCacheAdapter {
             .get()
             .unwrap()
             .query(
-                "SELECT data, time FROM aggregate_cache WHERE id = $1 LIMIT 1",
+                "select data, time from aggregate_cache where id = $1 limit 1",
                 &[&key],
             )
             .map(|rows| {
@@ -81,7 +81,7 @@ impl PgCacheAdapter {
     }
 
     /// Save an event into the cache
-    pub async fn save<'a, V>(&'a self, key: String, value: &'a V) -> Result<(), io::Error>
+    pub async fn save<'a, V>(&'a self, key: &'a str, value: &'a V) -> Result<(), io::Error>
     where
         V: Serialize + Debug,
     {
@@ -91,10 +91,10 @@ impl PgCacheAdapter {
             .get()
             .unwrap()
             .execute(
-                r#"INSERT INTO aggregate_cache (id, data, time)
-                    VALUES ($1, $2, NOW())
-                    ON CONFLICT (id)
-                    DO UPDATE SET data = EXCLUDED.data, time = now() RETURNING data"#,
+                r#"insert into aggregate_cache (id, data, time)
+                    values ($1, $2, now())
+                    on conflict (id)
+                    do update set data = excluded.data, time = now() returning data"#,
                 &[&key, &to_value(value).expect("To value")],
             )
             .map(|_| ())
