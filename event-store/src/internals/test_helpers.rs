@@ -99,26 +99,5 @@ pub fn pg_create_random_db(suffix: Option<&str>) -> Pool<PostgresConnectionManag
 
     let pool = r2d2::Pool::new(manager).unwrap();
 
-    let conn = pool.get().unwrap();
-
-    conn.batch_execute(
-        r#"
-        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-        CREATE TABLE events (
-            id uuid DEFAULT uuid_generate_v4() PRIMARY KEY,
-            data jsonb NOT NULL,
-            context jsonb DEFAULT '{}'::jsonb
-        );
-
-        CREATE TABLE aggregate_cache (
-            id VARCHAR(64) PRIMARY KEY,
-            data jsonb NOT NULL,
-            time timestamp without time zone DEFAULT now()
-        );
-    "#,
-    )
-    .unwrap();
-
     pool
 }

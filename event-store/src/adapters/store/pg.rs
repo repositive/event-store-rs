@@ -15,6 +15,29 @@ use sha2::{Digest, Sha256};
 use std::io;
 use uuid::Uuid;
 
+const INIT_QUERIES: &'static str = r#"
+-- Create UUID extension just in case
+create extension if not exists "uuid-ossp";
+
+-- Create events table if it doesn't already exist
+create table if not exists events(
+    id uuid default uuid_generate_v4() primary key,
+    data jsonb not null,
+    context jsonb default '{}',
+    sequence_number bigserial
+);
+
+-- If events table exists but doesn't have an up to date structure, fix that by adding sequence_number
+alter table events add column if not exists sequence_number bigserial;
+
+-- Add index on sequence number and time to speed up ordering
+create index if not exists counter_time on events ((sequence_number) asc, (context->>'time') asc);
+
+-- Create index to speed up queries by type
+create index if not exists event_type_legacy on events ((data->>'type') nulls last);
+create index if not exists event_namespace_and_type on events ((context->>'event_namespace') nulls last, (context->>'event_type') nulls last);
+"#;
+
 /// Representation of a Postgres query and args
 #[derive(Debug)]
 pub struct PgQuery {
@@ -81,9 +104,14 @@ pub struct PgStoreAdapter {
 }
 
 impl PgStoreAdapter {
-    // TODO: Create table on init
     /// Create a new Postgres store
+    ///
+    /// This will attempt to create the events table and indexes if they do not already exist
     pub async fn new(conn: Pool<PostgresConnectionManager>) -> Result<Self, io::Error> {
+        conn.get()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+            .batch_execute(INIT_QUERIES)?;
+
         Ok(Self { conn })
     }
 
