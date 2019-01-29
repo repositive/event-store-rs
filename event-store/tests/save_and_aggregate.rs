@@ -51,15 +51,18 @@ fn save_and_aggregate() {
 
             let arg = &String::new();
 
-            let result: TestCounterEntity = await!(store.aggregate(arg))?;
+            let uncached_result: TestCounterEntity = await!(store.aggregate(arg))?;
 
-            Ok(result)
+            let cached_result: TestCounterEntity = await!(store.aggregate(arg))?;
+
+            Ok((uncached_result, cached_result))
         },
     )
     // Required so Rust can figure out what type `E` is
     .map_err(|e: io::Error| e);
 
-    let result = Runtime::new().unwrap().block_on(fut).unwrap();
+    let (uncached_result, cached_result) = Runtime::new().unwrap().block_on(fut).unwrap();
 
-    assert_eq!(result, TestCounterEntity { counter: 300i32 });
+    assert_eq!(uncached_result, TestCounterEntity { counter: 300i32 });
+    assert_eq!(uncached_result, cached_result);
 }
