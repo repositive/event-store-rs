@@ -5,7 +5,7 @@ use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use fallible_iterator::FallibleIterator;
-use log::debug;
+use log::{debug, trace};
 use postgres::error::UNIQUE_VIOLATION;
 use r2d2::Pool;
 use r2d2_postgres::postgres::types::ToSql;
@@ -71,12 +71,12 @@ impl StoreQuery for PgQuery {
 fn generate_query(initial_query: &PgQuery, since: Option<DateTime<Utc>>) -> String {
     if let Some(timestamp) = since {
         String::from(format!(
-            "SELECT * FROM ({}) AS events WHERE events.context->>'time' >= '{}' ORDER BY events.context->>'time' ASC",
+            "select * from ({}) as events where (events.context->>'time')::timestamp with time zone >= '{}' order by (events.context->>'time')::timestamp with time zone asc",
             initial_query.query, timestamp,
         ))
     } else {
         String::from(format!(
-            "SELECT * FROM ({}) AS events ORDER BY events.context->>'time' ASC",
+            "select * from ({}) as events order by (events.context->>'time')::timestamp with time zone asc",
             initial_query.query
         ))
     }
@@ -200,7 +200,7 @@ impl PgStoreAdapter {
                 evt
             })
             .collect()
-            .expect("ain't no collec");
+            .expect("Failed to collect results");
 
         trans.finish().expect("Could not finish transaction");
 
@@ -212,14 +212,19 @@ impl PgStoreAdapter {
     where
         ED: EventData,
     {
-        let rows = self.conn.get().unwrap()
-                .query(
-                    r#"SELECT * from events where data->>'event_namespace' = $1 and data->>'event_type' = $2 order by data->>'time' desc limit 1"#,
-                    &[
-                        &ED::event_namespace(),
-                        &ED::event_type()
-                    ],
-                ).expect("Unable to query database (last_event)");
+        let rows = self
+            .conn
+            .get()
+            .unwrap()
+            .query(
+                r#"select * from events
+                    where data->>'event_namespace' = $1
+                    and data->>'event_type' = $2
+                    order by (context->>'time')::timestamp with time zone desc
+                    limit 1"#,
+                &[&ED::event_namespace(), &ED::event_type()],
+            )
+            .expect("Unable to query database (last_event)");
 
         if rows.len() == 1 {
             let row = rows.get(0);
@@ -247,7 +252,7 @@ impl PgStoreAdapter {
             where data->>'event_namespace' = $1
             and data->>'event_type' = $2
             and context->>'time' >= $3
-            order by data->>'time' asc"#;
+            order by (context->>'time')::timestamp with time zone asc"#;
 
         let conn = self.conn.get().unwrap();
 
@@ -259,13 +264,20 @@ impl PgStoreAdapter {
             .prepare(&query_string)
             .expect("Unable to prepare read statement");
 
+        trace!(
+            "Read events of type {}.{} since {}",
+            event_namespace,
+            event_type,
+            since.to_rfc3339()
+        );
+
         let results = stmt
             .lazy_query(
                 &trans,
                 &[&event_namespace, &event_type, &since.to_rfc3339()],
                 1000,
             )
-            .unwrap()
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
             .map(|row| {
                 let id: Uuid = row.get("id");
                 let data_json: JsonValue = row.get("data");
@@ -278,7 +290,7 @@ impl PgStoreAdapter {
                 })
             })
             .collect()
-            .expect("ain't no collec");
+            .expect("Failed to collect results");
 
         trans.finish().expect("Could not finish transaction");
 
