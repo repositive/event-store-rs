@@ -44,7 +44,7 @@ impl Store {
         let cache_key = store_query.unique_id();
         let debug_cache_key = cache_key.clone();
 
-        let cache_result = await!(self.cache.read(cache_key))?;
+        let cache_result = await!(self.cache.read(&cache_key))?;
 
         trace!(
             "Aggregate cache key {} result {:?}",
@@ -66,7 +66,11 @@ impl Store {
 
         trace!("Read {} events to aggregate", events.len());
 
-        Ok(events.iter().fold(initial_state, T::apply_event))
+        let result = events.iter().fold(initial_state, T::apply_event);
+
+        await!(self.cache.save(&cache_key, &result))?;
+
+        Ok(result)
     }
 
     /// Save an event and emit it to other subscribers
