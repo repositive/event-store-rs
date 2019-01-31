@@ -169,6 +169,8 @@ fn get_databases(pool: &Pool<PostgresConnectionManager>) -> Result<Vec<String>, 
 }
 
 fn populate_results_store(results: &Vec<AnyEvent>, results_store: &gtk::ListStore) {
+    results_store.clear();
+
     for evt in results.iter() {
         trace!("Event {:?}", evt);
 
