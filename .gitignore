@@ -5,3 +5,5 @@ postgres_data
 .DS_Store
 *.glade~
 \#*\#
+.flatpak-builder
+flatpak-build
