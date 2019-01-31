@@ -20,7 +20,7 @@ use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
 use std::io;
 use std::net::SocketAddr;
-use structopt::StructOpt;
+// use structopt::StructOpt;
 use tokio::runtime::current_thread::Runtime as CurrentThreadRuntime;
 use uuid::Uuid;
 
@@ -30,21 +30,21 @@ enum ResultColumn {
     Context = 2,
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "explorer")]
-struct CliOpts {
-    /// The database use. Connects to postgres://repositive:repositive@localhost:5432/<DATABASE>
-    #[structopt(name = "DATABASE")]
-    database: String,
+// #[derive(StructOpt, Debug)]
+// #[structopt(name = "explorer")]
+// struct CliOpts {
+//     /// The database use. Connects to postgres://repositive:repositive@localhost:5432/<DATABASE>
+//     #[structopt(name = "DATABASE")]
+//     database: String,
 
-    /// The event namespace, e.g. `organisations` or `analysis`
-    #[structopt(name = "NAMESPACE")]
-    event_namespace: String,
+//     /// The event namespace, e.g. `organisations` or `analysis`
+//     #[structopt(name = "NAMESPACE")]
+//     event_namespace: String,
 
-    /// Event type, e.g. `PolicyUpdated`, `AccountCreated`
-    #[structopt(name = "EVENT")]
-    event_type: String,
-}
+//     /// Event type, e.g. `PolicyUpdated`, `AccountCreated`
+//     #[structopt(name = "EVENT")]
+//     event_type: String,
+// }
 
 #[derive(Deserialize, Debug, Clone)]
 struct AnyEvent {
@@ -190,11 +190,11 @@ fn populate_databases_chooser(pool: &Pool<PostgresConnectionManager>, builder: &
 fn main() {
     pretty_env_logger::init();
 
-    let opts = CliOpts::from_args();
+    // let opts = CliOpts::from_args();
 
-    let pool = connect(&opts.database).expect("Failed to connect");
+    let pool = connect(&"organisations".to_string()).expect("Failed to connect");
 
-    debug!("{:?}", opts);
+    // debug!("{:?}", opts);
 
     let store = block!(create_store(&pool)).expect("Could not get store");
 
