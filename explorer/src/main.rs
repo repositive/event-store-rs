@@ -3,6 +3,9 @@
 // only needed to manually implement a std future:
 #![feature(arbitrary_self_types)]
 
+#[macro_use]
+mod macros;
+
 use chrono::prelude::*;
 use event_store::{
     adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgStoreAdapter},
@@ -25,24 +28,6 @@ enum ResultColumn {
     Id = 0,
     Data = 1,
     Context = 2,
-}
-
-// make moving clones into closures more convenient
-macro_rules! clone {
-    (@param _) => ( _ );
-    (@param $x:ident) => ( $x );
-    ($($n:ident),+ => move || $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move || $body
-        }
-    );
-    ($($n:ident),+ => move |$($p:tt),+| $body:expr) => (
-        {
-            $( let $n = $n.clone(); )+
-            move |$(clone!(@param $p),)+| $body
-        }
-    );
 }
 
 #[derive(StructOpt, Debug)]
@@ -211,10 +196,7 @@ fn main() {
 
     debug!("{:?}", opts);
 
-    let store = CurrentThreadRuntime::new()
-        .unwrap()
-        .block_on(backward(create_store(&pool)))
-        .expect("Could not get store");
+    let store = block!(create_store(&pool)).expect("Could not get store");
 
     if gtk::init().is_err() {
         println!("Failed to initialize GTK.");
@@ -245,10 +227,10 @@ fn main() {
 
             let items = value.split(".").collect::<Vec<&str>>();
 
-            let results = CurrentThreadRuntime::new().unwrap().block_on(backward(do_search(
+            let results = block!(do_search(
                 [items[0], items[1]].join("."),
                 &store
-            )))
+            ))
             .expect("Search failed");
 
             populate_results_store(&results, &results_store);
