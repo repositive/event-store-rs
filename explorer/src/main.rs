@@ -205,15 +205,12 @@ fn populate_databases_chooser(pool: &Pool<PostgresConnectionManager>, builder: &
 fn main() {
     pretty_env_logger::init();
 
-    // tokio::run_async(
-    //     async {
     let opts = CliOpts::from_args();
 
     let pool = connect(&opts.database).expect("Failed to connect");
 
     debug!("{:?}", opts);
 
-    // let store = await!(create_store(&pool));
     let store = CurrentThreadRuntime::new()
         .unwrap()
         .block_on(backward(create_store(&pool)))
@@ -352,6 +349,4 @@ fn main() {
     });
 
     gtk::main();
-    //     },
-    // );
 }
