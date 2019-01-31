@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Event Store Explorer
-Exec=org.gnome.EventStoreExplorer
+Exec=explorer
 Type=Application
 Categories=Development;Database;
 X-Desktop-File-Install-Version=0.23
