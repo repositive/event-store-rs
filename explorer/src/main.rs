@@ -244,8 +244,10 @@ fn main() {
         if let Some(value) = input.get_text() {
             info!("Search for {}", value);
 
+            let items = value.split(".").collect::<Vec<&str>>();
+
             let results = CurrentThreadRuntime::new().unwrap().block_on(backward(do_search(
-                ["organisations", "OrganisationCreated"].join("."),
+                [items[0], items[1]].join("."),
                 &store
             )))
             .expect("Search failed");
