@@ -25,3 +25,20 @@ Run tests with `cargo +nightly test`.
 ```bash
 cargo doc --open
 ```
+
+## Explorer
+
+### Build (development)
+
+Ensure you're in `./explorer`.
+
+* Linux Mint: `apt install elfutils flatpak-builder`
+* `./build-flatpak.sh`
+* Flatpak is built to `explorer/flatpak-build/explorer.flatpak`
+
+
+### Install (distribution)
+
+* Download `explorer.flatpak`
+* Install with `flatpak install path/to/explorer.flatpak`
+* You can make the explorer use a different GTK theme by following [these instructions](https://www.linuxuprising.com/2018/05/how-to-get-flatpak-apps-to-use-correct.html), e.g. `flatpak install flathub org.gtk.Gtk3theme.Arc-Dark`

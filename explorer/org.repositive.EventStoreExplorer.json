@@ -1,0 +1,27 @@
+{
+    "app-id": "org.repositive.EventStoreExplorer",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "3.26",
+    "sdk": "org.gnome.Sdk//3.26",
+    "command": "explorer",
+    "modules": [
+        {
+            "name": "explorer",
+            "buildsystem": "simple",
+            "build-commands": [
+                "install -D explorer /app/bin/explorer"
+            ],
+            "sources": [
+                {
+                    "type": "file",
+                    "path": "../target/release/explorer"
+                }
+            ]
+        }
+    ],
+    "finish-args": [
+        "--socket=wayland",
+        "--socket=x11",
+        "--share=network"
+    ]
+}
