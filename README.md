@@ -28,7 +28,7 @@ cargo doc --open
 
 ## Explorer
 
-### Build (development)
+### Flatpak Build for Linux (Flatpak)
 
 Ensure you're in `./explorer`.
 
@@ -37,8 +37,10 @@ Ensure you're in `./explorer`.
 * Flatpak is built to `explorer/flatpak-build/explorer.flatpak`
 
 
-### Install (distribution)
+### Install on Linux (Flatpak)
 
 * Download `explorer.flatpak`
 * Install with `flatpak install path/to/explorer.flatpak`
+* OR run it from the build folder with `flatpak-builder --run flatpak-build/explorer org.repositive.EventStoreExplorer.json explorer`
+* Run with flatpak run org.repositive.EventStoreExplorer
 * You can make the explorer use a different GTK theme by following [these instructions](https://www.linuxuprising.com/2018/05/how-to-get-flatpak-apps-to-use-correct.html), e.g. `flatpak install flathub org.gtk.Gtk3theme.Arc-Dark`

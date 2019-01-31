@@ -9,12 +9,17 @@
             "name": "explorer",
             "buildsystem": "simple",
             "build-commands": [
-                "install -D explorer /app/bin/explorer"
+                "install -D explorer /app/bin/explorer",
+                "install -D org.repositive.EventStoreExplorer.desktop /app/share/applications/org.repositive.EventStoreExplorer.desktop"
             ],
             "sources": [
                 {
                     "type": "file",
                     "path": "../target/release/explorer"
+                },
+                {
+                    "type": "file",
+                    "path": "org.repositive.EventStoreExplorer.desktop"
                 }
             ]
         }
