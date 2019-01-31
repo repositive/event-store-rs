@@ -6,6 +6,7 @@
 use chrono::prelude::*;
 use event_store::{
     adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgStoreAdapter},
+    internals::backward,
     EventContext, SubscribableStore,
 };
 use gtk::prelude::*;
@@ -17,6 +18,7 @@ use serde_json::Value as JsonValue;
 use std::io;
 use std::net::SocketAddr;
 use structopt::StructOpt;
+use tokio::runtime::current_thread::Runtime as CurrentThreadRuntime;
 use uuid::Uuid;
 
 enum ResultColumn {
@@ -159,10 +161,7 @@ fn get_databases(pool: &Pool<PostgresConnectionManager>) -> Result<Vec<String>, 
         &[],
     )?;
 
-    let names = result
-        .iter()
-        .map(|row| row.get(0))
-        .collect();
+    let names = result.iter().map(|row| row.get(0)).collect();
 
     debug!("Found databases: {:?}", names);
 
@@ -192,7 +191,9 @@ fn populate_results_store(results: &Vec<AnyEvent>, results_store: &gtk::ListStor
 fn populate_databases_chooser(pool: &Pool<PostgresConnectionManager>, builder: &gtk::Builder) {
     let databases = get_databases(&pool).expect("Could not fetch list of databases");
 
-    let dropdown: gtk::ComboBoxText = builder.get_object("database-chooser").expect("database-chooser");
+    let dropdown: gtk::ComboBoxText = builder
+        .get_object("database-chooser")
+        .expect("database-chooser");
 
     for d in databases {
         dropdown.append_text(&d);
@@ -202,149 +203,151 @@ fn populate_databases_chooser(pool: &Pool<PostgresConnectionManager>, builder: &
 fn main() {
     pretty_env_logger::init();
 
-    tokio::run_async(
-        async {
-            let opts = CliOpts::from_args();
+    // tokio::run_async(
+    //     async {
+    let opts = CliOpts::from_args();
 
-            let pool = connect(&opts.database).expect("Failed to connect");
+    let pool = connect(&opts.database).expect("Failed to connect");
 
-            debug!("{:?}", opts);
+    debug!("{:?}", opts);
 
-            let store = await!(create_store(&pool)).expect("Could not get store");
+    // let store = await!(create_store(&pool));
+    let store = CurrentThreadRuntime::new()
+        .unwrap()
+        .block_on(backward(create_store(&pool)))
+        .expect("Could not get store");
 
-            let results = await!(do_search(
-                [opts.event_namespace, opts.event_type].join("."),
+    if gtk::init().is_err() {
+        println!("Failed to initialize GTK.");
+        return;
+    }
+    let (window, builder) = window();
+
+    populate_databases_chooser(&pool, &builder);
+
+    let results_list: gtk::TreeView = builder.get_object("list-results").expect("list-results");
+    let results_store =
+        gtk::ListStore::new(&[gtk::Type::String, gtk::Type::String, gtk::Type::String]);
+
+    add_column(&results_list, "text", "ID", ResultColumn::Id);
+    add_column(&results_list, "text", "Data", ResultColumn::Data);
+    add_column(&results_list, "text", "Context", ResultColumn::Context);
+
+    results_list.set_headers_visible(true);
+    results_list.set_model(Some(&results_store));
+
+    // --- Search input
+
+    let query_input: gtk::Entry = builder.get_object("query-input").expect("query-input");
+
+    query_input.connect_activate(clone!(results_store => move |input| {
+        if let Some(value) = input.get_text() {
+            info!("Search for {}", value);
+
+            let results = CurrentThreadRuntime::new().unwrap().block_on(backward(do_search(
+                ["organisations", "OrganisationCreated"].join("."),
                 &store
-            ))
+            )))
             .expect("Search failed");
 
-            if gtk::init().is_err() {
-                println!("Failed to initialize GTK.");
-                return;
-            }
-            let (window, builder) = window();
-
-            populate_databases_chooser(&pool, &builder);
-
-            let results_list: gtk::TreeView =
-                builder.get_object("list-results").expect("list-results");
-            let results_store =
-                gtk::ListStore::new(&[gtk::Type::String, gtk::Type::String, gtk::Type::String]);
-
-            add_column(&results_list, "text", "ID", ResultColumn::Id);
-            add_column(&results_list, "text", "Data", ResultColumn::Data);
-            add_column(&results_list, "text", "Context", ResultColumn::Context);
-
-            results_list.set_headers_visible(true);
-            results_list.set_model(Some(&results_store));
-
             populate_results_store(&results, &results_store);
+        }
+    }));
 
-            // --- Search input
+    // ---
 
-            let query_input: gtk::Entry = builder.get_object("query-input").expect("query-input");
+    // --- Display events on click
 
-            query_input.connect_activate(|input| {
-                if let Some(value) = input.get_text() {
-                    info!("Search for {}", value);
-                }
-            });
+    let selected_event_id_label: gtk::Label = builder
+        .get_object("current-event-id")
+        .expect("current-event-id");
+    let selected_event_id_copy: gtk::Button = builder
+        .get_object("copy-current-event-id")
+        .expect("copy-current-event-id");
 
-            // ---
+    let selected_event_namespace_label: gtk::Label = builder
+        .get_object("current-event-namespace")
+        .expect("current-event-namespace");
+    let selected_event_namespace_copy: gtk::Button = builder
+        .get_object("copy-current-event-namespace")
+        .expect("copy-current-event-namespace");
 
-            // --- Display events on click
+    let selected_event_type_label: gtk::Label = builder
+        .get_object("current-event-type")
+        .expect("current-event-type");
+    let selected_event_type_copy: gtk::Button = builder
+        .get_object("copy-current-event-type")
+        .expect("copy-current-event-type");
 
-            let selected_event_id_label: gtk::Label = builder
-                .get_object("current-event-id")
-                .expect("current-event-id");
-            let selected_event_id_copy: gtk::Button = builder
-                .get_object("copy-current-event-id")
-                .expect("copy-current-event-id");
-
-            let selected_event_namespace_label: gtk::Label = builder
-                .get_object("current-event-namespace")
-                .expect("current-event-namespace");
-            let selected_event_namespace_copy: gtk::Button = builder
-                .get_object("copy-current-event-namespace")
-                .expect("copy-current-event-namespace");
-
-            let selected_event_type_label: gtk::Label = builder
-                .get_object("current-event-type")
-                .expect("current-event-type");
-            let selected_event_type_copy: gtk::Button = builder
-                .get_object("copy-current-event-type")
-                .expect("copy-current-event-type");
-
-            connect_copy_button(&selected_event_id_label, &selected_event_id_copy, &window);
-            connect_copy_button(
-                &selected_event_type_label,
-                &selected_event_type_copy,
-                &window,
-            );
-            connect_copy_button(
-                &selected_event_namespace_label,
-                &selected_event_namespace_copy,
-                &window,
-            );
-
-            let selected_event_data: gtk::TextView = builder
-                .get_object("selected-event-data")
-                .expect("selected-event-data");
-            let selected_event_context: gtk::TextView = builder
-                .get_object("selected-event-context")
-                .expect("selected-event-context");
-
-            let event_data_buf = gtk::TextBuffer::new(None);
-            let event_context_buf = gtk::TextBuffer::new(None);
-
-            selected_event_data.set_buffer(Some(&event_data_buf));
-            selected_event_context.set_buffer(Some(&event_context_buf));
-
-            let selected_result = results_list.get_selection();
-
-            selected_result.connect_changed(move |selection| {
-                let (_model, path) = selection.get_selected().expect("Could not get selected");
-
-                let uuid: Uuid = results_store
-                    .get_value(&path, ResultColumn::Id as i32)
-                    .get::<&str>()
-                    .and_then(|uuid_str| Uuid::parse_str(uuid_str).ok())
-                    .expect("Could not parse value into UUID");
-
-                let data: JsonValue = results_store
-                    .get_value(&path, ResultColumn::Data as i32)
-                    .get::<&str>()
-                    .and_then(|data| serde_json::from_str(data).ok())
-                    .expect("Could not parse data");
-
-                let context: JsonValue = results_store
-                    .get_value(&path, ResultColumn::Context as i32)
-                    .get::<&str>()
-                    .and_then(|context| serde_json::from_str(context).ok())
-                    .expect("Could not parse context");
-
-                trace!("Selected event ID {:?}", uuid);
-
-                selected_event_id_label.set_label(&uuid.to_string());
-                selected_event_namespace_label
-                    .set_label(&data["event_namespace"].as_str().unwrap_or("(no namespace)"));
-                selected_event_type_label
-                    .set_label(&data["event_type"].as_str().unwrap_or("(no type)"));
-
-                event_data_buf.set_text(&serde_json::to_string_pretty(&data).unwrap());
-                event_context_buf.set_text(&serde_json::to_string_pretty(&context).unwrap());
-            });
-
-            // ---
-
-            window.show_all();
-
-            window.connect_delete_event(|_, _| {
-                gtk::main_quit();
-                Inhibit(false)
-            });
-
-            gtk::main();
-        },
+    connect_copy_button(&selected_event_id_label, &selected_event_id_copy, &window);
+    connect_copy_button(
+        &selected_event_type_label,
+        &selected_event_type_copy,
+        &window,
     );
+    connect_copy_button(
+        &selected_event_namespace_label,
+        &selected_event_namespace_copy,
+        &window,
+    );
+
+    let selected_event_data: gtk::TextView = builder
+        .get_object("selected-event-data")
+        .expect("selected-event-data");
+    let selected_event_context: gtk::TextView = builder
+        .get_object("selected-event-context")
+        .expect("selected-event-context");
+
+    let event_data_buf = gtk::TextBuffer::new(None);
+    let event_context_buf = gtk::TextBuffer::new(None);
+
+    selected_event_data.set_buffer(Some(&event_data_buf));
+    selected_event_context.set_buffer(Some(&event_context_buf));
+
+    let selected_result = results_list.get_selection();
+
+    selected_result.connect_changed(move |selection| {
+        let (_model, path) = selection.get_selected().expect("Could not get selected");
+
+        let uuid: Uuid = results_store
+            .get_value(&path, ResultColumn::Id as i32)
+            .get::<&str>()
+            .and_then(|uuid_str| Uuid::parse_str(uuid_str).ok())
+            .expect("Could not parse value into UUID");
+
+        let data: JsonValue = results_store
+            .get_value(&path, ResultColumn::Data as i32)
+            .get::<&str>()
+            .and_then(|data| serde_json::from_str(data).ok())
+            .expect("Could not parse data");
+
+        let context: JsonValue = results_store
+            .get_value(&path, ResultColumn::Context as i32)
+            .get::<&str>()
+            .and_then(|context| serde_json::from_str(context).ok())
+            .expect("Could not parse context");
+
+        trace!("Selected event ID {:?}", uuid);
+
+        selected_event_id_label.set_label(&uuid.to_string());
+        selected_event_namespace_label
+            .set_label(&data["event_namespace"].as_str().unwrap_or("(no namespace)"));
+        selected_event_type_label.set_label(&data["event_type"].as_str().unwrap_or("(no type)"));
+
+        event_data_buf.set_text(&serde_json::to_string_pretty(&data).unwrap());
+        event_context_buf.set_text(&serde_json::to_string_pretty(&context).unwrap());
+    });
+
+    // ---
+
+    window.show_all();
+
+    window.connect_delete_event(|_, _| {
+        gtk::main_quit();
+        Inhibit(false)
+    });
+
+    gtk::main();
+    //     },
+    // );
 }
