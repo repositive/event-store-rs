@@ -175,7 +175,10 @@ fn populate_results_store(results: &Vec<AnyEvent>, results_store: &gtk::ListStor
     }
 }
 
-fn populate_databases_chooser(pool: &Pool<PostgresConnectionManager>, builder: &gtk::Builder) {
+fn populate_databases_chooser(
+    pool: &Pool<PostgresConnectionManager>,
+    builder: &gtk::Builder,
+) -> gtk::ComboBox {
     let databases = get_databases(&pool).expect("Could not fetch list of databases");
 
     let dropdown: gtk::ComboBoxText = builder
@@ -185,6 +188,8 @@ fn populate_databases_chooser(pool: &Pool<PostgresConnectionManager>, builder: &
     for d in databases {
         dropdown.append_text(&d);
     }
+
+    dropdown.upcast::<gtk::ComboBox>()
 }
 
 fn main() {
@@ -204,7 +209,26 @@ fn main() {
     }
     let (window, builder) = window();
 
-    populate_databases_chooser(&pool, &builder);
+    // --- Database picker
+
+    let db_dropdown: gtk::ComboBox = populate_databases_chooser(&pool, &builder);
+
+    db_dropdown.connect_changed(|combo| {
+        // TODO: Fix clone
+        let active_text = combo
+            .clone()
+            .downcast::<gtk::ComboBoxText>()
+            .expect("Downcast failed")
+            .get_active_text();
+
+        if let Some(selected_value) = active_text {
+            debug!("DB choosed: {:?}", selected_value);
+
+            // TODO: Change DB
+        }
+    });
+
+    // ---
 
     let results_list: gtk::TreeView = builder.get_object("list-results").expect("list-results");
     let results_store =
