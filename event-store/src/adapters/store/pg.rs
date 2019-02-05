@@ -125,14 +125,14 @@ impl PgStoreAdapter {
         self.conn
             .get()
             .unwrap()
-            .prepare("insert into events (id, data, context) values ($1, $2, $3)")
-            .and_then(|stmt| {
-                stmt.execute(&[
+            .execute(
+                "insert into events (id, data, context) values ($1, $2, $3)",
+                &[
                     &event.id,
                     &to_value(&event.data).expect("Unable to convert event data to value"),
                     &to_value(&event.context).expect("Cannot convert event context"),
-                ])
-            })
+                ],
+            )
             .map(|_| Ok(SaveStatus::Ok))
             .unwrap_or_else(|err| {
                 let is_duplicate_error = err.code().unwrap() == &UNIQUE_VIOLATION;
