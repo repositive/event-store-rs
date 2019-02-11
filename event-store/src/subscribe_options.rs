@@ -8,6 +8,7 @@ pub struct SubscribeOptions {
     pub save_on_receive: bool,
 }
 
+// TODO: Is this struct still required?
 impl Default for SubscribeOptions {
     fn default() -> Self {
         Self {

@@ -1,3 +1,4 @@
+use crate::adapters::LastHandledEvent;
 use crate::adapters::{
     AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapter, SaveResult, SaveStatus,
 };
@@ -12,6 +13,7 @@ use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
+use uuid::Uuid;
 
 /// Event store that does not support subscriptions. Passed to [`crate::event_handler::EventHandler`] implementations.
 #[derive(Clone)]
@@ -96,11 +98,17 @@ impl Store {
     }
 
     /// Find the most recent occurrence of an event in the database
-    pub async fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
+    pub async fn last_event<ED>(&self) -> Result<Option<LastHandledEvent>, io::Error>
     where
         ED: EventData,
     {
         self.store.last_event::<ED>()
+    }
+
+    // TODO: Check if this is actually required
+    /// Check if an event exists for a given ID
+    pub async fn event_exists<'a>(&'a self, event_id: &'a Uuid) -> Result<bool, io::Error> {
+        self.store.event_exists(event_id)
     }
 
     /// Emit an event to subscribers
@@ -124,14 +132,23 @@ impl Store {
     }
 
     /// Read all events since a given time
-    pub async fn read_events_since<'a>(
+    pub async fn read_events_since<'a, ED>(
         &'a self,
-        event_namespace: &'a str,
-        event_type: &'a str,
+        // event_namespace: &'a str,
+        // event_type: &'a str,
         since: DateTime<Utc>,
-    ) -> Result<Vec<JsonValue>, io::Error> {
-        await!(self
-            .store
-            .read_events_since(event_namespace, event_type, since))
+    ) -> Result<Vec<Event<ED>>, io::Error>
+    where
+        ED: EventData,
+    {
+        await!(self.store.read_events_since::<ED>(since))
+    }
+
+    /// Update latest event handled time
+    pub fn update_last_handled_event_log<ED>(&self, event: &Event<ED>) -> Result<(), io::Error>
+    where
+        ED: EventData,
+    {
+        self.store.update_last_handled_event_log(event)
     }
 }

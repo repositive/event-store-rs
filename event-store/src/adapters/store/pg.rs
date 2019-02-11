@@ -1,5 +1,5 @@
-use crate::event::Event;
 use super::LastHandledEvent;
+use crate::event::Event;
 use crate::store_query::StoreQuery;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
@@ -10,6 +10,7 @@ use postgres::error::UNIQUE_VIOLATION;
 use r2d2::Pool;
 use r2d2_postgres::postgres::types::ToSql;
 use r2d2_postgres::PostgresConnectionManager;
+use serde::Deserialize;
 use serde_json::{from_value, json, to_value, Value as JsonValue};
 use sha2::{Digest, Sha256};
 use std::io;
@@ -43,7 +44,8 @@ create table if not exists last_handled_event_log(
     event_type varchar(64) not null,
     event_id uuid not null,
     time timestamp with time zone not null,
-    sequence_number bigint not null,
+    -- TODO: Re-add sequence number when it's used
+    -- sequence_number bigint not null,
     primary key(domain, event_namespace, event_type)
 );
 "#;
@@ -118,7 +120,10 @@ impl PgStoreAdapter {
     /// Create a new Postgres store
     ///
     /// This will attempt to create the events table and indexes if they do not already exist
-    pub async fn new(conn: Pool<PostgresConnectionManager>, domain: String) -> Result<Self, io::Error> {
+    pub async fn new(
+        conn: Pool<PostgresConnectionManager>,
+        domain: String,
+    ) -> Result<Self, io::Error> {
         conn.get()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
             .batch_execute(INIT_QUERIES)?;
@@ -228,7 +233,7 @@ impl PgStoreAdapter {
             .get()
             .unwrap()
             .query(
-                r#"select * from events
+                r#"select * from last_handled_event_log
                     where event_namespace = $1
                     and event_type = $2
                     and domain = $3
@@ -254,12 +259,18 @@ impl PgStoreAdapter {
     }
 
     /// Fetch events of a given type starting from a timestamp going forward
-    pub async fn read_events_since<'a>(
+    pub async fn read_events_since<'a, ED>(
         &'a self,
-        event_namespace: &'a str,
-        event_type: &'a str,
+        // event_namespace: &'a str,
+        // event_type: &'a str,
         since: DateTime<Utc>,
-    ) -> Result<Vec<JsonValue>, io::Error> {
+    ) -> Result<Vec<Event<ED>>, io::Error>
+    where
+        ED: EventData + for<'de> Deserialize<'de>,
+    {
+        let event_type = ED::event_type();
+        let event_namespace = ED::event_namespace();
+
         let query_string = r#"select * from events
             where data->>'event_namespace' = $1
             and data->>'event_type' = $2
@@ -295,11 +306,14 @@ impl PgStoreAdapter {
                 let data_json: JsonValue = row.get("data");
                 let context_json: JsonValue = row.get("context");
 
-                json!({
+                let evt: Event<ED> = serde_json::from_value(json!({
                     "id": id,
                     "data": data_json,
                     "context": context_json,
-                })
+                }))
+                .unwrap();
+
+                evt
             })
             .collect()
             .expect("Failed to collect results");
@@ -307,5 +321,49 @@ impl PgStoreAdapter {
         trans.finish().expect("Could not finish transaction");
 
         Ok(results)
+    }
+
+    /// Check whether an event exists for a given event ID
+    pub fn event_exists<'a>(&'a self, event_id: &'a Uuid) -> Result<bool, io::Error> {
+        let rows = self
+            .conn
+            .get()
+            .unwrap()
+            .query("select * from events where id = $1 limit 1", &[event_id])?;
+
+        debug_assert!(rows.len() == 1, "Event existence check returned more than one row. This should not be possibe; events MUST have unique IDs.");
+
+        Ok(rows.len() == 1)
+    }
+
+    /// Update latest event handled time
+    pub fn update_last_handled_event_log<ED>(&self, event: &Event<ED>) -> Result<(), io::Error>
+    where
+        ED: EventData,
+    {
+        self.conn
+            .get()
+            .unwrap()
+            .execute(
+                r#"insert into last_handled_event_log
+                    (domain, event_namespace, event_type, event_id, time)
+                    values
+                    ($1, $2, $3, $4, $5)
+                    on conflict (domain, event_namespace, event_type) do update
+                    set event_id = excluded.event_id,
+                    time = excluded.time"#,
+                &[
+                    &self.domain,
+                    &ED::event_namespace(),
+                    &ED::event_type(),
+                    &event.id,
+                    &event.context.time
+                ],
+            )
+            .map(|_| ())
+            .map_err(|e| io::Error::new(
+                io::ErrorKind::Other,
+                e.to_string()
+            ))
     }
 }

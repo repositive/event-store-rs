@@ -9,6 +9,7 @@ use postgres::types::ToSql;
 use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use serde_derive::*;
+use std::io;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Set of all events in the domain
@@ -17,7 +18,7 @@ pub enum TestEvents {
     Inc(Event<TestEvent>),
 }
 
-#[derive(EventData, Debug)]
+#[derive(EventData, Debug, Clone)]
 #[event_store(namespace = "some_namespace")]
 pub struct TestEvent {
     pub num: i32,
@@ -53,8 +54,10 @@ impl Aggregator<TestEvents, String, PgQuery> for TestCounterEntity {
 }
 
 impl EventHandler for TestEvent {
-    fn handle_event(event: Event<Self>, _store: &Store) {
+    fn handle_event(event: Event<Self>, _store: &Store) -> Result<(), io::Error> {
         trace!("TestEvent handler {:?}", event);
+
+        Ok(())
     }
 }
 

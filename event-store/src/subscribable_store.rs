@@ -2,7 +2,7 @@ use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapte
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
-use crate::event_replay::EventReplayRequested;
+// use crate::event_replay::EventReplayRequested;
 use crate::store::Store;
 use crate::subscribe_options::SubscribeOptions;
 use chrono::prelude::*;
@@ -34,10 +34,10 @@ impl SubscribableStore {
             emitter,
         };
 
-        await!(store.subscribe::<EventReplayRequested>(SubscribeOptions {
-            replay_previous_events: false,
-            save_on_receive: false
-        }))?;
+        // await!(store.subscribe::<EventReplayRequested>(SubscribeOptions {
+        //     replay_previous_events: false,
+        //     save_on_receive: false
+        // }))?;
 
         Ok(store)
     }
@@ -70,10 +70,12 @@ impl SubscribableStore {
         self.inner_store.save_no_emit(event)
     }
 
+    // TODO: Remove `options`; it's unused
     /// Subscribe to incoming events matching the namespace and type in `ED`
     pub async fn subscribe<'a, ED>(&'a self, options: SubscribeOptions) -> Result<(), io::Error>
     where
-        ED: EventHandler + Debug + Send,
+        // TODO: Fix Sync + Clone - they shouldn't be required!
+        ED: EventHandler + Debug + Send + Sync + Clone,
     {
         info!(
             "Starting subscription to {}",
@@ -84,19 +86,33 @@ impl SubscribableStore {
 
         await!(self.emitter.subscribe::<ED>(inner_store, options))?;
 
-        let last = await!(self.inner_store.last_event::<ED>())?;
+        if let Some(newest_event) = await!(self.inner_store.last_event::<ED>())? {
+            let rerun_events = await!(self.inner_store.read_events_since::<ED>(newest_event.time))?;
 
-        let replay = EventReplayRequested::from_event::<ED>(
-            last.map(|e| e.context.time)
-                .unwrap_or_else(|| Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
-        );
+            for evt in rerun_events {
+                ED::handle_event(evt, &self.inner_store)?;
+            }
+        }
 
-        info!(
-            "Emit replay request for event {}",
-            ED::event_namespace_and_type()
-        );
+        Ok(())
 
-        await!(self.inner_store.emit(&replay))
+        // TODO: Rerun events created since the last event of type ED was handled
+
+        // await!(self.emitter.subscribe::<ED>(inner_store, options))?;
+
+        // let last = await!(self.inner_store.last_event::<ED>())?;
+
+        // let replay = EventReplayRequested::from_event::<ED>(
+        //     last.map(|e| e.context.time)
+        //         .unwrap_or_else(|| Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
+        // );
+
+        // info!(
+        //     "Emit replay request for event {}",
+        //     ED::event_namespace_and_type()
+        // );
+
+        // await!(self.inner_store.emit(&replay))
     }
 
     // TODO: Can I do something clever with a trait impl here?

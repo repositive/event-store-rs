@@ -7,6 +7,7 @@ use event_store_derive_internals::EventData;
 use log::{debug, error};
 use serde_derive::*;
 
+// TODO: Delete this event
 #[derive(EventData, Debug)]
 #[event_store(namespace = "_eventstore")]
 pub(crate) struct EventReplayRequested {

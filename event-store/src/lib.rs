@@ -13,7 +13,7 @@ mod aggregator;
 mod event;
 mod event_context;
 mod event_handler;
-mod event_replay;
+// mod event_replay;
 mod store;
 mod store_query;
 mod subscribable_store;

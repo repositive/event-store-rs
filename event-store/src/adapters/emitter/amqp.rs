@@ -56,7 +56,8 @@ impl AmqpEmitterAdapter {
         options: SubscribeOptions,
     ) -> Result<(), io::Error>
     where
-        ED: EventData + EventHandler + Debug + Send,
+        // TODO: Fix Sync + Clone - they shouldn't be required!
+        ED: EventData + EventHandler + Debug + Send + Sync + Clone,
     {
         let channel = await!(amqp_connect(self.uri, &self.exchange))?;
 
@@ -100,45 +101,42 @@ impl AmqpEmitterAdapter {
 
                     match parsed {
                         Ok(event) => {
-                            trace!("Received event {}", event.id);
+                            let event_id = event.id;
 
-                            let saved = if options.save_on_receive {
-                                trace!(
-                                    "Save event {} ({}.{})",
-                                    event.id,
-                                    ED::event_namespace(),
-                                    ED::event_type()
-                                );
+                            trace!("Received event {}", event_id);
 
-                                store.save_no_emit(&event)
-                            } else {
-                                trace!(
-                                    "Skip saving event {} ({}.{})",
-                                    event.id,
-                                    ED::event_namespace(),
-                                    ED::event_type()
-                                );
+                            // TODO: Does this code need to check for event existence?
+                            // let exists = await!(store.event_exists(&event_id))
+                            //     .expect("Could not check event existence");
 
-                                Ok(SaveStatus::Ok)
-                            };
+                            // if !exists {
+                            // TODO: Fix clone()
+                            match ED::handle_event(event.clone(), &store) {
+                                Ok(_) => {
+                                    trace!("Handler passed, saving event");
 
-                            // TODO: Check order of save/handle or handle/save based on TS event store
-                            saved
-                                .map(|result| match result {
-                                    SaveStatus::Ok => {
-                                        trace!("Event saved, calling handler");
-                                        ED::handle_event(event, &store);
-                                    }
-                                    SaveStatus::Duplicate => {
-                                        debug!("Duplicate event {}, skipping handler", event.id);
-                                    }
-                                })
-                                .expect("Failed to handle event");
+                                    store.update_last_handled_event_log(&event).expect(&format!(
+                                        "Failed to update event log for event type {} (ID {})",
+                                        ED::event_namespace_and_type(),
+                                        event_id
+                                    ));
 
-                            trace!("Ack event {}", message.delivery_tag);
+                                    trace!("Ack event {}", message.delivery_tag);
 
-                            await!(forward(channel.basic_ack(message.delivery_tag, false)))
-                                .expect("Could not ack message");
+                                    await!(forward(channel.basic_ack(message.delivery_tag, false)))
+                                        .expect("Could not ack message");
+                                }
+                                Err(e) => {
+                                    error!(
+                                        "Failed to handle event ID {}: {}",
+                                        event_id,
+                                        e.to_string()
+                                    );
+                                }
+                            }
+                            // } else {
+                            //     trace!("Event ID already exists");
+                            // }
                         }
                         Err(e) => {
                             trace!(

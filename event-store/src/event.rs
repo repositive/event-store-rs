@@ -7,7 +7,7 @@ use uuid::Uuid;
 /// Event with `EventData`, `EventContext` and a `Uuid` ID
 ///
 /// This is what gets stored in the store and emitted from the emitter
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Event<D> {
     /// Event data payload
     pub data: D,
