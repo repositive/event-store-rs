@@ -1,5 +1,5 @@
 use crate::event::Event;
-use crate::event_context::EventContext;
+use super::LastHandledEvent;
 use crate::store_query::StoreQuery;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
@@ -111,18 +111,19 @@ pub type SaveResult = Result<SaveStatus, io::Error>;
 #[derive(Clone)]
 pub struct PgStoreAdapter {
     conn: Pool<PostgresConnectionManager>,
+    domain: String,
 }
 
 impl PgStoreAdapter {
     /// Create a new Postgres store
     ///
     /// This will attempt to create the events table and indexes if they do not already exist
-    pub async fn new(conn: Pool<PostgresConnectionManager>) -> Result<Self, io::Error> {
+    pub async fn new(conn: Pool<PostgresConnectionManager>, domain: String) -> Result<Self, io::Error> {
         conn.get()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
             .batch_execute(INIT_QUERIES)?;
 
-        Ok(Self { conn })
+        Ok(Self { conn, domain })
     }
 
     /// Save an event into PG
@@ -218,7 +219,7 @@ impl PgStoreAdapter {
     }
 
     /// Find the most recent event of a given type
-    pub fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
+    pub fn last_event<ED>(&self) -> Result<Option<LastHandledEvent>, io::Error>
     where
         ED: EventData,
     {
@@ -228,24 +229,25 @@ impl PgStoreAdapter {
             .unwrap()
             .query(
                 r#"select * from events
-                    where data->>'event_namespace' = $1
-                    and data->>'event_type' = $2
-                    order by (context->>'time')::timestamp with time zone desc
+                    where event_namespace = $1
+                    and event_type = $2
+                    and domain = $3
                     limit 1"#,
-                &[&ED::event_namespace(), &ED::event_type()],
+                &[&ED::event_namespace(), &ED::event_type(), &self.domain],
             )
             .expect("Unable to query database (last_event)");
 
         if rows.len() == 1 {
             let row = rows.get(0);
-            let id: Uuid = row.get("id");
-            let data_json: JsonValue = row.get("data");
-            let context_json: JsonValue = row.get("context");
 
-            let data: ED = from_value(data_json).unwrap();
-            let context: EventContext = from_value(context_json).unwrap();
-
-            Ok(Some(Event { id, data, context }))
+            Ok(Some(LastHandledEvent {
+                domain: row.get("domain"),
+                event_namespace: row.get("event_namespace"),
+                event_type: row.get("event_type"),
+                event_id: row.get("event_id"),
+                time: row.get("time"),
+                sequence_number: row.get("sequence_number"),
+            }))
         } else {
             Ok(None)
         }
