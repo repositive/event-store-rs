@@ -24,13 +24,15 @@ fn replay() {
 
             info!("Replay test");
 
-            let sender_pool = pg_create_random_db(Some("replay-creator"));
-            let receiver_pool = pg_create_random_db(Some("replay-consumer"));
+            let pool = pg_create_random_db(Some("replay"));
             let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
             let creator_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(sender_pool.clone()))?,
-                await!(PgCacheAdapter::new(sender_pool.clone()))?,
+                await!(PgStoreAdapter::new(
+                    pool.clone(),
+                    "replay-creator".into()
+                ))?,
+                await!(PgCacheAdapter::new(pool.clone()))?,
                 await!(AmqpEmitterAdapter::new(
                     addr,
                     "test_exchange".into(),
@@ -54,8 +56,11 @@ fn replay() {
             .unwrap();
 
             let consumer_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(receiver_pool.clone()))?,
-                await!(PgCacheAdapter::new(receiver_pool.clone()))?,
+                await!(PgStoreAdapter::new(
+                    pool.clone(),
+                    "replay-consumer".into()
+                ))?,
+                await!(PgCacheAdapter::new(pool.clone()))?,
                 await!(AmqpEmitterAdapter::new(
                     addr,
                     "test_exchange".into(),

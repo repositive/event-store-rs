@@ -23,27 +23,26 @@ fn emit_and_receive() {
 
             info!("Save and emit test");
 
-            let sender_pool = pg_create_random_db(Some("sender"));
-            let receiver_pool = pg_create_random_db(Some("receiver"));
+            let pool = pg_create_random_db(Some("emit_and_receive"));
             let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
             let sender_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(sender_pool.clone()))?,
-                await!(PgCacheAdapter::new(sender_pool.clone()))?,
+                await!(PgStoreAdapter::new(pool.clone(), "sender".into()))?,
+                await!(PgCacheAdapter::new(pool.clone()))?,
                 await!(AmqpEmitterAdapter::new(
                     addr,
                     "test_exchange".into(),
-                    "save_and_aggregate_send".into()
+                    "emit_and_receive_send".into()
                 ))?
             ))?;
 
             let receiver_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(receiver_pool.clone()))?,
-                await!(PgCacheAdapter::new(receiver_pool.clone()))?,
+                await!(PgStoreAdapter::new(pool.clone(), "receiver".into()))?,
+                await!(PgCacheAdapter::new(pool.clone()))?,
                 await!(AmqpEmitterAdapter::new(
                     addr,
                     "test_exchange".into(),
-                    "save_and_aggregate_receive".into()
+                    "emit_and_receive_receive".into()
                 ))?
             ))?;
 
@@ -53,7 +52,7 @@ fn emit_and_receive() {
             await!(forward(Delay::new(
                 Instant::now() + Duration::from_millis(100)
             )))
-            .unwrap();
+            .expect("Failed to wait (a)");
 
             await!(sender_store.save(&test_event))?;
 
@@ -61,7 +60,7 @@ fn emit_and_receive() {
             await!(forward(Delay::new(
                 Instant::now() + Duration::from_millis(100)
             )))
-            .unwrap();
+            .expect("Failed to wait (b)");
 
             let arg = &String::new();
             let result: TestCounterEntity = await!(receiver_store.aggregate(arg))?;
@@ -74,5 +73,8 @@ fn emit_and_receive() {
     // Required so Rust can figure out what type `E` is
     .map_err(|e: io::Error| e);
 
-    Runtime::new().unwrap().block_on(fut).unwrap();
+    Runtime::new()
+        .expect("Failed to create runtime")
+        .block_on(fut)
+        .expect("Future execution failed");
 }

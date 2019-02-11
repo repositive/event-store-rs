@@ -27,7 +27,10 @@ fn save_and_aggregate() {
             let pool = pg_create_random_db(None);
             let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
-            let store_adapter = await!(PgStoreAdapter::new(pool.clone()))?;
+            let store_adapter = await!(PgStoreAdapter::new(
+                pool.clone(),
+                "save_and_aggregate".into()
+            ))?;
             let cache_adapter = await!(PgCacheAdapter::new(pool.clone()))?;
             let emitter_adapter = await!(AmqpEmitterAdapter::new(
                 addr,
