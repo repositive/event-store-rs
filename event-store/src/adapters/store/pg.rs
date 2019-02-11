@@ -322,7 +322,12 @@ impl PgStoreAdapter {
     }
 
     /// Read raw events since a time
-    pub async fn read_raw_events_since<'a>(&'a self, event_namespace: &'a str, event_type: &'a str, since: DateTime<Utc>) -> Result<Vec<JsonValue>, io::Error> {
+    pub async fn read_raw_events_since<'a>(
+        &'a self,
+        event_namespace: &'a str,
+        event_type: &'a str,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<JsonValue>, io::Error> {
         let query_string = r#"select * from events
             where data->>'event_namespace' = $1
             and data->>'event_type' = $2
@@ -406,13 +411,10 @@ impl PgStoreAdapter {
                     &ED::event_namespace(),
                     &ED::event_type(),
                     &event.id,
-                    &event.context.time
+                    &event.context.time,
                 ],
             )
             .map(|_| ())
-            .map_err(|e| io::Error::new(
-                io::ErrorKind::Other,
-                e.to_string()
-            ))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
     }
 }

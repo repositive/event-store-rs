@@ -28,10 +28,7 @@ fn replay() {
             let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
 
             let creator_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(
-                    pool.clone(),
-                    "replay-creator".into()
-                ))?,
+                await!(PgStoreAdapter::new(pool.clone(), "replay-creator".into()))?,
                 await!(PgCacheAdapter::new(pool.clone()))?,
                 await!(AmqpEmitterAdapter::new(
                     addr,
@@ -56,10 +53,7 @@ fn replay() {
             .unwrap();
 
             let consumer_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(
-                    pool.clone(),
-                    "replay-consumer".into()
-                ))?,
+                await!(PgStoreAdapter::new(pool.clone(), "replay-consumer".into()))?,
                 await!(PgCacheAdapter::new(pool.clone()))?,
                 await!(AmqpEmitterAdapter::new(
                     addr,

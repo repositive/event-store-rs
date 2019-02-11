@@ -47,10 +47,7 @@ impl AmqpEmitterAdapter {
     }
 
     /// Subscribe to an event
-    pub async fn subscribe<ED>(
-        &self,
-        store: Store
-    ) -> Result<(), io::Error>
+    pub async fn subscribe<ED>(&self, store: Store) -> Result<(), io::Error>
     where
         // TODO: Fix Sync + Clone - they shouldn't be required!
         ED: EventData + EventHandler + Debug + Send + Sync + Clone,

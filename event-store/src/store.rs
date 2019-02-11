@@ -6,10 +6,10 @@ use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::store_query::StoreQuery;
 use chrono::prelude::*;
-use serde_json::Value as JsonValue;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::{debug, trace};
+use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
 use uuid::Uuid;
@@ -131,8 +131,15 @@ impl Store {
     /// Read raw events since a given time, returned as `serde_json::Value` objects
     ///
     /// NOT for use in production code
-    pub async fn read_raw_events_since<'a>(&'a self, event_namespace: &'a str, event_type: &'a str, since: DateTime<Utc>) -> Result<Vec<JsonValue>, io::Error> {
-        await!(self.store.read_raw_events_since(event_namespace, event_type, since))
+    pub async fn read_raw_events_since<'a>(
+        &'a self,
+        event_namespace: &'a str,
+        event_type: &'a str,
+        since: DateTime<Utc>,
+    ) -> Result<Vec<JsonValue>, io::Error> {
+        await!(self
+            .store
+            .read_raw_events_since(event_namespace, event_type, since))
     }
 
     /// Update latest event handled time
