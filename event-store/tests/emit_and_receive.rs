@@ -46,7 +46,7 @@ fn emit_and_receive() {
                 ))?
             ))?;
 
-            await!(receiver_store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
+            await!(receiver_store.subscribe::<TestEvent>())?;
 
             // Give time for subscriber to settle
             await!(forward(Delay::new(

@@ -9,8 +9,6 @@ use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::{debug, trace};
-use serde::Serialize;
-use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
 use uuid::Uuid;
@@ -105,7 +103,6 @@ impl Store {
         self.store.last_event::<ED>()
     }
 
-    // TODO: Check if this is actually required
     /// Check if an event exists for a given ID
     pub async fn event_exists<'a>(&'a self, event_id: &'a Uuid) -> Result<bool, io::Error> {
         self.store.event_exists(event_id)
@@ -117,18 +114,6 @@ impl Store {
         ED: EventData,
     {
         await!(self.emitter.emit(event))
-    }
-
-    pub(crate) async fn emit_value<'a, V>(
-        &'a self,
-        event_type: &'a str,
-        event_namespace: &'a str,
-        data: &'a V,
-    ) -> Result<(), io::Error>
-    where
-        V: Serialize,
-    {
-        await!(self.emitter.emit_value(event_type, event_namespace, data))
     }
 
     /// Read all events since a given time

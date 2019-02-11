@@ -6,4 +6,3 @@ pub use crate::event_context::EventContext;
 pub use crate::event_handler::EventHandler;
 pub use crate::store::Store;
 pub use crate::store_query::StoreQuery;
-pub use crate::subscribe_options::SubscribeOptions;

@@ -1,9 +1,7 @@
-use crate::adapters::SaveStatus;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::internals::forward;
 use crate::store::Store;
-use crate::subscribe_options::SubscribeOptions;
 use event_store_derive_internals::EventData;
 use futures::Future;
 use lapin_futures::channel::{
@@ -15,7 +13,6 @@ use lapin_futures::consumer::Consumer;
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
 use log::{debug, error, info, trace};
-use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
@@ -52,8 +49,7 @@ impl AmqpEmitterAdapter {
     /// Subscribe to an event
     pub async fn subscribe<ED>(
         &self,
-        store: Store,
-        options: SubscribeOptions,
+        store: Store
     ) -> Result<(), io::Error>
     where
         // TODO: Fix Sync + Clone - they shouldn't be required!
@@ -186,37 +182,6 @@ impl AmqpEmitterAdapter {
 
         info!(
             "Emitting event {} onto exchange {} through queue {}",
-            event_name, self.exchange, queue_name
-        );
-
-        await!(amqp_emit_data(
-            &self.channel,
-            &self.exchange,
-            &event_name,
-            payload
-        ))?;
-
-        Ok(())
-    }
-
-    pub(crate) async fn emit_value<'a, V>(
-        &'a self,
-        event_namespace: &'a str,
-        event_type: &'a str,
-        data: &'a V,
-    ) -> Result<(), io::Error>
-    where
-        V: Serialize,
-    {
-        let payload: Vec<u8> = serde_json::to_string(&data)
-            .expect("Cant serialise data")
-            .into();
-
-        let event_name = format!("{}.{}", event_namespace, event_type);
-        let queue_name = format!("{}-{}", self.store_namespace, event_name);
-
-        info!(
-            "Emitting data {} onto exchange {} through queue {}",
             event_name, self.exchange, queue_name
         );
 

@@ -74,7 +74,7 @@ fn replay() {
             )))
             .unwrap();
 
-            await!(consumer_store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
+            await!(consumer_store.subscribe::<TestEvent>())?;
 
             // Give time for subscriber to settle
             await!(forward(Delay::new(

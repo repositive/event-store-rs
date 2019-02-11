@@ -2,10 +2,7 @@ use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapte
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
-// use crate::event_replay::EventReplayRequested;
 use crate::store::Store;
-use crate::subscribe_options::SubscribeOptions;
-use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::info;
@@ -33,11 +30,6 @@ impl SubscribableStore {
             inner_store,
             emitter,
         };
-
-        // await!(store.subscribe::<EventReplayRequested>(SubscribeOptions {
-        //     replay_previous_events: false,
-        //     save_on_receive: false
-        // }))?;
 
         Ok(store)
     }
@@ -72,7 +64,7 @@ impl SubscribableStore {
 
     // TODO: Remove `options`; it's unused
     /// Subscribe to incoming events matching the namespace and type in `ED`
-    pub async fn subscribe<'a, ED>(&'a self, options: SubscribeOptions) -> Result<(), io::Error>
+    pub async fn subscribe<'a, ED>(&'a self) -> Result<(), io::Error>
     where
         // TODO: Fix Sync + Clone - they shouldn't be required!
         ED: EventHandler + Debug + Send + Sync + Clone,
@@ -84,7 +76,7 @@ impl SubscribableStore {
 
         let inner_store = self.inner_store.clone();
 
-        await!(self.emitter.subscribe::<ED>(inner_store, options))?;
+        await!(self.emitter.subscribe::<ED>(inner_store))?;
 
         if let Some(newest_event) = await!(self.inner_store.last_event::<ED>())? {
             let rerun_events = await!(self.inner_store.read_events_since::<ED>(newest_event.time))?;
@@ -95,24 +87,6 @@ impl SubscribableStore {
         }
 
         Ok(())
-
-        // TODO: Rerun events created since the last event of type ED was handled
-
-        // await!(self.emitter.subscribe::<ED>(inner_store, options))?;
-
-        // let last = await!(self.inner_store.last_event::<ED>())?;
-
-        // let replay = EventReplayRequested::from_event::<ED>(
-        //     last.map(|e| e.context.time)
-        //         .unwrap_or_else(|| Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
-        // );
-
-        // info!(
-        //     "Emit replay request for event {}",
-        //     ED::event_namespace_and_type()
-        // );
-
-        // await!(self.inner_store.emit(&replay))
     }
 
     // TODO: Can I do something clever with a trait impl here?
