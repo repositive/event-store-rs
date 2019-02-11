@@ -37,7 +37,7 @@ create index if not exists event_type_legacy on events ((data->>'type') nulls la
 create index if not exists event_namespace_and_type on events ((context->>'event_namespace') nulls last, (context->>'event_type') nulls last);
 
 -- Create last event log table
-create table if not exists last_event_log(
+create table if not exists last_handled_event_log(
     domain varchar(64) not null,
     event_namespace varchar(64) not null,
     event_type varchar(64) not null,
