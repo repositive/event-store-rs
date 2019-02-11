@@ -90,7 +90,7 @@ pub enum SaveStatus {
 /// The result of a save operation
 ///
 /// If the save did not error but a duplicate was encountered, this should be equal to
-/// `Ok(SaveStatus::Ok)`
+/// `Ok(SaveStatus::Duplicate)`
 pub type SaveResult = Result<SaveStatus, io::Error>;
 
 /// Postgres-backed store adapter
