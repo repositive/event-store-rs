@@ -26,6 +26,9 @@ create table if not exists events(
     context jsonb default '{}'
 );
 
+-- Add sequence number column
+alter table events add column if not exists sequence_number bigserial;
+
 -- Add index on sequence number and time to speed up ordering
 create index if not exists counter_time on events ((context->>'time') asc);
 
