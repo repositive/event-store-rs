@@ -41,6 +41,7 @@ create table if not exists last_event_log(
     domain varchar(64) not null,
     event_namespace varchar(64) not null,
     event_type varchar(64) not null,
+    event_id uuid not null,
     time timestamp with time zone not null,
     sequence_number bigint not null,
     primary key(domain, event_namespace, event_type)
