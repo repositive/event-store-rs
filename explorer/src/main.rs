@@ -102,7 +102,10 @@ async fn create_store(
         .parse()
         .expect("Could not parse RabbitMQ address");
 
-    let store_adapter = await!(PgStoreAdapter::new(pool.clone()))?;
+    let store_adapter = await!(PgStoreAdapter::new(
+        pool.clone(),
+        "_event_store_explorer".to_string()
+    ))?;
     let cache_adapter = await!(PgCacheAdapter::new(pool.clone()))?;
     let emitter_adapter = await!(AmqpEmitterAdapter::new(
         addr,
@@ -124,7 +127,7 @@ async fn do_search(query: String, store: &SubscribableStore) -> Result<Vec<AnyEv
 
     await!(store
         .internals_get_store()
-        .read_events_since(parts[0], parts[1], forever))
+        .read_raw_events_since(parts[0], parts[1], forever))
     .map(|result| {
         result
             .into_iter()

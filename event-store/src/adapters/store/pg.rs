@@ -261,8 +261,6 @@ impl PgStoreAdapter {
     /// Fetch events of a given type starting from a timestamp going forward
     pub async fn read_events_since<'a, ED>(
         &'a self,
-        // event_namespace: &'a str,
-        // event_type: &'a str,
         since: DateTime<Utc>,
     ) -> Result<Vec<Event<ED>>, io::Error>
     where
@@ -314,6 +312,57 @@ impl PgStoreAdapter {
                 .unwrap();
 
                 evt
+            })
+            .collect()
+            .expect("Failed to collect results");
+
+        trans.finish().expect("Could not finish transaction");
+
+        Ok(results)
+    }
+
+    /// Read raw events since a time
+    pub async fn read_raw_events_since<'a>(&'a self, event_namespace: &'a str, event_type: &'a str, since: DateTime<Utc>) -> Result<Vec<JsonValue>, io::Error> {
+        let query_string = r#"select * from events
+            where data->>'event_namespace' = $1
+            and data->>'event_type' = $2
+            and context->>'time' >= $3
+            order by (context->>'time')::timestamp with time zone asc"#;
+
+        let conn = self.conn.get().unwrap();
+
+        let trans = conn
+            .transaction()
+            .expect("Unable to initialise transaction");
+
+        let stmt = trans
+            .prepare(&query_string)
+            .expect("Unable to prepare read statement");
+
+        trace!(
+            "Read events of type {}.{} since {}",
+            event_namespace,
+            event_type,
+            since.to_rfc3339()
+        );
+
+        let results = stmt
+            .lazy_query(
+                &trans,
+                &[&event_namespace, &event_type, &since.to_rfc3339()],
+                1000,
+            )
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+            .map(|row| {
+                let id: Uuid = row.get("id");
+                let data_json: JsonValue = row.get("data");
+                let context_json: JsonValue = row.get("context");
+
+                json!({
+                    "id": id,
+                    "data": data_json,
+                    "context": context_json,
+                })
             })
             .collect()
             .expect("Failed to collect results");
