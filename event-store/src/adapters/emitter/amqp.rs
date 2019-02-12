@@ -256,7 +256,7 @@ async fn amqp_connect(uri: SocketAddr, exchange: &String) -> Result<Channel<TcpS
         stream,
         ConnectionOptions {
             frame_max: 65535,
-            heartbeat: 20,
+            heartbeat: 120,
             ..ConnectionOptions::default()
         }
     )))
