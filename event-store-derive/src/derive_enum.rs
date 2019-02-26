@@ -53,19 +53,15 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
     let struct_idents = get_enum_struct_names(&enum_body);
     let item_idents = repeat(&info.item_ident);
 
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let (_impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let impl_generics = if generics.lifetimes().count() == 0 {
-        quote! { <'de> }
-    } else {
-        quote! { #impl_generics }
-    };
+    let lifetimes = generics.params.clone();
 
     quote! {
-        impl #impl_generics serde::Deserialize #impl_generics for #item_ident #ty_generics #where_clause {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        impl < 'de: #lifetimes, #lifetimes > serde::Deserialize<'de> for #item_ident #ty_generics #where_clause {
+            fn deserialize<__D>(deserializer: __D) -> Result<Self, __D::Error>
             where
-                D: Deserializer #impl_generics,
+                __D: Deserializer<'de>,
             {
                 use serde::de;
 

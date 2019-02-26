@@ -11,6 +11,30 @@ use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use serde_derive::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[derive(Deserialize)]
+struct Asshole<'a> {
+    field: &'a str,
+}
+
+/// Compile test: can structs with lifetimes be used?
+#[allow(unused)]
+#[derive(EventData, Debug)]
+#[event_store(namespace = "test_lifetimes")]
+struct LifetimeStruct<'a> {
+    field: &'a str,
+}
+
+#[derive(Deserialize)]
+struct WrapperLifetimeStruct<'a> {
+    thing: LifetimeStruct<'a>,
+}
+
+// #[allow(unused)]
+// #[derive(Events, Debug)]
+// pub enum LifetimeEvents<'a> {
+//     Inc(Event<LifetimeStruct<'a>>),
+// }
+
 /// Set of all events in the domain
 #[derive(Events, Debug)]
 pub enum TestEvents {
