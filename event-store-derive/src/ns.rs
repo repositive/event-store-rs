@@ -5,18 +5,19 @@ use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::ToTokens;
 use quote::__rt::TokenTree::Group;
 use std::string::ToString;
-use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed};
+use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, Generics};
 
 pub struct EnumInfo {
     pub item_ident: TokenStream,
     pub enum_body: DataEnum,
     pub variant_idents: Vec<Ident>,
     pub renamed_variant_idents: Vec<Ident>,
+    pub generics: Generics,
 }
 
 impl EnumInfo {
-    pub fn new(input: &DeriveInput, enum_body: &DataEnum) -> Self {
-        let item_ident = input.clone().ident.into_token_stream();
+    pub fn new(parsed: &DeriveInput, enum_body: &DataEnum) -> Self {
+        let item_ident = parsed.clone().ident.into_token_stream();
 
         let variant_idents = enum_body
             .variants
@@ -39,6 +40,7 @@ impl EnumInfo {
             variant_idents,
             renamed_variant_idents,
             enum_body: enum_body.clone(),
+            generics: parsed.generics.clone(),
         }
     }
 }
@@ -55,10 +57,11 @@ pub struct StructInfo {
     pub struct_body: DataStruct,
     pub struct_namespace: Ident,
     pub struct_namespace_quoted: String,
+    pub generics: Generics,
 }
 
 impl StructInfo {
-    pub fn new(parsed: &DeriveInput, struct_body: &DataStruct) -> Self {
+    pub fn new(parsed: &syn::DeriveInput, struct_body: &DataStruct) -> Self {
         let struct_namespace = get_attribute_ident(&parsed.attrs, "namespace")
             .expect("Namespace attribute must be provided at the struct level");
 
@@ -97,6 +100,7 @@ impl StructInfo {
             struct_body: struct_body.clone(),
             struct_namespace,
             struct_namespace_quoted,
+            generics: parsed.generics.clone(),
         }
     }
 }

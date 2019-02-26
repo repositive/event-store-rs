@@ -8,13 +8,22 @@ fn impl_serialize(info: &EnumInfo) -> TokenStream {
     let EnumInfo {
         item_ident,
         variant_idents,
+        generics,
         ..
     } = info;
 
     let item_idents = repeat(item_ident);
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let impl_generics = if generics.lifetimes().count() == 0 {
+        quote! { <'de> }
+    } else {
+        quote! { #impl_generics }
+    };
+
     quote! {
-        impl Serialize for #item_ident {
+        impl #impl_generics Serialize for #item_ident #ty_generics #where_clause {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
@@ -34,6 +43,7 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
         enum_body,
         item_ident,
         variant_idents,
+        generics,
         ..
     } = info;
 
@@ -43,17 +53,25 @@ fn impl_deserialize(info: &EnumInfo) -> TokenStream {
     let struct_idents = get_enum_struct_names(&enum_body);
     let item_idents = repeat(&info.item_ident);
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let impl_generics = if generics.lifetimes().count() == 0 {
+        quote! { <'de> }
+    } else {
+        quote! { #impl_generics }
+    };
+
     quote! {
-        impl<'de> Deserialize<'de> for #item_ident {
+        impl #impl_generics serde::Deserialize #impl_generics for #item_ident #ty_generics #where_clause {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
-                D: Deserializer<'de>,
+                D: Deserializer #impl_generics,
             {
                 use serde::de;
 
                 #[derive(Deserialize)]
                 #[serde(untagged)]
-                enum Output {
+                enum Output #ty_generics #where_clause {
                     #(#variant_idents(#struct_idents),)*
                 }
 
@@ -81,6 +99,8 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         Span::call_site(),
     );
 
+    let (impl_generics, ty_generics, _where_clause) = info.generics.split_for_impl();
+
     quote! {
         #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
         const #dummy_const: () = {
@@ -91,7 +111,7 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
             use serde::de::{Deserialize, Deserializer, IntoDeserializer};
             use serde::ser::{Serialize, Serializer, SerializeMap};
 
-            impl event_store_derive_internals::Events for #item_ident {}
+            impl #impl_generics event_store_derive_internals::Events for #item_ident #ty_generics {}
 
             #ser
             #de
