@@ -8,7 +8,6 @@ use event_store::SubscribableStore;
 use futures::future::Future;
 use log::trace;
 use std::io;
-use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::timer::Delay;
@@ -25,7 +24,7 @@ fn save_and_aggregate() {
             trace!("Save and aggregate test");
 
             let pool = pg_create_random_db(None);
-            let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
+            let addr = "amqp://localhost:5673";
 
             let store_adapter = await!(PgStoreAdapter::new(pool.clone()))?;
             let cache_adapter = await!(PgCacheAdapter::new(pool.clone()))?;

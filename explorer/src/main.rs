@@ -19,7 +19,6 @@ use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 use serde_derive::Deserialize;
 use serde_json::Value as JsonValue;
 use std::io;
-use std::net::SocketAddr;
 use structopt::StructOpt;
 use tokio::runtime::current_thread::Runtime as CurrentThreadRuntime;
 use uuid::Uuid;
@@ -98,14 +97,10 @@ fn connect(db: &String) -> Result<Pool<PostgresConnectionManager>, io::Error> {
 async fn create_store(
     pool: &Pool<PostgresConnectionManager>,
 ) -> Result<SubscribableStore, io::Error> {
-    let addr: SocketAddr = "127.0.0.1:5672"
-        .parse()
-        .expect("Could not parse RabbitMQ address");
-
     let store_adapter = await!(PgStoreAdapter::new(pool.clone()))?;
     let cache_adapter = await!(PgCacheAdapter::new(pool.clone()))?;
     let emitter_adapter = await!(AmqpEmitterAdapter::new(
-        addr,
+        "localhost:5672".into(),
         "iris".into(),
         "_explorer".into()
     ))?;

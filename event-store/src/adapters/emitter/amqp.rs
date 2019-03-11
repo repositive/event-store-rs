@@ -19,9 +19,10 @@ use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
-use std::net::SocketAddr;
+use std::net::ToSocketAddrs;
 use tokio::net::TcpStream;
 use tokio_async_await::stream::StreamExt;
+use url::Url;
 
 /// AMQP-backed emitter/subscriber
 #[derive(Clone)]
@@ -29,23 +30,26 @@ pub struct AmqpEmitterAdapter {
     channel: Channel<TcpStream>,
     exchange: String,
     store_namespace: String,
-    uri: SocketAddr,
+    url: Url,
 }
 
 impl AmqpEmitterAdapter {
     /// Create a new AMQP emitter/subscriber
     pub async fn new(
-        uri: SocketAddr,
+        url: &str,
         exchange: String,
         store_namespace: String,
     ) -> Result<Self, io::Error> {
-        let channel = await!(amqp_connect(uri, &exchange))?;
+        let url =
+            Url::parse(url).map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        let channel = await!(amqp_connect(&url, &exchange))?;
 
         Ok(Self {
             channel,
             exchange,
             store_namespace,
-            uri,
+            url,
         })
     }
 
@@ -58,7 +62,7 @@ impl AmqpEmitterAdapter {
     where
         ED: EventData + EventHandler + Debug + Send,
     {
-        let channel = await!(amqp_connect(self.uri, &self.exchange))?;
+        let channel = await!(amqp_connect(&self.url, &self.exchange))?;
 
         let event_namespace = ED::event_namespace();
         let event_type = ED::event_type();
@@ -247,20 +251,49 @@ impl AmqpEmitterAdapter {
     }
 }
 
-async fn amqp_connect(uri: SocketAddr, exchange: &String) -> Result<Channel<TcpStream>, io::Error> {
+async fn amqp_connect<'a>(
+    url: &'a Url,
+    exchange: &'a String,
+) -> Result<Channel<TcpStream>, io::Error> {
     let exchange1 = exchange.clone();
 
-    let stream: TcpStream = await!(forward(TcpStream::connect(&uri)))?;
+    let host = url
+        .host_str()
+        .ok_or(io::Error::new(io::ErrorKind::Other, "Host str".to_string()))?;
 
-    let (client, heartbeat) = await!(forward(Client::connect(
-        stream,
-        ConnectionOptions {
-            frame_max: 65535,
-            heartbeat: 120,
-            ..ConnectionOptions::default()
-        }
-    )))
-    .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    let port = url.port().unwrap_or(5672);
+
+    let host_port = format!("{}:{}", host, port);
+
+    trace!("RabbitMQ host {}", host_port);
+
+    let sock_addr = host_port
+        .to_socket_addrs()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?
+        .next()
+        .ok_or(io::Error::new(
+            io::ErrorKind::Other,
+            "RabbitMQ hostname resolved to 0 IPs".to_string(),
+        ))?;
+
+    let options = ConnectionOptions {
+        username: if url.username().len() > 0 {
+            url.username().to_string()
+        } else {
+            "guest".to_string()
+        },
+        password: url.password().unwrap_or("guest").to_string(),
+        frame_max: 65535,
+        heartbeat: 120,
+        ..ConnectionOptions::default()
+    };
+
+    trace!("AMQP endpoint: {}, options: {:?}", sock_addr, options);
+
+    let stream: TcpStream = await!(forward(TcpStream::connect(&sock_addr)))?;
+
+    let (client, heartbeat) = await!(forward(Client::connect(stream, options)))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
     tokio::spawn(heartbeat.map_err(|e| eprintln!("heartbeat error: {:?}", e)));
 

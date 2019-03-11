@@ -8,7 +8,6 @@ use event_store::SubscribableStore;
 use futures::future::Future;
 use log::info;
 use std::io;
-use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tokio::runtime::Runtime;
 use tokio::timer::Delay;
@@ -25,7 +24,7 @@ fn emit_and_receive() {
 
             let sender_pool = pg_create_random_db(Some("sender"));
             let receiver_pool = pg_create_random_db(Some("receiver"));
-            let addr: SocketAddr = "127.0.0.1:5673".parse().unwrap();
+            let addr = "amqp://localhost:5673";
 
             let sender_store = await!(SubscribableStore::new(
                 await!(PgStoreAdapter::new(sender_pool.clone()))?,
