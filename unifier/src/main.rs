@@ -114,9 +114,9 @@ fn main() -> Result<(), String> {
     let stmt = txn
         .prepare(
             "insert into events (id, data, context) values ($1, $2, $3)
-            on conflict do update set
-            events.data = excluded.data,
-            events.context = excluded.context",
+            on conflict (id) do update set
+            data = excluded.data,
+            context = excluded.context",
         )
         .map_err(|e| e.to_string())?;
 
