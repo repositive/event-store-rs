@@ -79,3 +79,86 @@ pub struct Event {
     pub data: EventData,
     pub context: EventContext,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use maplit::hashmap;
+    use serde_json::json;
+    use std::error::Error;
+
+    #[test]
+    fn deserialize_populated_subject() -> Result<(), Box<Error>> {
+        let res: EventContext = serde_json::from_value(json!({
+            "action": null,
+            "subject": {
+                "foo": "bar"
+            },
+            "time": "2019-04-03T13:40:55.901Z"
+        }))?;
+
+        assert_eq!(
+            res.subject,
+            Some(hashmap! {
+                "foo".to_string() => json!("bar")
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_empty_subject() -> Result<(), Box<Error>> {
+        let res: EventContext = serde_json::from_value(json!({
+            "action": null,
+            "subject": {},
+            "time": "2019-04-03T13:40:55.901Z"
+        }))?;
+
+        assert_eq!(res.subject, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_populated_subject() -> Result<(), Box<Error>> {
+        let res = serde_json::to_value(EventContext {
+            action: None,
+            subject: Some(hashmap! { "foo".to_string() => json!("bar") }),
+            time: "2019-04-03T13:40:55.901Z".parse()?,
+        })?;
+
+        assert_eq!(
+            res,
+            json!({
+                "action": null,
+                "subject": {
+                    "foo": "bar"
+                },
+                "time": "2019-04-03T13:40:55.901Z"
+            })
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_empty_subject() -> Result<(), Box<Error>> {
+        let res = serde_json::to_value(EventContext {
+            action: None,
+            subject: None,
+            time: "2019-04-03T13:40:55.901Z".parse()?,
+        })?;
+
+        assert_eq!(
+            res,
+            json!({
+                "action": null,
+                "subject": {},
+                "time": "2019-04-03T13:40:55.901Z"
+            })
+        );
+
+        Ok(())
+    }
+}
