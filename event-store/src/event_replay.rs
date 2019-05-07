@@ -34,29 +34,27 @@ impl EventHandler for EventReplayRequested {
 
         let store = store.clone();
 
-        tokio::spawn_async(
-            async move {
-                let since = event.data.since;
-                let ns = event.data.requested_event_namespace;
-                let ty = event.data.requested_event_type;
+        tokio::spawn_async(async move {
+            let since = event.data.since;
+            let ns = event.data.requested_event_namespace;
+            let ty = event.data.requested_event_type;
 
-                let events = await!(store.read_events_since(&ns, &ty, since));
+            let events = await!(store.read_events_since(&ns, &ty, since));
 
-                match events {
-                    Ok(events) => {
-                        debug!("Found {} events to replay", events.len());
+            match events {
+                Ok(events) => {
+                    debug!("Found {} events to replay", events.len());
 
-                        for event in events {
-                            debug!("Replay event {}", event["id"]);
+                    for event in events {
+                        debug!("Replay event {}", event["id"]);
 
-                            await!(store.emit_value(&ns, &ty, &event)).unwrap();
-                        }
-                    }
-                    Err(e) => {
-                        error!("Failed to retrieve events to replay: {}", e.to_string());
+                        await!(store.emit_value(&ns, &ty, &event)).unwrap();
                     }
                 }
-            },
-        );
+                Err(e) => {
+                    error!("Failed to retrieve events to replay: {}", e.to_string());
+                }
+            }
+        });
     }
 }

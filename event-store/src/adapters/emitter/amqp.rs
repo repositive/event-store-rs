@@ -97,81 +97,79 @@ impl AmqpEmitterAdapter {
         .unwrap();
 
         // TODO: Move this logic out into subscribable_store to dedupe it from backing stores
-        tokio::spawn_async(
-            async move {
-                while let Some(Ok(message)) = await!(stream.next()) {
-                    let parsed = serde_json::from_slice::<Event<ED>>(&message.data);
+        tokio::spawn_async(async move {
+            while let Some(Ok(message)) = await!(stream.next()) {
+                let parsed = serde_json::from_slice::<Event<ED>>(&message.data);
 
-                    match parsed {
-                        Ok(event) => {
-                            trace!("Received event {}", event.id);
+                match parsed {
+                    Ok(event) => {
+                        trace!("Received event {}", event.id);
 
-                            let saved = if options.save_on_receive {
-                                trace!(
-                                    "Save event {} ({}.{})",
-                                    event.id,
-                                    ED::event_namespace(),
-                                    ED::event_type()
-                                );
-
-                                store.save_no_emit(&event)
-                            } else {
-                                trace!(
-                                    "Skip saving event {} ({}.{})",
-                                    event.id,
-                                    ED::event_namespace(),
-                                    ED::event_type()
-                                );
-
-                                Ok(SaveStatus::Ok)
-                            };
-
-                            // TODO: Check order of save/handle or handle/save based on TS event store
-                            saved
-                                .map(|result| match result {
-                                    SaveStatus::Ok => {
-                                        trace!("Event saved, calling handler");
-                                        ED::handle_event(event, &store);
-                                    }
-                                    SaveStatus::Duplicate => {
-                                        debug!("Duplicate event {}, skipping handler", event.id);
-                                    }
-                                })
-                                .expect("Failed to handle event");
-
-                            trace!("Ack event {}", message.delivery_tag);
-
-                            await!(forward(channel.basic_ack(message.delivery_tag, false)))
-                                .expect("Could not ack message");
-                        }
-                        Err(e) => {
+                        let saved = if options.save_on_receive {
                             trace!(
-                                "Failed event payload: {}",
-                                String::from_utf8(message.data.clone())
-                                    .unwrap_or(String::from("(failed to decode message)"))
+                                "Save event {} ({}.{})",
+                                event.id,
+                                ED::event_namespace(),
+                                ED::event_type()
                             );
 
-                            serde_json::from_slice::<JsonValue>(&message.data)
-                                .map(|evt| {
-                                    error!(
-                                        "Failed to parse event {} (ID {}): {}",
-                                        ED::event_namespace_and_type(),
-                                        evt["id"],
-                                        e.to_string()
-                                    );
-                                })
-                                .unwrap_or_else(|_| {
-                                    error!(
-                                        "Failed to parse event {} (ID unknown): {}",
-                                        ED::event_namespace_and_type(),
-                                        e.to_string()
-                                    );
-                                });
-                        }
+                            store.save_no_emit(&event)
+                        } else {
+                            trace!(
+                                "Skip saving event {} ({}.{})",
+                                event.id,
+                                ED::event_namespace(),
+                                ED::event_type()
+                            );
+
+                            Ok(SaveStatus::Ok)
+                        };
+
+                        // TODO: Check order of save/handle or handle/save based on TS event store
+                        saved
+                            .map(|result| match result {
+                                SaveStatus::Ok => {
+                                    trace!("Event saved, calling handler");
+                                    ED::handle_event(event, &store);
+                                }
+                                SaveStatus::Duplicate => {
+                                    debug!("Duplicate event {}, skipping handler", event.id);
+                                }
+                            })
+                            .expect("Failed to handle event");
+
+                        trace!("Ack event {}", message.delivery_tag);
+
+                        await!(forward(channel.basic_ack(message.delivery_tag, false)))
+                            .expect("Could not ack message");
+                    }
+                    Err(e) => {
+                        trace!(
+                            "Failed event payload: {}",
+                            String::from_utf8(message.data.clone())
+                                .unwrap_or(String::from("(failed to decode message)"))
+                        );
+
+                        serde_json::from_slice::<JsonValue>(&message.data)
+                            .map(|evt| {
+                                error!(
+                                    "Failed to parse event {} (ID {}): {}",
+                                    ED::event_namespace_and_type(),
+                                    evt["id"],
+                                    e.to_string()
+                                );
+                            })
+                            .unwrap_or_else(|_| {
+                                error!(
+                                    "Failed to parse event {} (ID unknown): {}",
+                                    ED::event_namespace_and_type(),
+                                    e.to_string()
+                                );
+                            });
                     }
                 }
-            },
-        );
+            }
+        });
 
         Ok(())
     }

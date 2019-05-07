@@ -16,60 +16,58 @@ use tokio::timer::Delay;
 fn emit_and_receive() {
     pretty_env_logger::init();
 
-    let fut = backward(
-        async {
-            let test_event = Event::from_data(TestEvent { num: 100 });
+    let fut = backward(async {
+        let test_event = Event::from_data(TestEvent { num: 100 });
 
-            info!("Save and emit test");
+        info!("Save and emit test");
 
-            let sender_pool = pg_create_random_db(Some("sender"));
-            let receiver_pool = pg_create_random_db(Some("receiver"));
-            let addr = "amqp://localhost:5673";
+        let sender_pool = pg_create_random_db(Some("sender"));
+        let receiver_pool = pg_create_random_db(Some("receiver"));
+        let addr = "amqp://localhost:5673";
 
-            let sender_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(sender_pool.clone()))?,
-                await!(PgCacheAdapter::new(sender_pool.clone()))?,
-                await!(AmqpEmitterAdapter::new(
-                    addr,
-                    "test_exchange".into(),
-                    "save_and_aggregate_send".into()
-                ))?
-            ))?;
+        let sender_store = await!(SubscribableStore::new(
+            await!(PgStoreAdapter::new(sender_pool.clone()))?,
+            await!(PgCacheAdapter::new(sender_pool.clone()))?,
+            await!(AmqpEmitterAdapter::new(
+                addr,
+                "test_exchange".into(),
+                "save_and_aggregate_send".into()
+            ))?
+        ))?;
 
-            let receiver_store = await!(SubscribableStore::new(
-                await!(PgStoreAdapter::new(receiver_pool.clone()))?,
-                await!(PgCacheAdapter::new(receiver_pool.clone()))?,
-                await!(AmqpEmitterAdapter::new(
-                    addr,
-                    "test_exchange".into(),
-                    "save_and_aggregate_receive".into()
-                ))?
-            ))?;
+        let receiver_store = await!(SubscribableStore::new(
+            await!(PgStoreAdapter::new(receiver_pool.clone()))?,
+            await!(PgCacheAdapter::new(receiver_pool.clone()))?,
+            await!(AmqpEmitterAdapter::new(
+                addr,
+                "test_exchange".into(),
+                "save_and_aggregate_receive".into()
+            ))?
+        ))?;
 
-            await!(receiver_store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
+        await!(receiver_store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
 
-            // Give time for subscriber to settle
-            await!(forward(Delay::new(
-                Instant::now() + Duration::from_millis(100)
-            )))
-            .unwrap();
+        // Give time for subscriber to settle
+        await!(forward(Delay::new(
+            Instant::now() + Duration::from_millis(100)
+        )))
+        .unwrap();
 
-            await!(sender_store.save(&test_event))?;
+        await!(sender_store.save(&test_event))?;
 
-            // Wait for event to be received and stored before freeing everything
-            await!(forward(Delay::new(
-                Instant::now() + Duration::from_millis(100)
-            )))
-            .unwrap();
+        // Wait for event to be received and stored before freeing everything
+        await!(forward(Delay::new(
+            Instant::now() + Duration::from_millis(100)
+        )))
+        .unwrap();
 
-            let arg = &String::new();
-            let result: TestCounterEntity = await!(receiver_store.aggregate(arg))?;
+        let arg = &String::new();
+        let result: TestCounterEntity = await!(receiver_store.aggregate(arg))?;
 
-            assert_eq!(result, TestCounterEntity { counter: 100 });
+        assert_eq!(result, TestCounterEntity { counter: 100 });
 
-            Ok(())
-        },
-    )
+        Ok(())
+    })
     // Required so Rust can figure out what type `E` is
     .map_err(|e: io::Error| e);
 
