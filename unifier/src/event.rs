@@ -24,8 +24,7 @@ pub struct EventContext {
     pub action: Option<String>,
 
     /// Event "subject" or metadata
-    #[serde(default)]
-    pub subject: HashMap<String, serde_json::Value>,
+    pub subject: Option<HashMap<String, serde_json::Value>>,
 
     /// Event creation time
     pub time: DateTime<Utc>,
