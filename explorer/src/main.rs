@@ -1,5 +1,5 @@
 // enable the await! macro, async support, and the new std::Futures api.
-#![feature(await_macro, async_await, futures_api)]
+#![feature(await_macro, async_await)]
 // only needed to manually implement a std future:
 #![feature(arbitrary_self_types)]
 

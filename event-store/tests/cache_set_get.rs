@@ -12,23 +12,21 @@ use tokio::runtime::Runtime;
 fn cache_set_get() {
     pretty_env_logger::init();
 
-    let fut = backward(
-        async {
-            let test_entity = TestCounterEntity { counter: 100 };
+    let fut = backward(async {
+        let test_entity = TestCounterEntity { counter: 100 };
 
-            trace!("Save and emit test");
+        trace!("Save and emit test");
 
-            let conn = pg_create_random_db(None);
+        let conn = pg_create_random_db(None);
 
-            let cache = await!(PgCacheAdapter::new(conn.clone()))?;
+        let cache = await!(PgCacheAdapter::new(conn.clone()))?;
 
-            await!(cache.save("_test".into(), &test_entity))?;
+        await!(cache.save("_test".into(), &test_entity))?;
 
-            let res = await!(cache.read::<TestCounterEntity>("_test".into()))?;
+        let res = await!(cache.read::<TestCounterEntity>("_test".into()))?;
 
-            Ok(res)
-        },
-    )
+        Ok(res)
+    })
     // Required so Rust can figure out what type `E` is
     .map_err(|e: io::Error| e);
 
