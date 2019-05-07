@@ -4,5 +4,6 @@ members = [
 	"event-store",
 	"event-store-derive",
 	"event-store-derive-internals",
-    "explorer"
+    "explorer",
+    "unifier"
 ]

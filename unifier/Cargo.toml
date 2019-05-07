@@ -1,0 +1,26 @@
+[package]
+name = "unifier"
+version = "0.1.0"
+authors = ["James Waples <james@wapl.es>"]
+edition = "2018"
+
+[dependencies]
+serde = "1.0.90"
+toml = "0.5.0"
+serde_derive = "1.0.90"
+structopt = "0.2.15"
+serde_json = "1.0.39"
+log = "0.4.6"
+pretty_env_logger = "0.3.0"
+
+[dependencies.postgres]
+version = "0.16.0-rc.1"
+features = ["with-serde_json-1", "with-uuid-0_7", "with-chrono-0_4"]
+
+[dependencies.chrono]
+version = "0.4"
+features = ["serde"]
+
+[dependencies.uuid]
+version = "0.7.4"
+features = ["serde", "v4"]
