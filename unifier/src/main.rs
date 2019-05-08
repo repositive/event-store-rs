@@ -1,13 +1,12 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate structopt;
 
 mod config;
 mod event;
 
 use config::{Config, ConfigConnection};
 use event::Event;
+use pbr::ProgressBar;
 use postgres::{Client, NoTls};
 use std::collections::HashMap;
 use structopt::StructOpt;
@@ -81,15 +80,26 @@ fn main() -> Result<(), String> {
 
     debug!("Connection {:?}", connection);
 
+    let mut collect_pb = ProgressBar::new(connection.domains.len() as u64);
+    collect_pb.set_width(Some(100));
+    collect_pb.message("Collecting events... ");
+
     let domain_events: Vec<Vec<Event>> = connection
         .domains
         .iter()
-        .map(|(domain, namespace)| collect_domain_events(domain, namespace, connection).unwrap())
+        .map(|(domain, namespace)| {
+            collect_pb.message(&format!("Collecting {} ", domain));
+            collect_pb.inc();
+
+            collect_domain_events(domain, namespace, connection).unwrap()
+        })
         .collect();
 
     let domain_events_sum: usize = domain_events.iter().map(|events| events.len()).sum();
 
     debug!("Collected total {} events", domain_events_sum);
+
+    collect_pb.finish_println(&format!("Collected total {} events", domain_events_sum));
 
     let all_events: HashMap<Uuid, Event> = domain_events
         .into_iter()
@@ -106,6 +116,8 @@ fn main() -> Result<(), String> {
 
         return Err(String::from("Events are not properly unique"));
     }
+
+    let all_events_len = all_events.len();
 
     let mut dest_connection =
         Client::connect(&connection.dest_db_uri.clone(), NoTls).map_err(|e| e.to_string())?;
@@ -127,6 +139,12 @@ fn main() -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
+    info!("Writing {} events to destination...", all_events_len);
+
+    let mut insert_pb = ProgressBar::new(all_events_len as u64);
+    insert_pb.set_width(Some(100));
+    insert_pb.message("Insert event ");
+
     for (id, event) in all_events.iter() {
         debug!("Insert event {}", id);
 
@@ -139,11 +157,15 @@ fn main() -> Result<(), String> {
             ],
         )
         .map_err(|e| e.to_string())?;
+
+        insert_pb.inc();
     }
 
     txn.commit().map_err(|e| e.to_string())?;
 
-    info!("Successfully inserted {} events", all_events.len());
+    info!("Successfully inserted {} events", all_events_len);
+
+    insert_pb.finish_println(&format!("Successfully inserted {} events", all_events_len));
 
     Ok(())
 }
