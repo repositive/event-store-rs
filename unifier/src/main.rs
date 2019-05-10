@@ -165,7 +165,10 @@ fn main() -> Result<(), String> {
 
     info!("Successfully inserted {} events", all_events_len);
 
-    insert_pb.finish_println(&format!("Successfully inserted {} events", all_events_len));
+    insert_pb.finish_println(&format!(
+        "Successfully inserted {} events\n",
+        all_events_len
+    ));
 
     Ok(())
 }
