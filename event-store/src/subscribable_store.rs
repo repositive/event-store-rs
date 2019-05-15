@@ -5,7 +5,6 @@ use crate::event_handler::EventHandler;
 use crate::event_replay::EventReplayRequested;
 use crate::store::Store;
 use crate::subscribe_options::SubscribeOptions;
-use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::info;
@@ -21,7 +20,7 @@ pub struct SubscribableStore {
 
 impl SubscribableStore {
     /// Create a new event store with the given store, cache and emitter adapters
-    pub async fn new(
+    pub fn new(
         store: PgStoreAdapter,
         cache: PgCacheAdapter,
         emitter: AmqpEmitterAdapter,
@@ -33,11 +32,6 @@ impl SubscribableStore {
             inner_store,
             emitter,
         };
-
-        await!(store.subscribe::<EventReplayRequested>(SubscribeOptions {
-            replay_previous_events: false,
-            save_on_receive: false
-        }))?;
 
         Ok(store)
     }
@@ -82,21 +76,7 @@ impl SubscribableStore {
 
         let inner_store = self.inner_store.clone();
 
-        await!(self.emitter.subscribe::<ED>(inner_store, options))?;
-
-        let last = await!(self.inner_store.last_event::<ED>())?;
-
-        let replay = EventReplayRequested::from_event::<ED>(
-            last.map(|e| e.context.time)
-                .unwrap_or_else(|| Utc.ymd(1970, 1, 1).and_hms(0, 0, 0)),
-        );
-
-        info!(
-            "Emit replay request for event {}",
-            ED::event_namespace_and_type()
-        );
-
-        await!(self.inner_store.emit(&replay))
+        await!(self.emitter.subscribe::<ED>(inner_store, options))
     }
 
     // TODO: Can I do something clever with a trait impl here?

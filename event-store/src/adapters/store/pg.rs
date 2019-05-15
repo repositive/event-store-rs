@@ -1,5 +1,4 @@
 use crate::event::Event;
-use crate::event_context::EventContext;
 use crate::store_query::StoreQuery;
 use chrono::prelude::*;
 use event_store_derive_internals::EventData;
@@ -201,40 +200,6 @@ impl PgStoreAdapter {
         trans.finish().expect("Could not finish transaction");
 
         Ok(results)
-    }
-
-    /// Find the most recent event of a given type
-    pub fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
-    where
-        ED: EventData,
-    {
-        let rows = self
-            .conn
-            .get()
-            .unwrap()
-            .query(
-                r#"select * from events
-                    where data->>'event_namespace' = $1
-                    and data->>'event_type' = $2
-                    order by (context->>'time')::timestamp with time zone desc
-                    limit 1"#,
-                &[&ED::event_namespace(), &ED::event_type()],
-            )
-            .expect("Unable to query database (last_event)");
-
-        if rows.len() == 1 {
-            let row = rows.get(0);
-            let id: Uuid = row.get("id");
-            let data_json: JsonValue = row.get("data");
-            let context_json: JsonValue = row.get("context");
-
-            let data: ED = from_value(data_json).unwrap();
-            let context: EventContext = from_value(context_json).unwrap();
-
-            Ok(Some(Event { id, data, context }))
-        } else {
-            Ok(None)
-        }
     }
 
     /// Fetch events of a given type starting from a timestamp going forward

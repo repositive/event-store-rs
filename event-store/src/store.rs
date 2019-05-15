@@ -95,14 +95,6 @@ impl Store {
         self.store.save(&event)
     }
 
-    /// Find the most recent occurrence of an event in the database
-    pub async fn last_event<ED>(&self) -> Result<Option<Event<ED>>, io::Error>
-    where
-        ED: EventData,
-    {
-        self.store.last_event::<ED>()
-    }
-
     /// Emit an event to subscribers
     pub async fn emit<'a, ED>(&'a self, event: &'a Event<ED>) -> Result<(), io::Error>
     where
