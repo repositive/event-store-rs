@@ -53,10 +53,7 @@ impl AmqpEmitterAdapter {
     /// Subscribe to an event
     ///
     /// If the handler for an event fails, the event on the queue will not be acked
-    pub async fn subscribe<ED>(
-        &self,
-        store: Store,
-    ) -> Result<(), io::Error>
+    pub async fn subscribe<ED>(&self, store: Store) -> Result<(), io::Error>
     where
         ED: EventData + EventHandler + Debug + Send,
     {
@@ -109,9 +106,12 @@ impl AmqpEmitterAdapter {
                             trace!("Ack event {}", message.delivery_tag);
 
                             await!(forward(channel.basic_ack(message.delivery_tag, false)))
-                            .expect("Could not ack message");
+                                .expect("Could not ack message");
                         } else {
-                            error!("Failed to handle event ID {}, not acking queue item", event_id);
+                            error!(
+                                "Failed to handle event ID {}, not acking queue item",
+                                event_id
+                            );
                         }
                     }
                     Err(e) => {

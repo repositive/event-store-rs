@@ -31,7 +31,7 @@ fn emit_and_receive() {
                 addr,
                 "test_exchange".into(),
                 "save_and_aggregate_send".into()
-            ))?
+            ))?,
         )?;
 
         let receiver_store = SubscribableStore::new(
@@ -41,7 +41,7 @@ fn emit_and_receive() {
                 addr,
                 "test_exchange".into(),
                 "save_and_aggregate_receive".into()
-            ))?
+            ))?,
         )?;
 
         await!(receiver_store.subscribe::<TestEvent>())?;
