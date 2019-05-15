@@ -9,7 +9,6 @@ fn impl_serialize(info: &StructInfo) -> TokenStream {
         ref field_idents,
         ref item_ident,
         ref renamed_item_ident_quoted,
-        ref renamed_namespace_and_type,
         ref struct_body,
         ref struct_namespace_quoted,
         ..
@@ -31,15 +30,12 @@ fn impl_serialize(info: &StructInfo) -> TokenStream {
             {
                 #[derive(Serialize)]
                 struct Helper<'a> {
-                    #[serde(rename = "type")]
-                    event_namespace_and_type: &'a str,
                     event_type: &'a str,
                     event_namespace: &'a str,
                     #body
                 }
 
                 let out = Helper {
-                    event_namespace_and_type: #renamed_namespace_and_type,
                     event_namespace: #struct_namespace_quoted,
                     event_type: #renamed_item_ident_quoted,
                     #(#field_idents: self.#field_idents2.clone(), )*
@@ -78,41 +74,22 @@ fn impl_deserialize(info: &StructInfo) -> TokenStream {
                 use serde::de;
 
                 #[derive(Deserialize, Clone)]
-                struct EventIdent {
+                struct Helper {
                     event_type: String,
                     event_namespace: String,
-                }
-
-                #[derive(Deserialize, Clone)]
-                struct Helper {
-                    #[serde(rename = "type")]
-                    _event_namespace_and_type: Option<String>,
-                    #[serde(flatten)]
-                    _event_ident: Option<EventIdent>,
                     #body
                 }
 
                 let helper = Helper::deserialize(deserializer).map_err(de::Error::custom)?;
 
-                let ident = if let Some(ident) = helper._event_ident {
-                    ident
-                } else if let Some(ns_and_ty) = helper._event_namespace_and_type {
-                    let parts = ns_and_ty.split('.').map(|part| String::from(part)).collect::<Vec<String>>();
-
-                    EventIdent {
-                        event_namespace: parts[0].clone(),
-                        event_type: parts[1].clone(),
-                    }
+                if helper.event_namespace != #struct_namespace_quoted {
+                    Err(de::Error::custom(format!("Incorrect event namespace {}, expected {}", helper.event_namespace, #struct_namespace_quoted)))
+                } else if helper.event_type != #renamed_item_ident_quoted {
+                    Err(de::Error::custom(format!("Incorrect event type {}, expected {}", helper.event_type, #renamed_item_ident_quoted)))
                 } else {
-                    return Err(de::Error::custom("No event identifier found"));
-                };
-
-                if ident.event_type == #renamed_item_ident_quoted && ident.event_namespace == #struct_namespace_quoted {
                     Ok(#item_ident {
                         #(#field_idents: helper.#field_idents2,)*
                     })
-                } else {
-                    Err(de::Error::custom("Incorrect event identifier"))
                 }
             }
         }
