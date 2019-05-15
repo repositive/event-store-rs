@@ -53,8 +53,10 @@ impl Aggregator<TestEvents, String, PgQuery> for TestCounterEntity {
 }
 
 impl EventHandler for TestEvent {
-    fn handle_event(event: Event<Self>, _store: &Store) {
+    fn handle_event(event: Event<Self>, _store: &Store) -> Result<(), ()> {
         trace!("TestEvent handler {:?}", event);
+
+        Ok(())
     }
 }
 

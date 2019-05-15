@@ -1,9 +1,7 @@
-use crate::adapters::SaveStatus;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
 use crate::internals::forward;
 use crate::store::Store;
-use crate::subscribe_options::SubscribeOptions;
 use event_store_derive_internals::EventData;
 use futures::Future;
 use lapin_futures::channel::{
@@ -15,7 +13,6 @@ use lapin_futures::consumer::Consumer;
 use lapin_futures::queue::Queue;
 use lapin_futures::types::FieldTable;
 use log::{debug, error, info, trace};
-use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
@@ -54,10 +51,11 @@ impl AmqpEmitterAdapter {
     }
 
     /// Subscribe to an event
+    ///
+    /// If the handler for an event fails, the event on the queue will not be acked
     pub async fn subscribe<ED>(
         &self,
         store: Store,
-        options: SubscribeOptions,
     ) -> Result<(), io::Error>
     where
         ED: EventData + EventHandler + Debug + Send,
@@ -103,45 +101,18 @@ impl AmqpEmitterAdapter {
 
                 match parsed {
                     Ok(event) => {
-                        trace!("Received event {}", event.id);
+                        let event_id = event.id;
 
-                        let saved = if options.save_on_receive {
-                            trace!(
-                                "Save event {} ({}.{})",
-                                event.id,
-                                ED::event_namespace(),
-                                ED::event_type()
-                            );
+                        trace!("Received event {}", event_id);
 
-                            store.save_no_emit(&event)
-                        } else {
-                            trace!(
-                                "Skip saving event {} ({}.{})",
-                                event.id,
-                                ED::event_namespace(),
-                                ED::event_type()
-                            );
+                        if let Ok(_) = ED::handle_event(event, &store) {
+                            trace!("Ack event {}", message.delivery_tag);
 
-                            Ok(SaveStatus::Ok)
-                        };
-
-                        // TODO: Check order of save/handle or handle/save based on TS event store
-                        saved
-                            .map(|result| match result {
-                                SaveStatus::Ok => {
-                                    trace!("Event saved, calling handler");
-                                    ED::handle_event(event, &store);
-                                }
-                                SaveStatus::Duplicate => {
-                                    debug!("Duplicate event {}, skipping handler", event.id);
-                                }
-                            })
-                            .expect("Failed to handle event");
-
-                        trace!("Ack event {}", message.delivery_tag);
-
-                        await!(forward(channel.basic_ack(message.delivery_tag, false)))
+                            await!(forward(channel.basic_ack(message.delivery_tag, false)))
                             .expect("Could not ack message");
+                        } else {
+                            error!("Failed to handle event ID {}, not acking queue item", event_id);
+                        }
                     }
                     Err(e) => {
                         trace!(
@@ -190,37 +161,6 @@ impl AmqpEmitterAdapter {
 
         info!(
             "Emitting event {} onto exchange {} through queue {}",
-            event_name, self.exchange, queue_name
-        );
-
-        await!(amqp_emit_data(
-            &self.channel,
-            &self.exchange,
-            &event_name,
-            payload
-        ))?;
-
-        Ok(())
-    }
-
-    pub(crate) async fn emit_value<'a, V>(
-        &'a self,
-        event_namespace: &'a str,
-        event_type: &'a str,
-        data: &'a V,
-    ) -> Result<(), io::Error>
-    where
-        V: Serialize,
-    {
-        let payload: Vec<u8> = serde_json::to_string(&data)
-            .expect("Cant serialise data")
-            .into();
-
-        let event_name = format!("{}.{}", event_namespace, event_type);
-        let queue_name = format!("{}-{}", self.store_namespace, event_name);
-
-        info!(
-            "Emitting data {} onto exchange {} through queue {}",
             event_name, self.exchange, queue_name
         );
 

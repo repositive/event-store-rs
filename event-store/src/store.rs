@@ -8,7 +8,6 @@ use chrono::prelude::*;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::{debug, trace};
-use serde::Serialize;
 use serde_json::Value as JsonValue;
 use std::fmt::Debug;
 use std::io;
@@ -80,19 +79,9 @@ impl Store {
     {
         debug!("Save and emit event {:?}", event);
 
-        self.save_no_emit(&event)?;
+        self.store.save(&event)?;
 
         await!(self.emitter.emit(&event)).map(|_| SaveStatus::Ok)
-    }
-
-    /// Save an event without emitting it to other subscribers
-    pub fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
-    where
-        ED: EventData + Debug,
-    {
-        debug!("Save (no emit) event {:?}", event);
-
-        self.store.save(&event)
     }
 
     /// Emit an event to subscribers
@@ -101,18 +90,6 @@ impl Store {
         ED: EventData,
     {
         await!(self.emitter.emit(event))
-    }
-
-    pub(crate) async fn emit_value<'a, V>(
-        &'a self,
-        event_type: &'a str,
-        event_namespace: &'a str,
-        data: &'a V,
-    ) -> Result<(), io::Error>
-    where
-        V: Serialize,
-    {
-        await!(self.emitter.emit_value(event_type, event_namespace, data))
     }
 
     /// Read all events since a given time

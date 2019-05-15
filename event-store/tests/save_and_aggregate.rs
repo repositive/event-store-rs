@@ -33,11 +33,11 @@ fn save_and_aggregate() {
             "save_and_aggregate".into()
         ))?;
 
-        let store = await!(SubscribableStore::new(
+        let store = SubscribableStore::new(
             store_adapter,
             cache_adapter,
             emitter_adapter
-        ))?;
+        )?;
 
         await!(forward(Delay::new(
             Instant::now() + Duration::from_millis(100)

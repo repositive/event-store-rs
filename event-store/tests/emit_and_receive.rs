@@ -21,31 +21,30 @@ fn emit_and_receive() {
 
         info!("Save and emit test");
 
-        let sender_pool = pg_create_random_db(Some("sender"));
-        let receiver_pool = pg_create_random_db(Some("receiver"));
+        let pool = pg_create_random_db(Some("emit_and_receive"));
         let addr = "amqp://localhost:5673";
 
-        let sender_store = await!(SubscribableStore::new(
-            await!(PgStoreAdapter::new(sender_pool.clone()))?,
-            await!(PgCacheAdapter::new(sender_pool.clone()))?,
+        let sender_store = SubscribableStore::new(
+            await!(PgStoreAdapter::new(pool.clone()))?,
+            await!(PgCacheAdapter::new(pool.clone()))?,
             await!(AmqpEmitterAdapter::new(
                 addr,
                 "test_exchange".into(),
                 "save_and_aggregate_send".into()
             ))?
-        ))?;
+        )?;
 
-        let receiver_store = await!(SubscribableStore::new(
-            await!(PgStoreAdapter::new(receiver_pool.clone()))?,
-            await!(PgCacheAdapter::new(receiver_pool.clone()))?,
+        let receiver_store = SubscribableStore::new(
+            await!(PgStoreAdapter::new(pool.clone()))?,
+            await!(PgCacheAdapter::new(pool.clone()))?,
             await!(AmqpEmitterAdapter::new(
                 addr,
                 "test_exchange".into(),
                 "save_and_aggregate_receive".into()
             ))?
-        ))?;
+        )?;
 
-        await!(receiver_store.subscribe::<TestEvent>(SubscribeOptions::default()))?;
+        await!(receiver_store.subscribe::<TestEvent>())?;
 
         // Give time for subscriber to settle
         await!(forward(Delay::new(

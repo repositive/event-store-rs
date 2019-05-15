@@ -105,11 +105,11 @@ async fn create_store(
         "_explorer".into()
     ))?;
 
-    await!(SubscribableStore::new(
+    SubscribableStore::new(
         store_adapter,
         cache_adapter,
         emitter_adapter
-    ))
+    )
 }
 
 async fn do_search(query: String, store: &SubscribableStore) -> Result<Vec<AnyEvent>, io::Error> {

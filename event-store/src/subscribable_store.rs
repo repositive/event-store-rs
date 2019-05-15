@@ -2,9 +2,7 @@ use crate::adapters::{AmqpEmitterAdapter, PgCacheAdapter, PgQuery, PgStoreAdapte
 use crate::aggregator::Aggregator;
 use crate::event::Event;
 use crate::event_handler::EventHandler;
-use crate::event_replay::EventReplayRequested;
 use crate::store::Store;
-use crate::subscribe_options::SubscribeOptions;
 use event_store_derive_internals::EventData;
 use event_store_derive_internals::Events;
 use log::info;
@@ -56,16 +54,8 @@ impl SubscribableStore {
         await!(self.inner_store.save(event))
     }
 
-    /// Save an event without emitting it
-    pub fn save_no_emit<'a, ED>(&'a self, event: &'a Event<ED>) -> SaveResult
-    where
-        ED: EventData + Debug,
-    {
-        self.inner_store.save_no_emit(event)
-    }
-
     /// Subscribe to incoming events matching the namespace and type in `ED`
-    pub async fn subscribe<'a, ED>(&'a self, options: SubscribeOptions) -> Result<(), io::Error>
+    pub async fn subscribe<'a, ED>(&'a self) -> Result<(), io::Error>
     where
         ED: EventHandler + Debug + Send,
     {
@@ -76,7 +66,7 @@ impl SubscribableStore {
 
         let inner_store = self.inner_store.clone();
 
-        await!(self.emitter.subscribe::<ED>(inner_store, options))
+        await!(self.emitter.subscribe::<ED>(inner_store))
     }
 
     // TODO: Can I do something clever with a trait impl here?
