@@ -150,7 +150,7 @@ fn impl_deserialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
     })
 }
 
-pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
+pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum, trait_bound: Ident) -> TokenStream {
     let item_ident = parsed.ident.clone().into_token_stream();
 
     let dummy_const = Ident::new(
@@ -180,7 +180,7 @@ pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenSt
             use serde::de::{Deserialize, Deserializer, IntoDeserializer};
             use serde::ser::{Serialize, Serializer, SerializeMap};
 
-            // impl #impl_generics event_store_derive_internals::Events for #item_ident #ty_generics {}
+            impl event_store_derive_internals::#trait_bound for #item_ident {}
 
             #ser
             #de

@@ -1,15 +1,9 @@
-extern crate serde;
+//! Event store internal types
 
-use serde::{de::DeserializeOwned, Serialize};
+#![deny(missing_docs)]
 
-/// Trait to be implemented by all domain events
-pub trait EventData: Serialize + DeserializeOwned {
-    fn event_namespace_and_type() -> &'static str;
+/// Trait implemented by any set of entity creation events
+pub trait EventStoreCreateEvents {}
 
-    fn event_namespace() -> &'static str;
-
-    fn event_type() -> &'static str;
-}
-
-/// Trait implemented on the events enum
-pub trait Events: Serialize + DeserializeOwned {}
+/// Trait implemented by any set of entity update events
+pub trait EventStoreUpdateEvents {}
