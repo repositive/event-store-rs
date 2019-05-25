@@ -16,8 +16,8 @@ fn expand_derive_namespace(parsed: &DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
-#[proc_macro_derive(Events, attributes(event_store, serde))]
-pub fn derive_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+#[proc_macro_derive(CreateEvents, attributes(event_store, serde))]
+pub fn derive_create_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: DeriveInput = syn::parse(input).unwrap();
 
     expand_derive_namespace(&input).into()
