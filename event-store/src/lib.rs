@@ -1,3 +1,4 @@
+mod event;
 mod event_store;
 
 pub use crate::event_store::EventStore;
