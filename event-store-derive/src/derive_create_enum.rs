@@ -61,6 +61,32 @@ fn get_enum_event_attributes<'a>(
     })
 }
 
+fn impl_serialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
+    let ident = &enum_attributes.ident;
+    let idents = repeat(ident);
+
+    let variant_idents = enum_attributes
+        .enum_body
+        .variants
+        .iter()
+        .map(|variant| variant.ident.clone());
+
+    Ok(quote! {
+        impl Serialize for #ident {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                match self {
+                    #(#idents::#variant_idents(evt) =>
+                        evt.serialize(serializer)
+                    ,)*
+                }
+            }
+        }
+    })
+}
+
 fn impl_deserialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
     let ident = &enum_attributes.ident;
     let idents = repeat(ident);
@@ -141,6 +167,7 @@ pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenSt
     //     .collect::<Result<Vec<VariantExt>, String>>()
     //     .unwrap();
 
+    let ser = impl_serialize(&enum_attributes).unwrap();
     let de = impl_deserialize(&enum_attributes).unwrap();
 
     quote! {
@@ -155,7 +182,7 @@ pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenSt
 
             // impl #impl_generics event_store_derive_internals::Events for #item_ident #ty_generics {}
 
-            // #ser
+            #ser
             #de
         };
     }

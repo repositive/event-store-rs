@@ -2,12 +2,12 @@ use event_store::{CreateEvents, Event, EventStore};
 use postgres::{Client, NoTls};
 use r2d2_postgres::PostgresConnectionManager;
 
-#[derive(serde_derive::Deserialize, Debug)]
+#[derive(serde_derive::Deserialize, serde_derive::Serialize, Debug)]
 struct ThingCreated {
     foo: String,
 }
 
-#[derive(serde_derive::Deserialize, Debug)]
+#[derive(serde_derive::Deserialize, serde_derive::Serialize, Debug)]
 struct ThingUpdated {
     bar: u32,
 }
@@ -55,6 +55,10 @@ fn main() {
     });
 
     let out: ExampleEvents = serde_json::from_value(input).unwrap();
+
+    let ser = serde_json::to_string(&out).unwrap();
+
+    println!("Ser {}", ser);
 
     println!(
         "Foo: {:?}",
