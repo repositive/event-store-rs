@@ -45,17 +45,50 @@ fn impl_serialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
         .iter()
         .map(|variant| variant.ident.clone());
 
+    let variant_idents_2 = variant_idents.clone();
+    let variant_idents_3 = variant_idents.clone();
+
+    let variant_types = enum_attributes
+        .enum_body
+        .variants
+        .iter()
+        .map(|variant| variant.fields.clone());
+
+    let ns = enum_attributes
+        .event_store_attributes
+        .event_namespace
+        .clone();
+    let entity_ty = enum_attributes.event_store_attributes.entity_type.clone();
+
     Ok(quote! {
         impl Serialize for #ident {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
                 S: Serializer,
             {
-                match self {
-                    #(#idents::#variant_idents(evt) =>
-                        evt.serialize(serializer)
-                    ,)*
+                #[derive(serde_derive::Serialize)]
+                #[serde(tag = "event_type")]
+                enum HelperVariants<'a> {
+                    #(#variant_idents(&'a #variant_types),)*
                 }
+
+                #[derive(serde_derive::Serialize)]
+                struct Helper<'a> {
+                    event_namespace: &'a str,
+                    entity_type: &'a str,
+                    #[serde(flatten)]
+                    variants: HelperVariants<'a>
+                }
+
+                Helper {
+                    event_namespace: #ns,
+                    entity_type: #entity_ty,
+                    variants: match self {
+                        #(#idents::#variant_idents_2(evt) =>
+                            HelperVariants::#variant_idents_3(evt)
+                        ,)*
+                    }
+                }.serialize(serializer)
             }
         }
     })
@@ -71,8 +104,8 @@ fn impl_deserialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
         .iter()
         .map(|variant| variant.ident.clone());
 
-    let variant_idents2 = variant_idents.clone();
-    let variant_idents3 = variant_idents.clone();
+    let variant_idents_2 = variant_idents.clone();
+    let variant_idents_3 = variant_idents.clone();
 
     let variant_types = enum_attributes
         .enum_body
@@ -115,7 +148,7 @@ fn impl_deserialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
                         Err(serde::de::Error::custom(format!("expected entity_type {}, got {}", #entity_ty, helper.entity_type)))
                     } else {
                         Ok(match helper.variants {
-                            #(HelperVariants::#variant_idents2(evt) => #idents::#variant_idents3(evt),)*
+                            #(HelperVariants::#variant_idents_2(evt) => #idents::#variant_idents_3(evt),)*
                         })
                     }
                 })
