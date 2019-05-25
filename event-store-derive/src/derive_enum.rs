@@ -5,31 +5,6 @@ use quote::{quote, ToTokens};
 use std::iter::repeat;
 use syn::{DataEnum, DeriveInput};
 
-// /// Get attributes as a nice struct from something like
-// // `#[event_store(event_namespace = "store", event_type = "ThingCreated", entity_type = "thing")]`
-// fn get_variant_event_attributes(variant: &Variant) -> Result<VariantExt, String> {
-//     // TODO: Validate there's only one event_store attr
-//     attributes_map(&variant.attrs)
-//         .and_then(|mut keys_values| {
-//             let out = VariantEventStoreAttributes {
-//                 event_type: keys_values
-//                     .remove(&String::from("event_type"))
-//                     .ok_or(format!(
-//                         "Failed to find event_type property on {}",
-//                         variant.ident
-//                     ))?,
-//                 event_namespace: keys_values.remove(&String::from("event_namespace")),
-//                 entity_type: keys_values.remove(&String::from("entity_type")),
-//             };
-
-//             Ok(out)
-//         })
-//         .map(|event_store_attributes| VariantExt {
-//             variant,
-//             event_store_attributes,
-//         })
-// }
-
 fn get_enum_event_attributes<'a>(
     parsed: &'a DeriveInput,
     enum_body: &'a DataEnum,
@@ -160,18 +135,10 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum, trait_bound: Iden
 
     let enum_attributes = get_enum_event_attributes(parsed, &enum_body).unwrap();
 
-    // let variant_attributes = enum_body
-    //     .variants
-    //     .iter()
-    //     .map(get_variant_event_attributes)
-    //     .collect::<Result<Vec<VariantExt>, String>>()
-    //     .unwrap();
-
     let ser = impl_serialize(&enum_attributes).unwrap();
     let de = impl_deserialize(&enum_attributes).unwrap();
 
     quote! {
-        // #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
         const #dummy_const: () = {
             extern crate serde;
             extern crate event_store_derive_internals;

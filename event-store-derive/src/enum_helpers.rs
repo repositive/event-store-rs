@@ -18,11 +18,6 @@ pub(crate) struct VariantEventStoreAttributes {
     pub entity_type: Option<String>,
 }
 
-// pub(crate) struct VariantExt<'a> {
-//     pub variant: &'a Variant,
-//     pub event_store_attributes: VariantEventStoreAttributes,
-// }
-
 pub(crate) struct EnumEventStoreAttributes {
     /// Event namespace like `accounts` or `organisations`
     pub event_namespace: String,

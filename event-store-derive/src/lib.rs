@@ -86,11 +86,3 @@ fn attributes_map(attrs: &Vec<Attribute>) -> Result<HashMap<String, String>, Str
             )),
         })
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
