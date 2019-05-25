@@ -1,91 +1,12 @@
-use crate::PROC_MACRO_NAME;
+use crate::attributes_map;
+use crate::enum_helpers::{
+    EnumEventStoreAttributes, EnumExt, VariantEventStoreAttributes, VariantExt,
+};
+
 use proc_macro2::{Ident, Span, TokenStream};
-use std::collections::HashMap;
-use std::iter::repeat;
-
 use quote::{quote, ToTokens};
-
-use syn::{Attribute, DataEnum, DeriveInput, Lit, Meta, NestedMeta, Variant};
-
-/// Attributes taken from `#[derive()]` statement on an enum variant
-#[derive(Default, Debug)]
-struct VariantEventStoreAttributes {
-    /// Event type like `ThingUpdated`
-    event_type: String,
-
-    /// Event namespace override from enum definition
-    ///
-    /// Unused
-    event_namespace: Option<String>,
-
-    /// Entity override from enum definition
-    ///
-    /// Unused
-    entity_type: Option<String>,
-}
-
-struct VariantExt<'a> {
-    variant: &'a Variant,
-    event_store_attributes: VariantEventStoreAttributes,
-}
-
-struct EnumEventStoreAttributes {
-    /// Event namespace like `accounts` or `organisations`
-    event_namespace: String,
-
-    /// Entity type like `user` or `organisation`
-    entity_type: String,
-}
-
-struct EnumExt<'a> {
-    ident: Ident,
-    enum_body: &'a DataEnum,
-    event_store_attributes: EnumEventStoreAttributes,
-}
-
-fn attributes_map(attrs: &Vec<Attribute>) -> Result<HashMap<String, String>, String> {
-    let ident = Ident::new(PROC_MACRO_NAME, Span::call_site());
-
-    attrs
-        .iter()
-        // Find only attributes called `event_store`
-        .find(|attr| attr.path.is_ident(ident.clone()))
-        .ok_or(format!(
-            "Failed to find attribute {} for {}",
-            PROC_MACRO_NAME, ident
-        ))
-        // Parse metadata
-        .and_then(|event_store_attr| event_store_attr.parse_meta().map_err(|e| e.to_string()))
-        // Get list of meta key/value paris
-        .and_then(|meta| match meta {
-            // Metadata must be a [list](https://docs.rs/syn/0.15.34/syn/enum.Meta.html#list)
-            Meta::List(meta_key_values) => {
-                meta_key_values
-                    .nested
-                    .iter()
-                    .map(|item| match item {
-                        // Metadata item in this list must be a `name = "value"` pair
-                        NestedMeta::Meta(Meta::NameValue(name_value)) => {
-                            let name = name_value.ident.to_string();
-
-                            // The value of this pair must be a string, as that's all that is
-                            // supported by event_store_derive right now.
-                            match &name_value.lit {
-                                Lit::Str(lit) => Ok((name, lit.value().clone())),
-                                _ => Err(format!("Value for property {} must be a string", name)),
-                            }
-                        }
-                        _ => Err(format!(
-                            "Attribute properties must be a list of key/value pairs"
-                        )),
-                    })
-                    .collect::<Result<HashMap<String, String>, String>>()
-            }
-            _ => Err(format!(
-                "Metadata must be a list like 'event_namespace = \"foo_bar\"'"
-            )),
-        })
-}
+use std::iter::repeat;
+use syn::{DataEnum, DeriveInput, Variant};
 
 /// Get attributes as a nice struct from something like
 // `#[event_store(event_namespace = "store", event_type = "ThingCreated", entity_type = "thing")]`
@@ -206,8 +127,6 @@ fn impl_deserialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
     })
 }
 
-// TODO: Different funcs for CreateEvents (enum) and ModifyEvents
-// TODO: Function for CreateEvents struct
 pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
     let item_ident = parsed.ident.clone().into_token_stream();
 
