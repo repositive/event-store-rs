@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 mod derive_enum;
 
-use crate::derive_enum::derive_enum;
+use crate::derive_enum::derive_create_enum;
 use syn::Data;
 use syn::DeriveInput;
 
@@ -11,7 +11,7 @@ const PROC_MACRO_NAME: &'static str = "event_store";
 
 fn expand_derive_namespace(parsed: &DeriveInput) -> proc_macro2::TokenStream {
     match parsed.data {
-        Data::Enum(ref body) => derive_enum(&parsed, &body),
+        Data::Enum(ref body) => derive_create_enum(&parsed, &body),
         _ => panic!("Namespace can only be derived on enums"),
     }
 }

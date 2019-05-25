@@ -16,9 +16,14 @@ struct VariantEventStoreAttributes {
     entity_type: Option<String>,
 }
 
+struct VariantExt<'a> {
+    variant: &'a Variant,
+    event_store_attributes: VariantEventStoreAttributes,
+}
+
 /// Get attributes as a nice struct from something like
 // `#[event_store(event_namespace = "store", event_type = "ThingCreated", entity_type = "thing")]`
-fn get_variant_event_attributes(variant: &Variant) -> Result<VariantEventStoreAttributes, String> {
+fn get_variant_event_attributes(variant: &Variant) -> Result<VariantExt, String> {
     let ident_match = Ident::new(PROC_MACRO_NAME, Span::call_site());
 
     // TODO: Validate there's only one event_store attr
@@ -68,14 +73,15 @@ fn get_variant_event_attributes(variant: &Variant) -> Result<VariantEventStoreAt
                 "Metadata must be a list like 'event_namespace = \"foo_bar\"'"
             )),
         })
+        .map(|event_store_attributes| VariantExt {
+            variant,
+            event_store_attributes,
+        })
 }
 
-struct VariantExt<'a> {
-    variant: &'a Variant,
-    event_store_attributes: VariantEventStoreAttributes,
-}
-
-pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
+// TODO: Different funcs for CreateEvents (enum) and ModifyEvents
+// TODO: Function for CreateEvents struct
+pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
     // let info = EnumInfo::new(&parsed, &enum_body);
     // let &EnumInfo { ref item_ident, .. } = &info;
 
@@ -89,19 +95,16 @@ pub fn derive_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
         Span::call_site(),
     );
 
+    // let enum_attributes = get_enum_event_attributes(&enum_body).unwrap();
+
     // let (impl_generics, ty_generics, _where_clause) = info.generics.split_for_impl();
 
     let variant_attributes = enum_body
         .variants
         .iter()
-        .map(|variant| {
-            get_variant_event_attributes(variant).map(|event_store_attributes| VariantExt {
-                variant,
-                event_store_attributes,
-            })
-        })
+        .map(get_variant_event_attributes)
         .collect::<Result<Vec<VariantExt>, String>>()
-        .expect("All enum variants must have an #[event_store(...)] attribute");
+        .unwrap();
 
     quote! {
         // #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
