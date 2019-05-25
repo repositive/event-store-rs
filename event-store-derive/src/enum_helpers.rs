@@ -1,5 +1,5 @@
 use proc_macro2::Ident;
-use syn::{DataEnum, Variant};
+use syn::DataEnum;
 
 /// Attributes taken from `#[derive()]` statement on an enum variant
 #[derive(Default, Debug)]
@@ -18,10 +18,10 @@ pub(crate) struct VariantEventStoreAttributes {
     pub entity_type: Option<String>,
 }
 
-pub(crate) struct VariantExt<'a> {
-    pub variant: &'a Variant,
-    pub event_store_attributes: VariantEventStoreAttributes,
-}
+// pub(crate) struct VariantExt<'a> {
+//     pub variant: &'a Variant,
+//     pub event_store_attributes: VariantEventStoreAttributes,
+// }
 
 pub(crate) struct EnumEventStoreAttributes {
     /// Event namespace like `accounts` or `organisations`

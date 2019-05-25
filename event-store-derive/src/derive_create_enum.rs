@@ -1,37 +1,34 @@
 use crate::attributes_map;
-use crate::enum_helpers::{
-    EnumEventStoreAttributes, EnumExt, VariantEventStoreAttributes, VariantExt,
-};
-
+use crate::enum_helpers::{EnumEventStoreAttributes, EnumExt};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use std::iter::repeat;
-use syn::{DataEnum, DeriveInput, Variant};
+use syn::{DataEnum, DeriveInput};
 
-/// Get attributes as a nice struct from something like
-// `#[event_store(event_namespace = "store", event_type = "ThingCreated", entity_type = "thing")]`
-fn get_variant_event_attributes(variant: &Variant) -> Result<VariantExt, String> {
-    // TODO: Validate there's only one event_store attr
-    attributes_map(&variant.attrs)
-        .and_then(|mut keys_values| {
-            let out = VariantEventStoreAttributes {
-                event_type: keys_values
-                    .remove(&String::from("event_type"))
-                    .ok_or(format!(
-                        "Failed to find event_type property on {}",
-                        variant.ident
-                    ))?,
-                event_namespace: keys_values.remove(&String::from("event_namespace")),
-                entity_type: keys_values.remove(&String::from("entity_type")),
-            };
+// /// Get attributes as a nice struct from something like
+// // `#[event_store(event_namespace = "store", event_type = "ThingCreated", entity_type = "thing")]`
+// fn get_variant_event_attributes(variant: &Variant) -> Result<VariantExt, String> {
+//     // TODO: Validate there's only one event_store attr
+//     attributes_map(&variant.attrs)
+//         .and_then(|mut keys_values| {
+//             let out = VariantEventStoreAttributes {
+//                 event_type: keys_values
+//                     .remove(&String::from("event_type"))
+//                     .ok_or(format!(
+//                         "Failed to find event_type property on {}",
+//                         variant.ident
+//                     ))?,
+//                 event_namespace: keys_values.remove(&String::from("event_namespace")),
+//                 entity_type: keys_values.remove(&String::from("entity_type")),
+//             };
 
-            Ok(out)
-        })
-        .map(|event_store_attributes| VariantExt {
-            variant,
-            event_store_attributes,
-        })
-}
+//             Ok(out)
+//         })
+//         .map(|event_store_attributes| VariantExt {
+//             variant,
+//             event_store_attributes,
+//         })
+// }
 
 fn get_enum_event_attributes<'a>(
     parsed: &'a DeriveInput,
@@ -97,13 +94,13 @@ fn impl_deserialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
             {
                 use serde::de::Error;
 
-                #[derive(serde_derive::Deserialize, Debug)]
+                #[derive(serde_derive::Deserialize)]
                 #[serde(tag = "event_type")]
                 enum HelperVariants {
                     #(#variant_idents(#variant_types),)*
                 }
 
-                #[derive(serde_derive::Deserialize, Debug)]
+                #[derive(serde_derive::Deserialize)]
                 struct Helper {
                     event_namespace: String,
                     entity_type: String,

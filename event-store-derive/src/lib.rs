@@ -3,11 +3,11 @@
 extern crate proc_macro;
 
 mod derive_create_enum;
-mod derive_create_struct;
+// mod derive_create_struct;
 mod enum_helpers;
 
 use crate::derive_create_enum::derive_create_enum;
-use crate::derive_create_struct::derive_create_struct;
+// use crate::derive_create_struct::derive_create_struct;
 use proc_macro2::{Ident, Span};
 use std::collections::HashMap;
 use syn::{Attribute, Data, DeriveInput, Lit, Meta, NestedMeta};
@@ -21,8 +21,8 @@ pub fn derive_create_events(input: proc_macro::TokenStream) -> proc_macro::Token
 
     match input.data {
         Data::Enum(ref body) => derive_create_enum(&input, &body),
-        Data::Struct(ref body) => derive_create_struct(&input, &body),
-        _ => panic!("Entity create events must be a struct or enum"),
+        // Data::Struct(ref body) => derive_create_struct(&input, &body),
+        _ => panic!("Entity create events must be an enum"),
     }
     .into()
 }
