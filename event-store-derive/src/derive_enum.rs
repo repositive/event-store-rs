@@ -1,6 +1,7 @@
 use crate::PROC_MACRO_NAME;
 use proc_macro2::{Ident, Span, TokenStream};
 use std::collections::HashMap;
+use std::iter::repeat;
 
 use quote::{quote, ToTokens};
 
@@ -116,7 +117,7 @@ fn get_enum_event_attributes<'a>(
     enum_body: &'a DataEnum,
 ) -> Result<EnumExt<'a>, String> {
     let ident = parsed.ident.clone();
-    let event_store_attribute = attributes_map(&parsed.attrs).and_then(|mut keys_values| {
+    let event_store_attributes = attributes_map(&parsed.attrs).and_then(|mut keys_values| {
         let attribs = EnumEventStoreAttributes {
             event_namespace: keys_values.remove(&String::from("event_namespace")).ok_or(
                 format!(
@@ -138,22 +139,76 @@ fn get_enum_event_attributes<'a>(
     Ok(EnumExt {
         ident,
         enum_body,
-        event_store_attributes: EnumEventStoreAttributes {
-            event_namespace: String::new(),
-            entity_type: String::new(),
-        },
+        event_store_attributes,
+    })
+}
+
+fn impl_deserialize(enum_attributes: &EnumExt) -> Result<TokenStream, String> {
+    let ident = &enum_attributes.ident;
+    let idents = repeat(ident);
+
+    let variant_idents = enum_attributes
+        .enum_body
+        .variants
+        .iter()
+        .map(|variant| variant.ident.clone());
+
+    let variant_idents2 = variant_idents.clone();
+    let variant_idents3 = variant_idents.clone();
+
+    let variant_types = enum_attributes
+        .enum_body
+        .variants
+        .iter()
+        .map(|variant| variant.fields.clone());
+
+    let ns = enum_attributes
+        .event_store_attributes
+        .event_namespace
+        .clone();
+    let entity_ty = enum_attributes.event_store_attributes.entity_type.clone();
+
+    Ok(quote! {
+        impl<'de> serde::de::Deserialize<'de> for #ident {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::de::Deserializer<'de>,
+            {
+                use serde::de::Error;
+
+                #[derive(serde_derive::Deserialize, Debug)]
+                #[serde(tag = "event_type")]
+                enum HelperVariants {
+                    #(#variant_idents(#variant_types),)*
+                }
+
+                #[derive(serde_derive::Deserialize, Debug)]
+                struct Helper {
+                    event_namespace: String,
+                    entity_type: String,
+                    #[serde(flatten)]
+                    variants: HelperVariants
+                }
+
+                Helper::deserialize(deserializer).and_then(|helper| {
+                    if helper.event_namespace != #ns {
+                        Err(serde::de::Error::custom(format!("expected event_namespace {}, got {}", #ns, helper.event_namespace)))
+                    } else if helper.entity_type != #entity_ty {
+                        Err(serde::de::Error::custom(format!("expected entity_type {}, got {}", #entity_ty, helper.entity_type)))
+                    } else {
+                        Ok(match helper.variants {
+                            #(HelperVariants::#variant_idents2(evt) => #idents::#variant_idents3(evt),)*
+                        })
+                    }
+                })
+            }
+        }
     })
 }
 
 // TODO: Different funcs for CreateEvents (enum) and ModifyEvents
 // TODO: Function for CreateEvents struct
 pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenStream {
-    // let info = EnumInfo::new(&parsed, &enum_body);
-    // let &EnumInfo { ref item_ident, .. } = &info;
-
-    // let ser = impl_serialize(&info);
-    // let de = impl_deserialize(&info);
-
     let item_ident = parsed.ident.clone().into_token_stream();
 
     let dummy_const = Ident::new(
@@ -163,29 +218,29 @@ pub fn derive_create_enum(parsed: &DeriveInput, enum_body: &DataEnum) -> TokenSt
 
     let enum_attributes = get_enum_event_attributes(parsed, &enum_body).unwrap();
 
-    // let (impl_generics, ty_generics, _where_clause) = info.generics.split_for_impl();
+    // let variant_attributes = enum_body
+    //     .variants
+    //     .iter()
+    //     .map(get_variant_event_attributes)
+    //     .collect::<Result<Vec<VariantExt>, String>>()
+    //     .unwrap();
 
-    let variant_attributes = enum_body
-        .variants
-        .iter()
-        .map(get_variant_event_attributes)
-        .collect::<Result<Vec<VariantExt>, String>>()
-        .unwrap();
+    let de = impl_deserialize(&enum_attributes).unwrap();
 
     quote! {
         // #[allow(non_upper_case_globals, unused_attributes, unused_imports)]
         const #dummy_const: () = {
-            // extern crate serde;
-            // extern crate event_store_derive_internals;
+            extern crate serde;
+            extern crate event_store_derive_internals;
 
-            // use serde::ser;
-            // use serde::de::{Deserialize, Deserializer, IntoDeserializer};
-            // use serde::ser::{Serialize, Serializer, SerializeMap};
+            use serde::ser;
+            use serde::de::{Deserialize, Deserializer, IntoDeserializer};
+            use serde::ser::{Serialize, Serializer, SerializeMap};
 
             // impl #impl_generics event_store_derive_internals::Events for #item_ident #ty_generics {}
 
             // #ser
-            // #de
+            #de
         };
     }
 }

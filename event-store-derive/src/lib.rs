@@ -1,3 +1,5 @@
+#![recursion_limit = "128"]
+
 extern crate proc_macro;
 
 mod derive_enum;
@@ -16,7 +18,7 @@ fn expand_derive_namespace(parsed: &DeriveInput) -> proc_macro2::TokenStream {
     }
 }
 
-#[proc_macro_derive(CreateEvents, attributes(event_store, serde))]
+#[proc_macro_derive(CreateEvents, attributes(event_store))]
 pub fn derive_create_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: DeriveInput = syn::parse(input).unwrap();
 

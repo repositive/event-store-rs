@@ -3,7 +3,7 @@ mod event_store;
 
 pub use crate::event::Event;
 pub use crate::event_store::EventStore;
-pub use event_store_derive::Events;
+pub use event_store_derive::CreateEvents;
 
 #[cfg(test)]
 mod tests {

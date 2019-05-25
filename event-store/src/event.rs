@@ -6,10 +6,7 @@ use uuid::Uuid;
 pub struct Event<D> {
     pub id: Uuid,
     pub sequence_number: u64,
-    // event_namespace: String,
-    // event_type: String,
     pub entity_id: Uuid,
-    // pub entity_type: ET,
     pub created_at: DateTime<Utc>,
     pub data: Option<D>,
     pub context: Context,
@@ -17,17 +14,17 @@ pub struct Event<D> {
 
 #[derive(serde_derive::Serialize, serde_derive::Deserialize, Debug, Clone)]
 pub struct Context {
-    subject_id: Uuid,
-    hostname: String,
-    username: String,
-    ip: Option<IpAddr>,
-    purge: Option<Purge>,
+    pub subject_id: Uuid,
+    pub hostname: String,
+    pub username: String,
+    pub ip: Option<IpAddr>,
+    pub purge: Option<Purge>,
 }
 
 #[derive(serde_derive::Serialize, serde_derive::Deserialize, Debug, Clone)]
 pub struct Purge {
-    purged_at: DateTime<Utc>,
-    hostname: String,
-    username: String,
-    ip: Option<IpAddr>,
+    pub purged_at: DateTime<Utc>,
+    pub hostname: String,
+    pub username: String,
+    pub ip: Option<IpAddr>,
 }
