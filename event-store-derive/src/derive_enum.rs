@@ -1,5 +1,4 @@
-use crate::attributes_map;
-use crate::enum_helpers::{EnumEventStoreAttributes, EnumExt};
+use crate::enum_helpers::{attributes_map, EnumEventStoreAttributes, EnumExt};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use std::iter::repeat;
