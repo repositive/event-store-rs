@@ -10,8 +10,7 @@ quote = "0.6.12"
 proc-macro2 = "0.4.30"
 serde = "1.0.91"
 serde_derive = "1.0.91"
-event-store-derive-internals = { path = "../event-store-derive-internals" }
+# event-store-derive-internals = { path = "../event-store-derive-internals" }
 
 [lib]
 proc-macro = true
-

@@ -3,13 +3,13 @@ use std::net::IpAddr;
 use uuid::Uuid;
 
 #[derive(serde_derive::Serialize, serde_derive::Deserialize, Debug, Clone)]
-pub struct Event<D, ET> {
+pub struct Event<D> {
     pub id: Uuid,
     pub sequence_number: u64,
     // event_namespace: String,
     // event_type: String,
     pub entity_id: Uuid,
-    pub entity_type: ET,
+    // pub entity_type: ET,
     pub created_at: DateTime<Utc>,
     pub data: Option<D>,
     pub context: Context,

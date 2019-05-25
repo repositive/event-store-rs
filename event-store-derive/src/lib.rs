@@ -1,37 +1,32 @@
-#![recursion_limit = "256"]
-
-#[macro_use]
-extern crate quote;
 extern crate proc_macro;
-extern crate proc_macro2;
-extern crate syn;
-
-use proc_macro::TokenStream;
-use syn::DeriveInput;
 
 mod derive_enum;
-mod derive_struct;
-mod ns;
 
+use crate::derive_enum::derive_enum;
+use syn::Data;
+use syn::DeriveInput;
+
+/// Name of attribute used in `#[derive()]` statements
 const PROC_MACRO_NAME: &'static str = "event_store";
 
+fn expand_derive_namespace(parsed: &DeriveInput) -> proc_macro2::TokenStream {
+    match parsed.data {
+        Data::Enum(ref body) => derive_enum(&parsed, &body),
+        _ => panic!("Namespace can only be derived on enums"),
+    }
+}
+
 #[proc_macro_derive(Events, attributes(event_store, serde))]
-pub fn derive_events(input: TokenStream) -> TokenStream {
+pub fn derive_events(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input: DeriveInput = syn::parse(input).unwrap();
 
-    ns::expand_derive_namespace(&input).into()
+    expand_derive_namespace(&input).into()
 }
 
-#[proc_macro_derive(EventData, attributes(event_store, serde))]
-pub fn derive_eventdata(input: TokenStream) -> TokenStream {
-    let input: DeriveInput = syn::parse(input).unwrap();
-
-    ns::expand_derive_namespace(&input).into()
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() {
+        assert_eq!(2 + 2, 4);
+    }
 }
-
-// // TODO: Use this by returning Result<>s from derive funcs
-// fn compile_error(message: String) -> proc_macro2::TokenStream {
-//     quote! {
-//         compile_error!(#message);
-//     }
-// }
