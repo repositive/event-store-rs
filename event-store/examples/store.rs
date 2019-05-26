@@ -1,6 +1,4 @@
-use event_store::{CreateEvents, Event, EventStore};
-use postgres::{Client, NoTls};
-use r2d2_postgres::PostgresConnectionManager;
+use event_store::{CreateEvents, Event};
 
 #[derive(serde_derive::Deserialize, serde_derive::Serialize, Debug)]
 struct ThingCreated {
@@ -18,12 +16,7 @@ struct ThingUpdated {
 #[derive(CreateEvents, Debug)]
 #[event_store(event_namespace = "some_ns", entity_type = "user")]
 enum ExampleEvents {
-    // TODO: Validate casing of attributes
-    // TODO: Determine event type from enum variant by default
-    #[event_store(event_type = "ThingCreated")]
     ThingCreated(Event<ThingCreated>),
-
-    #[event_store(event_type = "ThingUpdated")]
     ThingUpdated(Event<ThingUpdated>),
 }
 
