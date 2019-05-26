@@ -10,21 +10,12 @@ struct ThingUpdated {
     bar: u32,
 }
 
-// TODO: Support default namespace on enum
-// TODO: Support default entity type on enum
-// TODO: Support leaving out `event_type` attrib and gleaning it from `Event<D>`
 #[derive(CreateEvents, Debug)]
 #[event_store(event_namespace = "some_ns", entity_type = "user")]
 enum ExampleEvents {
     ThingCreated(Event<ThingCreated>),
     ThingUpdated(Event<ThingUpdated>),
 }
-
-// #[derive(CreateEvents, Debug)]
-// #[event_store(event_namespace = "another_ns", entity_type = "dumpster")]
-// struct FloobCreated {
-//     name: String,
-// }
 
 fn main() {
     println!("Example");
