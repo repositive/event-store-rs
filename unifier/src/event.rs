@@ -15,7 +15,7 @@ pub struct EventData {
     /// Legacy combined `type` field. Removed when saving into destination DB
     #[serde(skip_serializing)]
     #[serde(rename = "type")]
-    legacy_type: String,
+    legacy_type: Option<String>,
 }
 
 /// Serialize an optional subject so that a `None` value serializes to the empty object `{}`

@@ -22,6 +22,10 @@ struct Options {
     /// Truncate destination events table before inserting data
     #[structopt(long = "truncate-dest")]
     truncate_dest: bool,
+
+    /// Execute a copy from one events database into another
+    #[structopt(long = "copy")]
+    copy: bool,
 }
 
 fn collect_domain_events(
@@ -64,6 +68,48 @@ fn collect_domain_events(
     })
 }
 
+fn collect_store_events(connection: &ConfigConnection) -> Result<HashMap<Uuid, Event>, String> {
+    info!("Collecting all events from event-store DB",);
+
+    let mut conn = Client::connect(&format!("{}/event-store", connection.source_db_uri), NoTls)
+        .map_err(|e| e.to_string())?;
+
+    // NOTE: This query reformats dates to be RFC3339 compatible
+    conn.query(
+        r#"select
+            id,
+            data,
+            context || jsonb_build_object('time', to_timestamp(context->>'time', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')) as context
+        from events order by context->>'time' asc"#,
+        &[],
+    )
+    .map_err(|e| e.to_string())
+    .map(|result| {
+        let mut pb = ProgressBar::new(result.len() as u64);
+        pb.set_width(Some(100));
+        pb.message("Parsing event ");
+
+        info!("Collected {} events from event store", result.len());
+
+        result.iter().map(|row| {
+            let id: Uuid = row.get(0);
+            let data: serde_json::Value = row.get(1);
+            let context: serde_json::Value = row.get(2);
+
+            let data = serde_json::from_value(data).expect(&format!("Failed to parse event data for event ID {}", id));
+            let context = serde_json::from_value(context).expect(&format!("Failed to parse event context for event ID {} ", id));
+
+            pb.inc();
+
+            (id, Event {
+                id,
+                data,
+                context,
+            })
+        }).collect()
+    })
+}
+
 fn main() -> Result<(), String> {
     pretty_env_logger::init();
 
@@ -80,44 +126,54 @@ fn main() -> Result<(), String> {
 
     debug!("Connection {:?}", connection);
 
-    let mut collect_pb = ProgressBar::new(connection.domains.len() as u64);
-    collect_pb.set_width(Some(100));
-    collect_pb.message("Collecting events... ");
+    let all_events: HashMap<Uuid, Event> = if !args.copy {
+        let mut collect_pb = ProgressBar::new(connection.domains.len() as u64);
+        collect_pb.set_width(Some(100));
+        collect_pb.message("Collecting events... ");
 
-    let domain_events: Vec<Vec<Event>> = connection
-        .domains
-        .iter()
-        .map(|(domain, namespace)| {
-            collect_pb.message(&format!("Collecting {} ", domain));
-            collect_pb.inc();
+        let domain_events: Vec<Vec<Event>> = connection
+            .domains
+            .iter()
+            .map(|(domain, namespace)| {
+                collect_pb.message(&format!("Collecting {} ", domain));
+                collect_pb.inc();
 
-            collect_domain_events(domain, namespace, connection).unwrap()
-        })
-        .collect();
+                collect_domain_events(domain, namespace, connection).unwrap()
+            })
+            .collect();
 
-    let domain_events_sum: usize = domain_events.iter().map(|events| events.len()).sum();
+        let domain_events_sum: usize = domain_events.iter().map(|events| events.len()).sum();
 
-    debug!("Collected total {} events", domain_events_sum);
+        debug!("Collected total {} events", domain_events_sum);
 
-    collect_pb.finish_println(&format!("Collected total {} events", domain_events_sum));
+        collect_pb.finish_println(&format!("Collected total {} events", domain_events_sum));
 
-    let all_events: HashMap<Uuid, Event> = domain_events
-        .into_iter()
-        .flat_map(|events| events.into_iter().map(|event| (event.id, event)))
-        .collect();
+        let all_events: HashMap<Uuid, Event> = domain_events
+            .into_iter()
+            .flat_map(|events| events.into_iter().map(|event| (event.id, event)))
+            .collect();
 
-    if all_events.len() != domain_events_sum {
-        error!("Unique list of events is not the same length as all collected events");
-        error!(
-            "Expected all events {} to equal domain events {}",
-            all_events.len(),
-            domain_events_sum
-        );
+        if all_events.len() != domain_events_sum {
+            error!("Unique list of events is not the same length as all collected events");
+            error!(
+                "Expected all events {} to equal domain events {}",
+                all_events.len(),
+                domain_events_sum
+            );
 
-        return Err(String::from("Events are not properly unique"));
-    }
+            return Err(String::from("Events are not properly unique"));
+        }
+
+        all_events
+    } else {
+        println!("Collecting all events from event_store DB...");
+
+        collect_store_events(&connection)?
+    };
 
     let all_events_len = all_events.len();
+
+    println!("Collected {} events", all_events_len);
 
     let mut dest_connection =
         Client::connect(&connection.dest_db_uri.clone(), NoTls).map_err(|e| e.to_string())?;
