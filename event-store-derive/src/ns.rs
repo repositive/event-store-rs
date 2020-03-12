@@ -3,7 +3,7 @@ use crate::derive_struct::derive_struct;
 use crate::PROC_MACRO_NAME;
 use proc_macro2::{Ident, Span, TokenStream, TokenTree};
 use quote::ToTokens;
-use quote::__rt::TokenTree::Group;
+use quote::__private::TokenTree::Group;
 use std::string::ToString;
 use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, Fields, FieldsNamed, Generics};
 
