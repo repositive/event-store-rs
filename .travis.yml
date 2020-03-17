@@ -3,7 +3,7 @@ language: rust
 rust:
   - stable
   - beta
-  - nightly-2019-05-08
+  - 1.37
 sudo: required
 
 addons:
