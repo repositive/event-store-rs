@@ -18,7 +18,7 @@ event-store-derive-internals = { git = "https://github.com/repositive/event-stor
 
 Currently requires Rust Nightly. Install it with `rustup toolchain add nightly`.
 
-Run tests with `cargo +nightly test`.
+Run tests using `cargo +nightly test`.
 
 ## Documentation
 
